@@ -23,8 +23,9 @@ module "infra_vm" {
   ssh_public_keys    = var.ssh_public_key
   tailscale_auth_key = local.tailscale_auth_key
 
-  ip_address = "192.168.0.20/24"
-  gateway    = "192.168.0.1"
+  ip_address  = "192.168.0.2/24"
+  gateway     = "192.168.0.1"
+  dns_servers = ["192.168.0.1"] # use Eero during bootstrap; switch to 192.168.0.2 after AdGuard is up
 
   tags = ["nuc", "infra", "docker"]
 

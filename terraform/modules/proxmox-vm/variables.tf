@@ -58,7 +58,7 @@ variable "gateway" {
 variable "dns_servers" {
   description = "List of DNS server IPs"
   type        = list(string)
-  default     = ["192.168.0.1"]
+  default     = ["192.168.0.2"] # AdGuard Home on nuc-infra
 }
 
 variable "ssh_public_keys" {
