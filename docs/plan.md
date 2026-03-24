@@ -48,157 +48,13 @@ Repo will contain:
 
 ---
 
-# 3. Hardware Inventory
-
-## Compute Nodes
-
-### Anton
-
-Role: Main compute node
-
-- Hostname: `anton`
-- CPU: i5-12600KF
-- GPU: RTX 3060
-- RAM: 128GB
-- OS: Proxmox
-
-Storage:
-
-- Boot: 500GB SATA SSD
-- NVMe: 2x 2TB
-
-Planned usage:
-
-- GPU workloads
-- VMs
-- AI / ML experiments
-- Development environments
-
-Notes:
-
-____________________________
-
-
----
-
-### NUC (Infra Node)
-
-Role: Always-on infrastructure host
-
-- Hostname: `________`
-- CPU: i3-8109U
-- RAM: 16GB
-- OS: Proxmox
-
-Storage:
-
-- Boot: 256GB NVMe
-- SSD: 1TB SATA
-
-Planned usage:
-
-- DNS
-- Reverse proxy
-- Automation
-- Monitoring
-
-Notes:
-
-____________________________
-
-
----
-
-## Storage Systems
-
-### Storinator
-
-Role: Primary NAS
-
-- Hostname: `storinator`
-- OS: TrueNAS
-- CPU: Ryzen 7 5825U
-- RAM: 32GB
-
-Storage:
-
-- Boot: 256GB SSD
-- HDD: 4x 8TB
-- SSD: 2x 2TB
-
-Responsibilities:
-
-- Primary storage
-- Backups
-- Terraform state storage
-- Media storage
-- VM backups
-
-Notes:
-
-____________________________
-
-
----
-
-### Gringotts
-
-Role: Offsite backup
-
-- Hostname: `gringotts`
-- OS: TrueNAS
-- CPU: i7-6700K
-- RAM: 32GB
-
-Storage:
-
-- Boot: 256GB NVMe
-- HDD: 4x 6TB
-- NVMe: 2x 2TB
-
-Responsibilities:
-
-- Replicated backups
-- Disaster recovery
-
-Connection:
-
-- Tailscale
-- ZFS replication
-
-Notes:
-
-____________________________
-
-
----
-
-### Orange Pi Zero 3
-
-Role: UPS monitoring
-
-- Hostname: `________`
-
-Responsibilities:
-
-- NUT server
-- UPS monitoring
-- Power shutdown coordination
-
-Notes:
-
-____________________________
-
-
----
-
-# 4. Network Design
+# 3. Network Design
 
 ## Local Network
 
 Router:
 
-________________________
+192.168.4.1 (Eero)
 
 DHCP:
 
@@ -224,17 +80,17 @@ Access will be provided via:
 
 Nodes joining Tailscale:
 
-- __________________________________
-- __________________________________
+- All physical nodes (Anton, NUC, Storinator, Gringotts, Orange Pi)
+- All VMs (provisioned automatically via Terraform cloud-init)
 
 ACL strategy:
 
-____________________________
+All nodes and VMs can communicate freely with each other. No segmentation for now.
 
 
 ---
 
-# 5. Storage Architecture
+# 4. Storage Architecture
 
 Primary NAS: **Storinator**
 
@@ -254,28 +110,29 @@ Storinator → Gringotts
 
 Frequency:
 
-________________________
+Weekly
 
 
 ---
 
-# 6. Proxmox Architecture
+# 5. Proxmox Architecture
 
 ## Cluster Layout
 
-| Node | Role |
-|-----|-----|
-| Anton | Compute |
-| NUC | Infrastructure |
+| Node | Role | Status |
+|-----|-----|-----|
+| Anton | Compute (GPU workloads, permanent Ollama host) | Active |
+| NUC | Always-on infrastructure | Active |
+| Services node (tbd) | Services host (takes over from Anton when built) | Planned |
 
 Cluster decision:
 
-[ ] Single node per host  
-[ ] Full Proxmox cluster
+[ ] Single node per host
+[x] Full Proxmox cluster
 
 Notes:
 
-____________________________
+Clustering is for single-pane management only. No HA or live migration.
 
 
 ---
@@ -291,5 +148,75 @@ Base OS:
 
 - Ubuntu Server
 
-VM provisioning flow:
+
+---
+
+## VM Layout
+
+### NUC (always-on infrastructure)
+
+| Service | Notes |
+|---------|-------|
+| AdGuard Home | DNS + ad blocking |
+| Tailscale exit node | VPN exit node for remote access |
+| Reverse proxy | Traefik or Caddy |
+| Home Assistant | Home automation |
+| Obsidian LiveSync | CouchDB-based sync for Obsidian vault (laptop + phone) |
+| Homepage / dashboard | Service dashboard |
+
+### Anton (compute — GPU workloads)
+
+| Service | Permanent? | Notes |
+|---------|-----------|-------|
+| Ollama | Yes | GPU inference via RTX 3060; stays on Anton permanently |
+| OpenClaw | No — migrate to services node when built | Personal AI assistant gateway |
+| n8n | No — migrate to services node when built | Automation workflows |
+| Jellyfin | No — migrate to services node when built | Media server; GPU transcoding |
+| Servarr stack | No — migrate to services node when built | Radarr, Sonarr, Prowlarr, etc. |
+| PhotoPrism | No — migrate to services node when built | Photo archive and browsing |
+| Calibre | No — migrate to services node when built | Ebook server |
+| LGTM monitoring | No — migrate to services node when built | Loki, Grafana, Tempo, Mimir |
+
+### Services node (planned — tbd nickname)
+
+Takes over all non-permanent services from Anton when built.
+
+| Service | Notes |
+|---------|-------|
+| Jellyfin | GPU transcoding via P2000 (if installed) |
+| Servarr stack | Radarr, Sonarr, Prowlarr, etc. |
+| PhotoPrism | Photo archive and browsing |
+| Calibre | Ebook server |
+| OpenClaw | Personal AI assistant gateway |
+| n8n | Automation workflows |
+| LGTM monitoring | Loki, Grafana, Tempo, Mimir |
+
+Migration from Anton is designed to be trivial: all persistent data lives on Storinator NAS, so services can be repointed by redeploying Terraform with the new node target.
+
+
+---
+
+## Terraform State Backend
+
+State stored on Storinator in the `terraform-state` dataset.
+
+Backend type:
+
+MinIO (S3-compatible) — hosted as a VM/container, backed by the `terraform-state` dataset on Storinator via NFS
+
+Notes:
+
+Terraform uses the `s3` backend pointed at the MinIO instance. MinIO VM lives on NUC (always-on).
+
+
+---
+
+## UPS / NUT Integration
+
+UPS covers: Anton, Storinator
+
+NUT server runs on: Orange Pi Zero 3
+
+NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
+
 

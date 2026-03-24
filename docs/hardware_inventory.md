@@ -39,8 +39,19 @@ What hardware do I own that is part of my homelab?
     * CPU: i7-6700K
     * RAM: 32GB DDR4
     * Boot drive: 256GB NVMe SSD
-    * HDD: 4x 6TB
+    * HDD: 4x 8TB
     * NVMe storage: 2x 2TB NVMe
+
+* Custom Build (planned)
+    * Nickname: tbd
+    * Role: Services node
+    * OS: Proxmox (planned)
+    * CPU: Ryzen 7 3700x
+    * RAM: 48GB DDR4
+    * GPU: Nvidia Quadro P2000 (optional, for transcoding)
+    * Boot drive: tbd (small SSD)
+    * NVMe storage: 2TB NVMe SSD
+    * Status: Not yet built
 
 * Orange Pi Zero 3
     * Nickname: tbd
