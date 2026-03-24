@@ -64,5 +64,5 @@ What hardware do I own that is part of my homelab?
 * 2.5g unmanaged switch
 
 ## Power
-* UPS covers anton, storinator
+* UPS covers: anton, storinator, orange pi (orange pi must be on UPS to act as NUT server)
 
