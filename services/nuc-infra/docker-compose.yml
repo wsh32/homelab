@@ -1,0 +1,141 @@
+name: nuc-infra
+
+# NUC infra VM — always-on infrastructure services.
+# All persistent data mounts to Storinator via NFS at /mnt/nas.
+# Secrets injected via Infisical (see .env populated by infisical-agent or CI).
+
+services:
+
+  # ── Reverse proxy ────────────────────────────────────────────────────────────
+  traefik:
+    image: traefik:v3
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_data:/etc/traefik
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedByDefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/etc/traefik/acme.json
+    labels:
+      - traefik.enable=true
+
+  # ── DNS ───────────────────────────────────────────────────────────────────────
+  adguard:
+    image: adguard/adguardhome:latest
+    container_name: adguard
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "3000:3000/tcp" # initial setup UI
+    volumes:
+      - adguard_work:/opt/adguardhome/work
+      - adguard_conf:/opt/adguardhome/conf
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.adguard.rule=Host(`adguard.home`)
+      - traefik.http.routers.adguard.entrypoints=websecure
+      - traefik.http.services.adguard.loadbalancer.server.port=80
+
+  # ── Home automation ──────────────────────────────────────────────────────────
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    restart: unless-stopped
+    network_mode: host # required for mDNS/device discovery
+    volumes:
+      - /mnt/nas/docker/homeassistant:/config
+    environment:
+      - TZ=America/Los_Angeles
+
+  # ── Secret management ────────────────────────────────────────────────────────
+  infisical:
+    image: infisical/infisical:latest
+    container_name: infisical
+    restart: unless-stopped
+    environment:
+      - ENCRYPTION_KEY=${INFISICAL_ENCRYPTION_KEY}
+      - AUTH_SECRET=${INFISICAL_AUTH_SECRET}
+      - MONGO_URL=mongodb://infisical_mongo:27017/infisical
+      - REDIS_URL=redis://infisical_redis:6379
+    depends_on:
+      - infisical_mongo
+      - infisical_redis
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.infisical.rule=Host(`infisical.home`)
+      - traefik.http.routers.infisical.entrypoints=websecure
+      - traefik.http.services.infisical.loadbalancer.server.port=8080
+
+  infisical_mongo:
+    image: mongo:6
+    container_name: infisical_mongo
+    restart: unless-stopped
+    volumes:
+      - infisical_mongo_data:/data/db
+
+  infisical_redis:
+    image: redis:7-alpine
+    container_name: infisical_redis
+    restart: unless-stopped
+
+  # ── Password manager ─────────────────────────────────────────────────────────
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    volumes:
+      - /mnt/nas/docker/vaultwarden:/data
+    environment:
+      - DOMAIN=https://vault.home
+      - SIGNUPS_ALLOWED=false
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.vaultwarden.rule=Host(`vault.home`)
+      - traefik.http.routers.vaultwarden.entrypoints=websecure
+      - traefik.http.services.vaultwarden.loadbalancer.server.port=80
+
+  # ── Obsidian sync ─────────────────────────────────────────────────────────────
+  obsidian_livesync:
+    image: couchdb:3
+    container_name: obsidian_livesync
+    restart: unless-stopped
+    volumes:
+      - /mnt/nas/docker/obsidian-livesync:/opt/couchdb/data
+    environment:
+      - COUCHDB_USER=${COUCHDB_USER}
+      - COUCHDB_PASSWORD=${COUCHDB_PASSWORD}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.obsidian.rule=Host(`obsidian.home`)
+      - traefik.http.routers.obsidian.entrypoints=websecure
+      - traefik.http.services.obsidian.loadbalancer.server.port=5984
+
+  # ── Dashboard ─────────────────────────────────────────────────────────────────
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    restart: unless-stopped
+    volumes:
+      - /mnt/nas/docker/homepage:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.homepage.rule=Host(`home.home`)
+      - traefik.http.routers.homepage.entrypoints=websecure
+      - traefik.http.services.homepage.loadbalancer.server.port=3000
+
+volumes:
+  traefik_data:
+  adguard_work:
+  adguard_conf:
+  infisical_mongo_data:

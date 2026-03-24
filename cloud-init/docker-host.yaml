@@ -1,0 +1,31 @@
+#cloud-config
+# Docker host cloud-init — extends base.yaml for VMs running Docker Compose services.
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - qemu-guest-agent
+  - curl
+  - vim
+  - htop
+  - unattended-upgrades
+  - ca-certificates
+  - gnupg
+  - nfs-common
+
+runcmd:
+  - systemctl enable --now qemu-guest-agent
+  # Install Tailscale
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  # Install Docker
+  - curl -fsSL https://get.docker.com | sh
+  - usermod -aG docker ubuntu
+  - systemctl enable --now docker
+
+timezone: America/Los_Angeles
+
+ntp:
+  enabled: true
+  servers:
+    - time.cloudflare.com
