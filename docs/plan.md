@@ -54,11 +54,11 @@ Repo will contain:
 
 Router:
 
-192.168.4.1 (Eero)
+192.168.0.1 (Eero)
 
 DHCP:
 
-________________________
+192.168.0.100 – 192.168.0.254 (Eero managed)
 
 Reserved IPs:
 

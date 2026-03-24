@@ -44,7 +44,7 @@ variable "template_name" {
 }
 
 variable "ip_address" {
-  description = "Static IP address in CIDR notation (e.g. '192.168.4.10/24'). Leave empty for DHCP."
+  description = "Static IP address in CIDR notation (e.g. '192.168.0.10/24'). Leave empty for DHCP."
   type        = string
   default     = ""
 }
@@ -52,13 +52,13 @@ variable "ip_address" {
 variable "gateway" {
   description = "Default gateway IP"
   type        = string
-  default     = "192.168.4.1"
+  default     = "192.168.0.1"
 }
 
 variable "dns_servers" {
   description = "List of DNS server IPs"
   type        = list(string)
-  default     = ["192.168.4.1"]
+  default     = ["192.168.0.1"]
 }
 
 variable "ssh_public_keys" {

@@ -11,7 +11,7 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
 - **Terraform provider**: `bpg/proxmox` (not `telmate/proxmox`)
 - **Secret references**: never hardcode secrets. All secrets come from Infisical via the `infisical_secrets` data source. Use `var.*` for provider credentials (passed via `terraform.tfvars`, gitignored).
 - **VM IDs**: NUC VMs use 200–299, Anton VMs use 100–199. Reserve 300+ for the services node.
-- **IP addresses**: NUC VMs use 192.168.4.20–29, Anton VMs use 192.168.4.10–19.
+- **IP addresses**: NUC VMs use 192.168.0.20–29, Anton VMs use 192.168.0.10–19.
 - **Docker Compose**: persistent data always mounts to `/mnt/nas/<dataset>/<service>` (Storinator NFS). Never use named volumes for stateful data — it must survive VM recreation.
 - **Traefik routing**: every service gets a `traefik.http.routers.<name>.rule=Host('<name>.home')` label. Use `websecure` entrypoint with the `letsencrypt` cert resolver.
 

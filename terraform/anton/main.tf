@@ -25,8 +25,8 @@ module "ollama_vm" {
   ssh_public_keys    = var.ssh_public_key
   tailscale_auth_key = local.tailscale_auth_key
 
-  ip_address = "192.168.4.10/24"
-  gateway    = "192.168.4.1"
+  ip_address = "192.168.0.10/24"
+  gateway    = "192.168.0.1"
 
   tags = ["anton", "ollama", "gpu"]
 }
@@ -45,8 +45,8 @@ module "services_vm" {
   ssh_public_keys    = var.ssh_public_key
   tailscale_auth_key = local.tailscale_auth_key
 
-  ip_address = "192.168.4.11/24"
-  gateway    = "192.168.4.1"
+  ip_address = "192.168.0.11/24"
+  gateway    = "192.168.0.1"
 
   tags = ["anton", "services", "docker"]
 

@@ -1,11 +1,11 @@
 # Copy to terraform.tfvars and fill in values.
 # Never commit terraform.tfvars — it contains secrets.
 
-proxmox_endpoint = "https://192.168.4.x:8006"
+proxmox_endpoint = "https://192.168.0.x:8006"
 proxmox_username = "terraform@pve"
 proxmox_password = "CHANGE_ME"
 
-infisical_host          = "http://192.168.4.20:8080"
+infisical_host          = "http://192.168.0.20:8080"
 infisical_client_id     = "CHANGE_ME"
 infisical_client_secret = "CHANGE_ME"
 infisical_workspace_id  = "CHANGE_ME"

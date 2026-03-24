@@ -23,8 +23,8 @@ module "infra_vm" {
   ssh_public_keys    = var.ssh_public_key
   tailscale_auth_key = local.tailscale_auth_key
 
-  ip_address = "192.168.4.20/24"
-  gateway    = "192.168.4.1"
+  ip_address = "192.168.0.20/24"
+  gateway    = "192.168.0.1"
 
   tags = ["nuc", "infra", "docker"]
 
@@ -45,8 +45,8 @@ module "minio_vm" {
   ssh_public_keys    = var.ssh_public_key
   tailscale_auth_key = local.tailscale_auth_key
 
-  ip_address = "192.168.4.21/24"
-  gateway    = "192.168.4.1"
+  ip_address = "192.168.0.21/24"
+  gateway    = "192.168.0.1"
 
   tags = ["nuc", "minio", "storage"]
 }
