@@ -30,6 +30,11 @@ variable "infisical_client_secret" {
   sensitive   = true
 }
 
+variable "infisical_workspace_id" {
+  description = "Infisical workspace/project ID"
+  type        = string
+}
+
 variable "ssh_public_key" {
   description = "SSH public key to inject into all VMs"
   type        = string

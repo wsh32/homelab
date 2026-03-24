@@ -62,12 +62,19 @@ DHCP:
 
 Reserved IPs:
 
-| Device | Hostname | IP |
-|------|------|------|
-| Anton | | |
-| NUC | | |
-| Storinator | | |
-| Gringotts | | |
+Physical nodes get DHCP reservations in the Eero app. VMs get static IPs configured via cloud-init (outside the DHCP range).
+
+| Device | Hostname | IP | Notes |
+|------|------|------|------|
+| Anton | anton | 192.168.0.2 | Eero DHCP reservation |
+| NUC | nuc | 192.168.0.3 | Eero DHCP reservation |
+| Storinator | storinator | 192.168.0.4 | Eero DHCP reservation |
+| Gringotts | gringotts | 192.168.0.5 | Eero DHCP reservation |
+| Orange Pi | orangepi | 192.168.0.6 | Eero DHCP reservation |
+| nuc-infra VM | nuc-infra | 192.168.0.20 | Static (Terraform) |
+| nuc-minio VM | nuc-minio | 192.168.0.21 | Static (Terraform) |
+| anton-ollama VM | anton-ollama | 192.168.0.10 | Static (Terraform) |
+| anton-services VM | anton-services | 192.168.0.11 | Static (Terraform) |
 
 
 ---
