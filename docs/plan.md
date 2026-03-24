@@ -163,6 +163,8 @@ Base OS:
 | Home Assistant | Home automation |
 | Obsidian LiveSync | CouchDB-based sync for Obsidian vault (laptop + phone) |
 | Homepage / dashboard | Service dashboard |
+| Infisical | Secret management for Terraform and services |
+| Vaultwarden | Personal password manager (Bitwarden-compatible) |
 
 ### Anton (compute — GPU workloads)
 
@@ -202,12 +204,30 @@ State stored on Storinator in the `terraform-state` dataset.
 
 Backend type:
 
-MinIO (S3-compatible) — hosted as a VM/container, backed by the `terraform-state` dataset on Storinator via NFS
+MinIO (S3-compatible, hosted on Storinator)
 
 Notes:
 
-Terraform uses the `s3` backend pointed at the MinIO instance. MinIO VM lives on NUC (always-on).
+- MinIO runs as a Docker container on Storinator, backed by the `terraform-state` dataset
+- Exposes S3 API on port 9000
+- Accessible from any Tailscale node
+- Also serves as S3-compatible object storage for other services (Loki, etc.)
 
+
+---
+
+## Secret Storage
+
+Tool: **Infisical** (self-hosted)
+
+Hosted on: NUC
+
+Personal password manager: **Vaultwarden** (Bitwarden-compatible, also on NUC)
+
+Usage:
+- Terraform uses the Infisical provider to inject secrets at plan/apply time
+- Docker services pull secrets via Infisical's Docker integration or env injection
+- Secrets never committed to Git in plaintext
 
 ---
 
