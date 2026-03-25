@@ -428,3 +428,125 @@ NUT server runs on: Orange Pi Zero 3 (must be on UPS circuit to send shutdown si
 NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
 
 
+---
+
+# 6. Open Issues for Review
+
+## Terraform code doesn't match the plan
+
+The plan dropped MinIO (state is now NFS-local) and split the NUC into three VMs
+(dns, infisical, haos), but the scaffolded Terraform code still has `nuc-infra` and
+`minio_vm`. The Docker Compose files were also written for the old single-VM
+architecture. Everything needs to be reconciled before any `terraform apply`.
+
+>
+
+---
+
+## HAOS can't be provisioned with cloud-init
+
+Home Assistant OS is a purpose-built distro distributed as a `.qcow2` image with no
+cloud-init support. The shared `proxmox-vm` Terraform module (clone Ubuntu template +
+cloud-init) won't work for it. Options:
+
+- A separate Terraform resource that imports the HAOS disk image directly
+- Provision manually and import into Terraform state after the fact
+
+>
+
+---
+
+## No reverse proxy on NUC
+
+Infisical, Vaultwarden, and Obsidian LiveSync all need TLS. Traefik was dropped from
+NUC when the architecture split into separate VMs. Currently no reverse proxy exists
+for NUC-hosted services. Options:
+
+- Add Traefik as a container inside the Infisical VM
+- Add a dedicated NUC reverse proxy VM (uses more RAM)
+- Expose services on raw ports with no TLS (not recommended)
+
+>
+
+---
+
+## Vaultwarden + Infisical databases on NFS with soft mounts
+
+Vaultwarden (SQLite) and Infisical (MongoDB) data is stored on Storinator via
+`soft,timeo=30` NFS mounts. SQLite and MongoDB are not designed to handle
+mid-write NFS interruptions gracefully — a brief Storinator outage during a write
+can corrupt the database. This is especially bad for a password manager and secret
+store. Options:
+
+- Store databases on local VM disk; back up to NFS (or Proxmox vzdump handles it)
+- Accept the risk; rely on daily Proxmox VM backups for recovery
+
+>
+
+---
+
+## Bootstrap sequence gap — services start before Infisical is seeded
+
+`terraform apply` (step 8) provisions VMs and cloud-init starts Docker Compose.
+Infisical seeding (step 9) happens after. On first boot, any service that pulls
+secrets from Infisical at startup will fail because Infisical has no secrets yet.
+Options:
+
+- Add startup retry / health-check loops to Docker Compose so services wait for
+  Infisical to be seeded
+- Start services manually after seeding (don't auto-start on first boot)
+- Pre-seed Infisical via the API as part of `terraform apply` using a Terraform
+  resource (removes the manual step entirely)
+
+>
+
+---
+
+## NUC RAM is basically full
+
+DNS VM (2GB) + HAOS VM (4GB) + Infisical VM (6GB) + Proxmox host (2GB) = 14GB of
+16GB used. Two gigabytes of headroom on the machine running DNS, secret store, and
+home automation. HAOS can spike above its baseline. One OOM event takes down DNS
+or the password manager. Options:
+
+- Accept the constraint; monitor closely
+- Trim Infisical VM to 4GB (MongoDB is the heavy component; tune it)
+- Move Vaultwarden off the Infisical VM onto another node
+
+>
+
+---
+
+## Tailscale exit node and DNS on the same VM
+
+The DNS VM runs both AdGuard and the Tailscale exit node. A reboot for a Tailscale
+update or kernel patch takes down DNS at the same time as the exit node. These are
+independent concerns. Options:
+
+- Accept the coupling for now; revisit when NUC RAM allows
+- Move Tailscale exit node to its own VM (requires more NUC RAM)
+- Run Tailscale exit node on Anton instead (always-on is less guaranteed)
+
+>
+
+---
+
+## Ansible directory doesn't exist
+
+The plan references `ansible/tailscale.yml` and `ansible/maintenance.yml` in the
+bootstrap steps, but neither file exists. Step 5 of the bootstrap is not currently
+executable.
+
+>
+
+---
+
+## Minor inconsistencies to clean up
+
+- Services node notes still list "Loki, Grafana, Tempo, Mimir" — Mimir/Tempo were
+  dropped in favour of Prometheus + Grafana + Loki
+- OpenClaw is listed as permanent on Anton but also appears in the services node
+  migration list
+
+>
+
