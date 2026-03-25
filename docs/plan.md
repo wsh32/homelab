@@ -192,14 +192,10 @@ Clustering is for single-pane management only. No HA or live migration.
 8. **`terraform apply`** - provisions all VMs; cloud-init handles Tailscale auth,
    Docker install, and service startup on each VM
 
-### Post-apply (manual, one-time)
-
-9. **Seed Infisical** - open Infisical UI, create admin account, enter all
-   service secrets; services that depend on secrets will start once seeded
-
 After step 8, all further infrastructure changes are managed via Terraform.
-Infisical seeding (step 9) only needs to be repeated if the `docker/infisical`
-NFS dataset is lost - the data persists across VM recreation.
+Infisical is seeded automatically during `terraform apply` via the Infisical
+Terraform provider — no manual seeding step required. All service secrets are
+defined in `terraform.tfvars` and written to Infisical as part of provisioning.
 
 ---
 
@@ -275,13 +271,18 @@ Proxmox vzdump backs up VMs to Storinator `backups` dataset via NFS.
 | Service | Notes |
 |---------|-------|
 | AdGuard Home | DNS + ad blocking; secondary DNS 8.8.8.8 configured as fallback |
-| Tailscale exit node | VPN exit node for remote access |
+| Tailscale exit node (primary) | VPN exit node; coupled with DNS VM, acceptable since exit node is not used consistently |
 
 **Home Assistant VM**:
 
 | Service | Notes |
 |---------|-------|
-| Home Assistant OS | Home automation (full HAOS installation) |
+| Home Assistant OS | Home automation; full HAOS qcow2 image (separate Terraform resource, not cloud-init) |
+
+HAOS provisioning: Terraform downloads the official HAOS `.qcow2` image and creates
+the VM using `proxmox_virtual_environment_download_file` + a dedicated VM resource.
+HAOS config/state is backed up daily via Proxmox vzdump to Storinator. On rebuild,
+restore from the latest vzdump backup via the HAOS UI or `ha` CLI.
 
 **Infisical VM**:
 
@@ -298,6 +299,7 @@ Proxmox vzdump backs up VMs to Storinator `backups` dataset via NFS.
 | Service | Notes |
 |---------|-------|
 | Ollama | GPU inference via RTX 3060 |
+| Tailscale exit node (backup) | Secondary exit node; Anton is always-on compute |
 
 **OpenClaw VM**:
 | Service | Notes |
@@ -333,9 +335,8 @@ Takes over all non-permanent services from Anton when built.
 | Servarr stack | Radarr, Sonarr, Prowlarr, etc. |
 | PhotoPrism | Photo archive and browsing |
 | Calibre | Ebook server |
-| OpenClaw | Personal AI assistant gateway |
 | n8n | Automation workflows |
-| Monitoring (Prometheus + Grafana + Loki) | Loki, Grafana, Tempo, Mimir |
+| Monitoring (Prometheus + Grafana + Loki) | Metrics, logs, dashboards |
 
 Migration from Anton is designed to be trivial: all persistent data lives on
 Storinator NAS, so services can be repointed by redeploying Terraform with
@@ -361,6 +362,18 @@ Notes:
 
 ---
 
+## Reverse Proxy
+
+Single Traefik instance on Anton serves all services across all nodes. NUC-hosted
+services (Infisical, Vaultwarden, Obsidian LiveSync) are configured as external
+backends pointing at their local IPs (e.g. `192.168.0.21`). All nodes are on the
+same LAN so Traefik on Anton can reach them directly.
+
+This avoids running a second Traefik instance on NUC and keeps TLS termination
+centralised.
+
+---
+
 ## Secret Storage
 
 **Terraform secrets**: `terraform.tfvars` (gitignored, stored on operator laptop)
@@ -371,12 +384,25 @@ Notes:
 
 **Service runtime secrets**: Infisical (self-hosted, NUC Infisical VM)
 
+- Seeded automatically via Terraform using the Infisical provider during `terraform apply`
+- Secrets are defined in `terraform.tfvars` and written to Infisical as part of provisioning
 - Docker services pull secrets via Infisical env injection at container startup
-- Infisical data persists on Storinator NFS (`docker/infisical`)
-- VM recreation does not lose secrets
-- Seeded manually once on first deploy; see bootstrap phase
+- No manual seeding step required; services start cleanly after first apply
 
 **Personal password manager**: Vaultwarden (NUC Infisical VM, always-on)
+
+## Database Backup Strategy
+
+Vaultwarden and Infisical databases are stored on **local VM disk** (not NFS) to
+avoid corruption from soft-mount interruptions. Backups go to Storinator NFS.
+
+| Service | DB | Backup method | Frequency |
+|---------|----|---------------|-----------|
+| Vaultwarden | SQLite | [Litestream](https://litestream.io) — continuous WAL streaming to NFS | Continuous (near real-time) |
+| Infisical | MongoDB | `mongodump` cron job → NFS | Every 6 hours |
+
+Proxmox vzdump of the Infisical VM provides full disaster recovery (daily).
+Litestream gives Vaultwarden point-in-time recovery down to seconds.
 
 ---
 
@@ -430,123 +456,18 @@ NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
 
 ---
 
-# 6. Open Issues for Review
+# 6. Resolved Decisions
 
-## Terraform code doesn't match the plan
-
-The plan dropped MinIO (state is now NFS-local) and split the NUC into three VMs
-(dns, infisical, haos), but the scaffolded Terraform code still has `nuc-infra` and
-`minio_vm`. The Docker Compose files were also written for the old single-VM
-architecture. Everything needs to be reconciled before any `terraform apply`.
-
->
-
----
-
-## HAOS can't be provisioned with cloud-init
-
-Home Assistant OS is a purpose-built distro distributed as a `.qcow2` image with no
-cloud-init support. The shared `proxmox-vm` Terraform module (clone Ubuntu template +
-cloud-init) won't work for it. Options:
-
-- A separate Terraform resource that imports the HAOS disk image directly
-- Provision manually and import into Terraform state after the fact
-
->
-
----
-
-## No reverse proxy on NUC
-
-Infisical, Vaultwarden, and Obsidian LiveSync all need TLS. Traefik was dropped from
-NUC when the architecture split into separate VMs. Currently no reverse proxy exists
-for NUC-hosted services. Options:
-
-- Add Traefik as a container inside the Infisical VM
-- Add a dedicated NUC reverse proxy VM (uses more RAM)
-- Expose services on raw ports with no TLS (not recommended)
-
->
-
----
-
-## Vaultwarden + Infisical databases on NFS with soft mounts
-
-Vaultwarden (SQLite) and Infisical (MongoDB) data is stored on Storinator via
-`soft,timeo=30` NFS mounts. SQLite and MongoDB are not designed to handle
-mid-write NFS interruptions gracefully — a brief Storinator outage during a write
-can corrupt the database. This is especially bad for a password manager and secret
-store. Options:
-
-- Store databases on local VM disk; back up to NFS (or Proxmox vzdump handles it)
-- Accept the risk; rely on daily Proxmox VM backups for recovery
-
->
-
----
-
-## Bootstrap sequence gap — services start before Infisical is seeded
-
-`terraform apply` (step 8) provisions VMs and cloud-init starts Docker Compose.
-Infisical seeding (step 9) happens after. On first boot, any service that pulls
-secrets from Infisical at startup will fail because Infisical has no secrets yet.
-Options:
-
-- Add startup retry / health-check loops to Docker Compose so services wait for
-  Infisical to be seeded
-- Start services manually after seeding (don't auto-start on first boot)
-- Pre-seed Infisical via the API as part of `terraform apply` using a Terraform
-  resource (removes the manual step entirely)
-
->
-
----
-
-## NUC RAM is basically full
-
-DNS VM (2GB) + HAOS VM (4GB) + Infisical VM (6GB) + Proxmox host (2GB) = 14GB of
-16GB used. Two gigabytes of headroom on the machine running DNS, secret store, and
-home automation. HAOS can spike above its baseline. One OOM event takes down DNS
-or the password manager. Options:
-
-- Accept the constraint; monitor closely
-- Trim Infisical VM to 4GB (MongoDB is the heavy component; tune it)
-- Move Vaultwarden off the Infisical VM onto another node
-
->
-
----
-
-## Tailscale exit node and DNS on the same VM
-
-The DNS VM runs both AdGuard and the Tailscale exit node. A reboot for a Tailscale
-update or kernel patch takes down DNS at the same time as the exit node. These are
-independent concerns. Options:
-
-- Accept the coupling for now; revisit when NUC RAM allows
-- Move Tailscale exit node to its own VM (requires more NUC RAM)
-- Run Tailscale exit node on Anton instead (always-on is less guaranteed)
-
->
-
----
-
-## Ansible directory doesn't exist
-
-The plan references `ansible/tailscale.yml` and `ansible/maintenance.yml` in the
-bootstrap steps, but neither file exists. Step 5 of the bootstrap is not currently
-executable.
-
->
-
----
-
-## Minor inconsistencies to clean up
-
-- Services node notes still list "Loki, Grafana, Tempo, Mimir" — Mimir/Tempo were
-  dropped in favour of Prometheus + Grafana + Loki
-- OpenClaw is listed as permanent on Anton but also appears in the services node
-  migration list
-
->
+| Decision | Resolution |
+|----------|------------|
+| Terraform code drift | Acknowledged — code update deferred, plan is source of truth |
+| HAOS provisioning | Terraform provisions VM via qcow2 image download; config restored from Proxmox vzdump backup |
+| Reverse proxy for NUC services | Single Traefik on Anton; NUC services configured as external backends by local IP |
+| Vaultwarden/Infisical DB on NFS | Databases on local VM disk; Vaultwarden backed up via Litestream (continuous), Infisical via mongodump every 6h |
+| Bootstrap Infisical seeding | Pre-seeded via Terraform Infisical provider during `terraform apply`; no manual step |
+| NUC RAM headroom | Accept the risk; monitor closely |
+| Tailscale exit node coupling | Accept DNS+exit node coupling on NUC; add Anton as backup exit node |
+| Ansible code missing | Acknowledged — code update deferred |
+| Mimir/Tempo in services node | Removed; stack is Prometheus + Grafana + Loki only |
+| OpenClaw migration | OpenClaw is permanent on Anton; removed from services node migration list |
 
