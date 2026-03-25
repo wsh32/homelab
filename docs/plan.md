@@ -58,7 +58,7 @@ Router:
 
 DHCP:
 
-192.168.0.100 – 192.168.0.254 (Eero managed)
+192.168.0.100 - 192.168.0.254 (Eero managed)
 
 Reserved IPs:
 
@@ -66,15 +66,18 @@ Physical nodes get DHCP reservations in the Eero app. VMs get static IPs configu
 
 | Device | Hostname | IP | Notes |
 |------|------|------|------|
-| nuc-infra VM | nuc-infra | 192.168.0.2 | Static (Terraform) — primary DNS (AdGuard) |
-| (future) | backup-dns | 192.168.0.3 | Reserved for backup DNS VM |
+| nuc-dns VM | dns | 192.168.0.2 | Static (Terraform) - primary DNS (AdGuard) |
+| (future) | dns2 | 192.168.0.3 | Reserved for backup DNS VM |
 | Storinator | storinator | 192.168.0.4 | Eero DHCP reservation |
 | Anton | anton | 192.168.0.5 | Eero DHCP reservation |
 | NUC | nuc | 192.168.0.6 | Eero DHCP reservation |
 | Orange Pi | orangepi | 192.168.0.7 | Eero DHCP reservation |
 | anton-ollama VM | anton-ollama | 192.168.0.10 | Static (Terraform) |
 | anton-services VM | anton-services | 192.168.0.11 | Static (Terraform) |
-| nuc-minio VM | nuc-minio | 192.168.0.21 | Static (Terraform) |
+| anton-openclaw VM | anton-openclaw | 192.168.0.12 | Static (Terraform) |
+| anton-ubuntu VM | anton-ubuntu | 192.168.0.13 | Static (Terraform) |
+| nuc-infisical VM | nuc-infisical | 192.168.0.21 | Static (Terraform) - Infisical secrets manager |
+| nuc-haos VM | nuc-haos | 192.168.0.22 | Static (Terraform) - Home Assistant OS |
 
 Note: Gringotts is offsite and not on the local network.
 
@@ -115,14 +118,22 @@ Key datasets:
 | docker | persistent volumes |
 | terraform-state | terraform state |
 | photos | photo archive |
+| lightroom | photo raws, lightroom library backup |
 
 Replication:
 
-Storinator → Gringotts
+Storinator -> Gringotts
 
-Frequency:
+Frequency (per-dataset):
 
-Weekly
+| Dataset | Frequency | Rationale |
+|---------|-----------|-----------|
+| docker | Daily | Service secrets, Vaultwarden, app state |
+| terraform-state | Daily | Infrastructure state |
+| backups | Daily | VM backups (HAOS especially) |
+| media | Weekly | Large, less critical |
+| photos | Weekly | Large, less critical |
+| lightroom | Weekly | Large, less critical |
 
 
 ---
@@ -149,18 +160,46 @@ Clustering is for single-pane management only. No HA or live migration.
 
 ---
 
-## Bootstrap Phase (Manual)
+## Bootstrap Phase
 
-Before any Terraform is run, the following must be set up manually. Everything after this is Terraform.
+### One-time manual steps (Proxmox UI)
 
-1. **Proxmox cluster** — join Anton and NUC into a single Proxmox cluster via the UI
-2. **Ubuntu cloud-init template** — download and configure base VM template on each Proxmox node
-3. **MinIO on NUC** — deploy MinIO Docker container manually on NUC (or a small VM); create `terraform-state` bucket and access credentials; data backed by Storinator NFS mount
-4. **Infisical on NUC** — deploy Infisical Docker container manually on NUC infra VM; create initial admin account and seed all required secrets
-5. **Tailscale on physical nodes** — manually install and auth Tailscale on Anton, NUC, Storinator, Gringotts, Orange Pi
-6. **Configure Terraform backend** — write `backend.tf` pointing at MinIO; write `infisical.tf` pointing at Infisical
+1. **Proxmox cluster** - join Anton and NUC into a single Proxmox cluster
+2. **Proxmox API token** - create a Terraform service account and API token on
+   each Proxmox node
 
-After bootstrap is complete, all further infrastructure is managed via Terraform.
+### One-time manual steps (Storinator TrueNAS UI)
+
+3. **NFS datasets** - create the following datasets and enable NFS exports:
+   - `terraform-state` - Terraform state file
+   - `docker` - persistent Docker volumes for all services
+
+### One-time manual steps (external services)
+
+4. **Tailscale API key** - generate in the Tailscale dashboard
+
+### Ansible (automated)
+
+5. **Tailscale on physical nodes** - run `ansible-playbook ansible/tailscale.yml`
+   to install and auth Tailscale on Anton, NUC, Storinator, Gringotts, Orange Pi
+
+### Terraform (automated)
+
+6. **Write `terraform.tfvars`** - populate with Proxmox API token and Tailscale
+   API key; back up in Vaultwarden
+7. **Mount Storinator NFS** - mount `terraform-state` dataset on the machine
+   running Terraform (laptop or workstation)
+8. **`terraform apply`** - provisions all VMs; cloud-init handles Tailscale auth,
+   Docker install, and service startup on each VM
+
+### Post-apply (manual, one-time)
+
+9. **Seed Infisical** - open Infisical UI, create admin account, enter all
+   service secrets; services that depend on secrets will start once seeded
+
+After step 8, all further infrastructure changes are managed via Terraform.
+Infisical seeding (step 9) only needs to be repeated if the `docker/infisical`
+NFS dataset is lost - the data persists across VM recreation.
 
 ---
 
@@ -170,27 +209,30 @@ After bootstrap is complete, all further infrastructure is managed via Terraform
 
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
-| Proxmox host | 2GB (reserved) | — | OS overhead |
-| Infra VM (Docker) | 8GB | 2 | Runs all Docker services |
-| MinIO VM | 4GB | 2 | Object storage |
-| Headroom | 2GB | — | Buffer / future |
+| Proxmox host | 2GB (reserved) | - | OS overhead |
+| DNS VM | 2GB | 2 | AdGuard + Tailscale exit node |
+| Home Assistant VM | 4GB | 2 | HAOS |
+| Infisical VM | 6GB | 2 | Secrets manager + Vaultwarden; data on Storinator NFS |
+| Headroom | 2GB | - | Buffer / future |
 
 ### Anton (128GB RAM, i5-12600kf 10c/16t)
 
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
-| Proxmox host | 4GB (reserved) | — | OS overhead |
+| Proxmox host | 4GB (reserved) | - | OS overhead |
 | Ollama VM | 32GB | 4 | GPU passthrough (RTX 3060) |
-| Services VM (Docker) | 32GB | 6 | All temporary services |
-| Headroom | 60GB | — | Future VMs / workloads |
+| OpenClaw VM | 8GB | 2 | AI assistant gateway |
+| Personal Ubuntu VM | 16GB | 6 | Development workstation |
+| Services VM (Docker) | 32GB | 4 | All temporary services |
+| Headroom | 36GB | - | Future VMs / workloads |
 
-### Services node (planned — 48GB RAM, Ryzen 7 3700x 8c/16t)
+### Services node (planned - 48GB RAM, Ryzen 7 3700x 8c/16t)
 
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
-| Proxmox host | 4GB (reserved) | — | OS overhead |
+| Proxmox host | 4GB (reserved) | - | OS overhead |
 | Services VM (Docker) | 32GB | 8 | All migrated services from Anton |
-| Headroom | 12GB | — | Future VMs |
+| Headroom | 12GB | - | Future VMs |
 
 
 ---
@@ -206,6 +248,21 @@ Base OS:
 
 - Ubuntu Server
 
+NFS mount options:
+
+All VM NFS mounts use `soft,timeo=30` to prevent indefinite hangs during
+Storinator maintenance or ZFS scrubs. This converts NFS hangs into errors
+that services can recover from on retry.
+
+VM backups:
+
+Proxmox vzdump backs up VMs to Storinator `backups` dataset via NFS.
+
+| VM | Frequency | Rationale |
+|----|-----------|-----------|
+| HAOS | Daily | Stateful; not reproducible from code |
+| All other VMs | Weekly | Stateless; reproducible via Terraform + cloud-init |
+
 
 ---
 
@@ -213,53 +270,65 @@ Base OS:
 
 ### NUC (always-on infrastructure)
 
-RAM budget: 16GB. All services run as Docker containers inside a single **infra VM** to share OS overhead. MinIO runs as a second small VM for object storage.
-
-**Infra VM** (Docker Compose — all lightweight services share one OS):
+**DNS VM**:
 
 | Service | Notes |
 |---------|-------|
-| AdGuard Home | DNS + ad blocking |
+| AdGuard Home | DNS + ad blocking; secondary DNS 8.8.8.8 configured as fallback |
 | Tailscale exit node | VPN exit node for remote access |
-| Reverse proxy (Traefik) | Auto-discovers Docker services via labels |
-| Home Assistant | Home automation |
-| Infisical | Secret management for Terraform and services |
-| Vaultwarden | Personal password manager (Bitwarden-compatible) |
-| Obsidian LiveSync | CouchDB-based sync for Obsidian vault (laptop + phone) |
-| Homepage / dashboard | Service dashboard |
 
-**MinIO VM** (object storage):
+**Home Assistant VM**:
 
 | Service | Notes |
 |---------|-------|
-| MinIO | S3-compatible object storage; data stored on Storinator via NFS mount |
+| Home Assistant OS | Home automation (full HAOS installation) |
 
-### Anton (compute — GPU workloads)
+**Infisical VM**:
+
+| Service | Notes |
+|---------|-------|
+| Infisical | Secrets manager for service runtime secrets; data on Storinator NFS |
+| Vaultwarden | Personal password manager (Bitwarden-compatible); data on Storinator NFS |
+
+### Anton (compute - GPU workloads)
 
 **Permanent:**
 
+**Ollama VM**:
 | Service | Notes |
 |---------|-------|
 | Ollama | GPU inference via RTX 3060 |
 
-**Temporary (migrate to services node when built):**
-
+**OpenClaw VM**:
 | Service | Notes |
 |---------|-------|
 | OpenClaw | Personal AI assistant gateway |
+
+**Personal Ubuntu VM**:
+| Service | Notes |
+|---------|-------|
+| Ubuntu Desktop/Server | Development workstation |
+
+**Services VM** (temporary - migrate to services node when built):
+| Service | Notes |
+|---------|-------|
+| Traefik | Reverse proxy; colocated with services it fronts |
 | n8n | Automation workflows |
 | Jellyfin | Media server; GPU transcoding |
 | Servarr stack | Radarr, Sonarr, Prowlarr, etc. |
 | PhotoPrism | Photo archive and browsing |
 | Calibre | Ebook server |
+| Obsidian LiveSync | CouchDB sync; data on Storinator NFS |
+| Homepage | Service dashboard |
 | Monitoring (Prometheus + Grafana + Loki) | Metrics, logs, dashboards |
 
-### Services node (planned — tbd nickname)
+### Services node (planned - tbd nickname)
 
 Takes over all non-permanent services from Anton when built.
 
 | Service | Notes |
 |---------|-------|
+| Traefik | Reverse proxy |
 | Jellyfin | GPU transcoding via P2000 (if installed) |
 | Servarr stack | Radarr, Sonarr, Prowlarr, etc. |
 | PhotoPrism | Photo archive and browsing |
@@ -268,7 +337,9 @@ Takes over all non-permanent services from Anton when built.
 | n8n | Automation workflows |
 | Monitoring (Prometheus + Grafana + Loki) | Loki, Grafana, Tempo, Mimir |
 
-Migration from Anton is designed to be trivial: all persistent data lives on Storinator NAS, so services can be repointed by redeploying Terraform with the new node target.
+Migration from Anton is designed to be trivial: all persistent data lives on
+Storinator NAS, so services can be repointed by redeploying Terraform with
+the new node target.
 
 
 ---
@@ -277,31 +348,74 @@ Migration from Anton is designed to be trivial: all persistent data lives on Sto
 
 Backend type:
 
-MinIO (S3-compatible, hosted on NUC)
+Local file on Storinator NFS (`terraform-state` dataset)
 
 Notes:
 
-- MinIO runs as a VM on NUC (always-on)
-- Underlying data stored on Storinator via NFS mount (`terraform-state` dataset)
-- Exposes S3 API on port 9000, accessible from any Tailscale node
-- Also serves as S3-compatible object storage for other services (Loki, etc.)
-- Storinator remains NAS-only; MinIO is the only service accessing its data remotely
+- State file lives at `/mnt/storinator/terraform-state/homelab.tfstate`
+- Storinator NFS share must be mounted on the machine running Terraform
+- No locking concerns - single operator, no concurrent applies
+- State is replicated to Gringotts daily via Storinator replication
+- Storinator ZFS snapshots provide state version history
 
 
 ---
 
 ## Secret Storage
 
-Tool: **Infisical** (self-hosted)
+**Terraform secrets**: `terraform.tfvars` (gitignored, stored on operator laptop)
 
-Hosted on: NUC (infra VM, Docker container)
+- Contains Proxmox API token and Tailscale API key only
+- Backed up in Vaultwarden
+- Never committed to Git
 
-Personal password manager: **Vaultwarden** (Bitwarden-compatible, same infra VM on NUC)
+**Service runtime secrets**: Infisical (self-hosted, NUC Infisical VM)
 
-Usage:
-- Terraform uses the Infisical provider to inject secrets at plan/apply time
-- Docker services pull secrets via Infisical's Docker integration or env injection
-- Secrets never committed to Git in plaintext
+- Docker services pull secrets via Infisical env injection at container startup
+- Infisical data persists on Storinator NFS (`docker/infisical`)
+- VM recreation does not lose secrets
+- Seeded manually once on first deploy; see bootstrap phase
+
+**Personal password manager**: Vaultwarden (NUC Infisical VM, always-on)
+
+---
+
+## Ansible
+
+Responsibility split:
+
+```
+cloud-init (runs once at VM creation):
+  - OS base config: hostname, timezone, locale, SSH keys
+  - Tailscale install + auth (using key from Terraform)
+  - Docker install
+  - NFS mount entries in /etc/fstab (with soft,timeo=30)
+  - First boot: pull and start Docker Compose services
+
+Ansible (runs on demand for day-2 operations):
+  - Physical node Tailscale install (bootstrap)
+  - Tailscale key rotation across all nodes/VMs
+  - Docker engine upgrades
+  - NFS mount option changes
+  - Package updates / security patches
+  - Cloud-init config drift remediation
+  - Ad-hoc debugging / config fixes across fleet
+```
+
+Rule of thumb: cloud-init for "birth", Ansible for "life". If a VM can be
+destroyed and recreated instead of patched, prefer that. Ansible is the
+escape hatch for when recreation is disruptive.
+
+```
+ansible/
+  inventory/
+    hosts.yml       # all physical nodes + all VMs
+  tailscale.yml     # installs and auths Tailscale on physical nodes
+  maintenance.yml   # day-2 operations: updates, key rotation, drift fixes
+```
+
+Auth keys for physical nodes are generated by Terraform
+(`tailscale_tailnet_key` resource) and passed to the playbook as variables.
 
 ---
 
@@ -314,17 +428,3 @@ NUT server runs on: Orange Pi Zero 3 (must be on UPS circuit to send shutdown si
 NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
 
 
----
-
-## GSTACK REVIEW REPORT
-
-| Review | Trigger | Why | Runs | Status | Findings |
-|--------|---------|-----|------|--------|----------|
-| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
-| Codex Review | `/codex review` | Independent 2nd opinion | 0 | — | — |
-| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | ISSUES_OPEN (PLAN) | 9 issues, 3 critical gaps |
-| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
-
-**UNRESOLVED:** 0 unresolved decisions
-
-**VERDICT:** ENG REVIEW ran — 3 critical gaps (NUC SPOF, Storinator NFS dependency, NUT connectivity). All are knowingly accepted homelab tradeoffs, not blockers. No unresolved decisions. Ready to proceed to implementation.

@@ -2,17 +2,20 @@
 
 ## NFS Export Strategy
 
-**What:** Define which Storinator datasets get NFS-exported, to what clients, and with what permissions.
+**What:** Define which Storinator datasets get NFS-exported, to what
+clients, and with what permissions.
 
-**Why:** MinIO on NUC mounts Storinator over NFS. Other VMs (Jellyfin, PhotoPrism, Servarr) will likely also need NFS mounts for media and persistent data. Without a consistent strategy, NFS config will be improvised per-service and become a mess.
+**Why:** All VMs mount Storinator over NFS for persistent data. Without a
+consistent strategy, NFS config will be improvised per-service and become
+a mess.
 
-**Pros:** Consistent, documented mount points. Easy to replicate on disaster recovery.
+**Context:** Storinator datasets: `backups`, `media`, `docker`,
+`terraform-state`, `photos`, `lightroom`. Each needs a defined NFS export
+policy (which VMs, read-only vs read-write). All mounts use
+`soft,timeo=30` options.
 
-**Cons:** Requires thinking through access control (read-only vs read-write per dataset/client).
-
-**Context:** Storinator has datasets: `backups`, `media`, `docker`, `terraform-state`, `photos`. Each needs a defined NFS export policy. Consider: should VMs mount datasets directly, or go through MinIO for object storage?
-
-**Depends on:** Terraform module structure (below) — NFS mounts will be defined in VM cloud-init.
+**Depends on:** Terraform module structure - NFS mounts will be defined
+in VM cloud-init.
 
 ---
 
@@ -39,21 +42,24 @@ Recommended: shared `modules/vm` module + per-node root modules. Avoids duplicat
 
 ## Bootstrap Runbook
 
-**What:** Write a step-by-step runbook with exact commands for the manual bootstrap phase.
+**What:** Write a step-by-step runbook with exact commands for the manual
+bootstrap phase.
 
-**Why:** The plan defines 6 bootstrap steps at a high level. A runbook with exact commands makes it possible to rebuild the homelab from scratch in an hour rather than piecing it together from memory.
-
-**Pros:** Fast disaster recovery. Onboarding yourself after a long break. Validates the bootstrap sequence actually works.
-
-**Cons:** Takes time to write and maintain as the bootstrap process evolves.
+**Why:** The plan defines a multi-phase bootstrap. A runbook with exact
+commands makes it possible to rebuild the homelab from scratch in an hour
+rather than piecing it together from memory.
 
 **Context:** Bootstrap steps per plan:
-1. Proxmox cluster join (Anton + NUC)
-2. Ubuntu cloud-init template on each node
-3. MinIO VM on NUC (with Storinator NFS mount)
-4. Infisical Docker container on NUC infra VM
-5. Tailscale on all physical nodes
-6. Configure Terraform backend + Infisical provider
+1. Form Proxmox cluster (Anton + NUC) via UI
+2. Create Proxmox API token via UI
+3. Create Storinator NFS datasets + exports via TrueNAS UI
+4. Generate Tailscale API key via dashboard
+5. Run Ansible to install Tailscale on physical nodes
+6. Write `terraform.tfvars`, mount Storinator NFS on laptop
+7. `terraform apply`
+8. Seed Infisical via UI
+
+Should also document: `pvecm expected 1` for quorum recovery.
 
 **Depends on:** NFS export strategy, Terraform module structure.
 
@@ -72,3 +78,69 @@ Recommended: shared `modules/vm` module + per-node root modules. Avoids duplicat
 **Context:** Anton has an i5-12600kf (supports VT-d) and RTX 3060. The Ollama VM needs the GPU passed through exclusively. After passthrough, the Proxmox host will have no display output from that GPU. Plan for this: Anton likely has no monitor attached anyway.
 
 **Depends on:** Terraform module structure (GPU passthrough config goes in the Ollama VM definition).
+
+---
+
+## Backup DNS VM
+
+**What:** Deploy a secondary AdGuard Home instance on the Orange Pi.
+
+**Why:** The primary DNS VM on the NUC is a single point of failure.
+Currently mitigated by 8.8.8.8 as fallback, but that bypasses ad-blocking
+and breaks `.home` domain resolution.
+
+**Depends on:** Nothing - can be done anytime after initial deployment.
+
+---
+
+## Tailscale ACL Segmentation
+
+**What:** Add role-based ACL policy via the `tailscale_acl` Terraform
+resource.
+
+**Why:** All nodes currently communicate freely over Tailscale with no
+segmentation. A compromised container has lateral movement to every node
+including Gringotts (offsite backup) and Proxmox management interfaces.
+
+**Minimum policy:**
+- Tag nodes by role (infra, compute, storage, backup)
+- Restrict Gringotts to replication traffic from Storinator only
+- Restrict Proxmox API ports to operator machine
+
+**Depends on:** Terraform module structure.
+
+---
+
+## External Uptime Monitor
+
+**What:** Deploy Uptime Kuma on the Orange Pi or use a cloud ping service
+to monitor Storinator and critical services externally.
+
+**Why:** When Storinator NFS hangs, the monitoring stack (Prometheus +
+Grafana on Anton) also goes down because it depends on Storinator NFS.
+An external monitor outside the NFS blast radius can detect and alert on
+this.
+
+**Depends on:** Nothing - can be done anytime.
+
+---
+
+## Break-glass Procedure
+
+**What:** Document and maintain an offline copy of critical credentials
+outside the homelab.
+
+**Contents:**
+- `terraform.tfvars` (Proxmox API token, Tailscale API key)
+- Infisical secrets export (all service runtime secrets)
+- Proxmox root credentials
+- `pvecm expected 1` quorum recovery command
+
+**Why:** If the NUC dies, running containers on Anton survive but new
+deploys are blocked until Infisical returns. An offline export allows
+recovery without waiting for NUC hardware replacement.
+
+**Storage:** encrypted file in a password manager on phone, or USB drive.
+
+**Depends on:** Initial deployment (secrets must exist before they can
+be exported).
