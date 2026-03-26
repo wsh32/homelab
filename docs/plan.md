@@ -321,6 +321,7 @@ restore from the latest vzdump backup via the HAOS UI or `ha` CLI.
 | PhotoPrism | Photo archive and browsing |
 | Calibre | Ebook server |
 | Obsidian LiveSync | CouchDB sync; data on Storinator NFS |
+| Quartz | Read-only web publishing of Obsidian vault; reads vault from Storinator NFS, served via Traefik |
 | Homepage | Service dashboard |
 | Monitoring (Prometheus + Grafana + Loki) | Metrics, logs, dashboards |
 
@@ -336,6 +337,8 @@ Takes over all non-permanent services from Anton when built.
 | PhotoPrism | Photo archive and browsing |
 | Calibre | Ebook server |
 | n8n | Automation workflows |
+| Obsidian LiveSync | CouchDB sync |
+| Quartz | Read-only web publishing of Obsidian vault |
 | Monitoring (Prometheus + Grafana + Loki) | Metrics, logs, dashboards |
 
 Migration from Anton is designed to be trivial: all persistent data lives on
