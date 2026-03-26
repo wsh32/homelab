@@ -189,13 +189,19 @@ Clustering is for single-pane management only. No HA or live migration.
    API key; back up in Vaultwarden
 7. **Mount Storinator NFS** - mount `terraform-state` dataset on the machine
    running Terraform (laptop or workstation)
-8. **`terraform apply`** - provisions all VMs; cloud-init handles Tailscale auth,
-   Docker install, and service startup on each VM
+8. **`terraform apply` (pass 1)** - provisions all VMs; cloud-init handles
+   Tailscale auth, Docker install, and Docker Compose startup on each VM.
+   Infisical provider is not yet configured — this pass only provisions compute.
+9. **Bootstrap Infisical** - run `scripts/infisical-bootstrap.sh` against the
+   newly provisioned Infisical VM. This script runs `infisical bootstrap` to
+   create the admin user, organization, workspace, and a machine identity.
+   The script outputs `workspace_id`, `client_id`, and `client_secret`.
+10. **Update `terraform.tfvars`** - add the Infisical credentials from step 9.
+11. **`terraform apply` (pass 2)** - with Infisical provider now configured,
+    seeds all service runtime secrets into Infisical. Services restart and
+    pull secrets via Infisical env injection.
 
-After step 8, all further infrastructure changes are managed via Terraform.
-Infisical is seeded automatically during `terraform apply` via the Infisical
-Terraform provider — no manual seeding step required. All service secrets are
-defined in `terraform.tfvars` and written to Infisical as part of provisioning.
+After step 11, all further infrastructure changes are managed via Terraform.
 
 ---
 
@@ -348,6 +354,85 @@ the new node target.
 
 ---
 
+## Headless Service Configuration
+
+All services are configured without the web UI. This section documents the
+strategy for each service that would otherwise require a first-boot setup wizard.
+
+### AdGuard Home
+
+Pre-seeded `AdGuardHome.yaml` mounted into the container bypasses the setup
+wizard entirely. AdGuard checks for a valid config on startup and skips the
+wizard if one exists.
+
+- Config file: `services/dns/adguard/AdGuardHome.yaml` (committed to repo)
+- Admin password stored as bcrypt hash in the config file; plaintext in Infisical
+- Upstream DNS: `8.8.8.8` and `8.8.4.4` as fallback
+
+### Infisical
+
+Bootstrapped via the `infisical bootstrap` CLI command (part of the Infisical
+CLI, version ≥ 0.28) after the container starts for the first time.
+
+- Script: `scripts/infisical-bootstrap.sh`
+- Creates: admin user, organization, workspace, machine identity
+- Outputs: `workspace_id`, `client_id`, `client_secret` → add to `terraform.tfvars`
+- Idempotent: `--ignore-if-bootstrapped` flag prevents re-running from causing issues
+- See bootstrap phase step 9 above
+
+### Jellyfin
+
+No env var exists to skip the first-boot wizard. The wizard is driven headlessly
+via the `/Startup/*` API endpoints immediately after the container starts.
+
+- Script: `scripts/jellyfin-init.sh`
+- Steps: set locale → create admin account → skip remote access config → complete wizard
+- Library paths configured via `POST /Library/VirtualFolders` after wizard completes
+- Admin credentials from Infisical; script is idempotent (checks if wizard already done)
+
+### Radarr / Sonarr / Prowlarr
+
+Pre-seeded `config.xml` placed in each app's `/config` directory before first
+container start. The API key is chosen in advance and stored in Infisical,
+making cross-app linking deterministic.
+
+- Config files: `services/anton/config/radarr.xml`, `sonarr.xml`, `prowlarr.xml`
+- API keys set to predetermined values from Infisical (not randomly generated)
+- Prowlarr → Radarr and Prowlarr → Sonarr application links configured via
+  `scripts/servarr-init.sh` using `POST /api/v1/applications` after all three start
+- Auth: `AuthenticationRequired=DisabledForLocalAddresses` (LAN-only, behind Traefik)
+
+### Calibre-Web
+
+Admin password set via the `cps.py -s admin:password` CLI after first start.
+Library path pre-configured by mounting the NAS path at `/books` (the default).
+
+- Script: `scripts/calibre-init.sh` — runs `docker exec calibre-web python3 /app/calibre-web/cps.py -p /config/app.db -s admin:$CALIBRE_ADMIN_PASSWORD`
+- Admin password from Infisical
+- Calibre library must already exist at `/mnt/nas/media/books` on the NAS
+
+### n8n
+
+Owner account created via `POST /api/v1/owner/setup` immediately after first
+start. This unauthenticated endpoint is only available on a fresh instance.
+
+- Script: `scripts/n8n-init.sh`
+- Creates owner account with credentials from Infisical
+- Idempotent: endpoint returns an error if owner already exists (ignore on re-run)
+
+### CouchDB (Obsidian LiveSync)
+
+Admin credentials set via env vars. Single-node initialization and CORS
+configuration done via curl API calls in an init container.
+
+- Init container: `couchdb-init` using `curlimages/curl`
+- Init script: `services/anton/couchdb-init.sh` (committed to repo)
+- Steps: wait for healthy → `/_cluster_setup` → create `obsidian` database → set CORS headers
+- CORS origins: `app://obsidian.md,capacitor://localhost,http://localhost`
+- Idempotent: `PUT /obsidian` returns `409 Conflict` if DB exists (ignored)
+
+---
+
 ## Terraform State Backend
 
 Backend type:
@@ -467,10 +552,16 @@ NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
 | HAOS provisioning | Terraform provisions VM via qcow2 image download; config restored from Proxmox vzdump backup |
 | Reverse proxy for NUC services | Single Traefik on Anton; NUC services configured as external backends by local IP |
 | Vaultwarden/Infisical DB on NFS | Databases on local VM disk; Vaultwarden backed up via Litestream (continuous), Infisical via mongodump every 6h |
-| Bootstrap Infisical seeding | Pre-seeded via Terraform Infisical provider during `terraform apply`; no manual step |
+| Bootstrap Infisical seeding | Two-pass terraform apply: pass 1 provisions VMs, `scripts/infisical-bootstrap.sh` bootstraps Infisical, pass 2 seeds secrets |
 | NUC RAM headroom | Accept the risk; monitor closely |
 | Tailscale exit node coupling | Accept DNS+exit node coupling on NUC; add Anton as backup exit node |
 | Ansible code missing | Acknowledged — code update deferred |
 | Mimir/Tempo in services node | Removed; stack is Prometheus + Grafana + Loki only |
 | OpenClaw migration | OpenClaw is permanent on Anton; removed from services node migration list |
+| AdGuard headless config | Pre-seeded AdGuardHome.yaml mounted at container start; bypasses setup wizard |
+| Jellyfin headless setup | /Startup/* API endpoints scripted in jellyfin-init.sh; no GUI required |
+| Servarr headless setup | Pre-seeded config.xml with predetermined API keys; cross-app linking via servarr-init.sh |
+| Calibre-Web headless setup | Post-start CLI password reset via cps.py -s flag; library path via /books mount |
+| n8n headless setup | POST /api/v1/owner/setup API call scripted in n8n-init.sh |
+| CouchDB headless setup | Init container runs /_cluster_setup + CORS config; no GUI required |
 

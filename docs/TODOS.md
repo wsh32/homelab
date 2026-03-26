@@ -144,3 +144,39 @@ recovery without waiting for NUC hardware replacement.
 
 **Depends on:** Initial deployment (secrets must exist before they can
 be exported).
+
+---
+
+## Headless Bootstrap Scripts
+
+**What:** Write the init scripts and config files needed for headless service
+configuration, as documented in `docs/plan.md` under "Headless Service Configuration".
+
+**Why:** The plan documents headless configuration strategies for every service.
+Without the actual scripts and config files, the plan is correct but not
+executable — first-time setup would still require manual GUI intervention.
+
+**Files to create:**
+
+- `scripts/infisical-bootstrap.sh` — runs `infisical bootstrap` CLI against a
+  running Infisical instance, creates workspace and machine identity, outputs
+  credentials to add to `terraform.tfvars`
+- `scripts/jellyfin-init.sh` — drives Jellyfin `/Startup/*` API to create admin
+  account and configure media libraries headlessly
+- `scripts/servarr-init.sh` — links Prowlarr to Radarr and Sonarr via
+  `POST /api/v1/applications`; expects predetermined API keys already set in config.xml
+- `scripts/calibre-init.sh` — sets Calibre-Web admin password via `cps.py -s` CLI
+- `scripts/n8n-init.sh` — creates n8n owner account via `POST /api/v1/owner/setup`
+- `services/dns/adguard/AdGuardHome.yaml` — pre-seeded AdGuard config with bcrypt
+  admin password, upstream DNS, and default blocklists
+- `services/anton/config/radarr.xml`, `sonarr.xml`, `prowlarr.xml` — pre-seeded
+  config.xml files with predetermined API keys (keys stored in Infisical)
+- `services/anton/couchdb-init.sh` — CouchDB single-node setup + CORS config for
+  Obsidian LiveSync
+
+**Context:** Research confirmed all these services have fully headless setup paths.
+See "Headless Service Configuration" section in `docs/plan.md` for the strategy
+behind each script.
+
+**Depends on:** Infisical setup (scripts pull secrets from Infisical), Terraform
+module structure (scripts reference service URLs and API keys).
