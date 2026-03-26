@@ -131,15 +131,20 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 9. **Bootstrap Infisical** — run `scripts/infisical-bootstrap.sh` against the newly provisioned
    Infisical VM. Creates admin user, organization, workspace, and machine identity.
    Outputs `workspace_id`, `client_id`, `client_secret`.
-10. **Update `terraform.tfvars`** — add Infisical credentials from step 9.
-11. **`terraform apply` (pass 2)** — Infisical provider creates the workspace structure.
-    No service secrets are written to Infisical by Terraform.
-12. **Seed Infisical via UI** — add developer API keys (Claude, Codex, GitHub, etc.)
-    manually. One-time step; these are not in `terraform.tfvars`.
-13. **Seed Vaultwarden** — copy all service passwords from `terraform.tfvars` into
-    Vaultwarden. These are the passwords used to log into Grafana, n8n, Jellyfin, etc.
+10. **Create Vaultwarden account** — open `https://vault.home` in a browser and register.
+    Vaultwarden starts with `SIGNUPS_ALLOWED=true`; after the first account is created
+    it locks automatically. One-time manual step; account persists on Storinator NFS
+    across all future VM rebuilds.
+11. **Update `terraform.tfvars`** — add Infisical credentials from step 9 and
+    Vaultwarden master password and client secret for the Bitwarden Terraform provider.
+12. **`terraform apply` (pass 2)** — generates all service passwords via `random_password`,
+    writes `.env` files to each VM, and populates Vaultwarden automatically via the
+    `maxlaverse/bitwarden` Terraform provider.
+13. **Seed Infisical via UI** — add developer API keys (Claude, Codex, GitHub, etc.).
+    One-time manual step; these are not managed by Terraform.
 
-After step 11, all further infrastructure changes are managed via Terraform.
+After step 12, all further infrastructure changes are managed via Terraform.
+Service passwords are never manually copied — Terraform generates and stores them.
 
 ---
 
@@ -392,8 +397,10 @@ Stores every password a human needs to log into a service:
 - Infisical admin credentials
 - Any other personal account credentials
 
-When Terraform generates a service password, copy it from `terraform.tfvars` into
-Vaultwarden. This is the human-accessible reference copy.
+Populated automatically by the `maxlaverse/bitwarden` Terraform provider during pass 2
+apply — no manual copying. Requires a Vaultwarden account to exist first (bootstrap step 10).
+Account creation is the one manual bootstrap step; the account persists on Storinator NFS
+across all VM rebuilds so it never needs to be repeated.
 
 **Infisical** — NUC Infisical VM, developer API keys only
 
@@ -479,6 +486,8 @@ NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
 | Vaultwarden/Infisical DB location | Local VM disk; Vaultwarden via Litestream (continuous), Infisical via mongodump every 6h |
 | Infisical bootstrap | Two-pass terraform apply; `scripts/infisical-bootstrap.sh` runs between passes |
 | Infisical role | Developer API keys only (`infisical run --` on laptop); service passwords go in Vaultwarden for human access and `.env` files for container injection — not in Infisical |
+| Vaultwarden account creation | Cannot be headlessly pre-seeded (client-side key derivation); one manual browser registration accepted as bootstrap exception alongside HAOS. Account persists on NFS — never repeated. |
+| Vaultwarden population | `maxlaverse/bitwarden` Terraform provider populates all service passwords automatically during pass 2 apply — no manual copying |
 | NUC RAM headroom | Accept the risk; monitor closely |
 | Tailscale exit node coupling | Accept DNS+exit node coupling on NUC; Anton is backup exit node |
 | Ansible code missing | Acknowledged — code update deferred |
