@@ -131,9 +131,13 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 9. **Bootstrap Infisical** — run `scripts/infisical-bootstrap.sh` against the newly provisioned
    Infisical VM. Creates admin user, organization, workspace, and machine identity.
    Outputs `workspace_id`, `client_id`, `client_secret`.
-10. **Update `terraform.tfvars`** — add Infisical credentials from step 9
-11. **`terraform apply` (pass 2)** — Infisical provider now configured; seeds all service
-    runtime secrets. Services restart and pull secrets via Infisical env injection.
+10. **Update `terraform.tfvars`** — add Infisical credentials from step 9.
+11. **`terraform apply` (pass 2)** — Infisical provider creates the workspace structure.
+    No service secrets are written to Infisical by Terraform.
+12. **Seed Infisical via UI** — add developer API keys (Claude, Codex, GitHub, etc.)
+    manually. One-time step; these are not in `terraform.tfvars`.
+13. **Seed Vaultwarden** — copy all service passwords from `terraform.tfvars` into
+    Vaultwarden. These are the passwords used to log into Grafana, n8n, Jellyfin, etc.
 
 After step 11, all further infrastructure changes are managed via Terraform.
 
@@ -214,9 +218,10 @@ On rebuild, restore from the latest vzdump backup via the HAOS UI or `ha` CLI.
 | Infisical | Secrets manager for service runtime secrets AND developer API keys |
 | Vaultwarden | Personal password manager (Bitwarden-compatible) |
 
-Infisical serves dual purpose: infrastructure secrets injected into services at startup,
-and developer API keys (Claude, Codex, GitHub tokens, etc.) accessed on the operator
-laptop via `infisical run -- <command>`. This replaces hardcoding API keys in `.zshrc`.
+Infisical stores only developer API keys accessed via `infisical run -- <command>` on the
+operator laptop (Claude, Codex, GitHub tokens, etc.). Replaces hardcoding keys in `.zshrc`.
+Service passwords are not in Infisical — they are injected via cloud-init `.env` files and
+stored in Vaultwarden for human access.
 
 ### Anton (compute — GPU workloads)
 
@@ -365,24 +370,43 @@ Single Traefik instance on Anton serves all services across all nodes. NUC-hoste
 
 ## Secret Storage
 
-**Terraform secrets** — `terraform.tfvars` (gitignored, stored on operator laptop)
+Three separate stores with distinct roles:
 
-After pass 1 bootstrap, contains:
-- Proxmox API token
-- Tailscale API key
-- Infisical `workspace_id`, `client_id`, `client_secret` (added after step 9)
+**`terraform.tfvars`** — operator laptop, gitignored
 
-Backed up in Vaultwarden. Never committed to Git.
+The provisioning source of truth. Contains everything Terraform needs to build the lab:
+- Proxmox API token + Tailscale API key
+- Infisical `workspace_id`, `client_id`, `client_secret` (added after bootstrap step 9)
+- All service passwords (generated via `random_password` resources or set manually)
+- All external API keys
 
-**Service runtime secrets + developer API keys** — Infisical (NUC Infisical VM)
+Terraform writes service passwords into `.env` files on each VM via cloud-init at
+provisioning time. Services read `.env` at startup — no runtime dependency on any
+secrets manager. Backed up in Vaultwarden. Never committed to Git.
 
-Infisical serves two roles:
-1. **Infrastructure secrets** — seeded via Terraform Infisical provider during pass 2 apply.
-   Docker services pull secrets via Infisical env injection at container startup.
-2. **Developer API keys** — Claude, Codex, GitHub tokens, etc. Accessed on the operator
-   laptop via `infisical run -- <command>`, replacing hardcoded keys in `.zshrc`.
+**Vaultwarden** — NUC Infisical VM, personal password manager
 
-**Personal password manager** — Vaultwarden (NUC Infisical VM)
+Stores every password a human needs to log into a service:
+- All service admin passwords (Grafana, n8n, Jellyfin, CouchDB, Calibre-Web, PhotoPrism, etc.)
+- The `terraform.tfvars` file itself (encrypted note or attachment)
+- Infisical admin credentials
+- Any other personal account credentials
+
+When Terraform generates a service password, copy it from `terraform.tfvars` into
+Vaultwarden. This is the human-accessible reference copy.
+
+**Infisical** — NUC Infisical VM, developer API keys only
+
+Stores only secrets accessed programmatically from the operator laptop via
+`infisical run -- <command>`:
+- `ANTHROPIC_API_KEY`
+- `OPENAI_API_KEY`
+- `GITHUB_TOKEN`
+- Any other keys used in terminal workflows
+
+Replaces hardcoding these in `.zshrc`. Seeded manually via the Infisical UI after
+the bootstrap script runs. Terraform only interacts with Infisical to provision
+the workspace and machine identity — it does not write service passwords into Infisical.
 
 ---
 
@@ -454,7 +478,7 @@ NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
 | Reverse proxy for NUC services | Single Traefik on Anton; NUC services as external backends by local IP |
 | Vaultwarden/Infisical DB location | Local VM disk; Vaultwarden via Litestream (continuous), Infisical via mongodump every 6h |
 | Infisical bootstrap | Two-pass terraform apply; `scripts/infisical-bootstrap.sh` runs between passes |
-| Infisical role | Retained over SOPS: serves both infrastructure secrets and developer API keys (`infisical run --` on laptop replaces `.zshrc` hardcoding) |
+| Infisical role | Developer API keys only (`infisical run --` on laptop); service passwords go in Vaultwarden for human access and `.env` files for container injection — not in Infisical |
 | NUC RAM headroom | Accept the risk; monitor closely |
 | Tailscale exit node coupling | Accept DNS+exit node coupling on NUC; Anton is backup exit node |
 | Ansible code missing | Acknowledged — code update deferred |
