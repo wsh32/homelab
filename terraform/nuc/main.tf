@@ -4,14 +4,14 @@ locals {
 
 # NUC VMs use IDs 200–299 and IPs 192.168.0.20–29.
 
-# Download Ubuntu 24.04 LTS cloud image to NUC once.
-resource "proxmox_virtual_environment_download_file" "ubuntu_2404" {
+# Download Debian 12 (Bookworm) cloud image to NUC once.
+resource "proxmox_virtual_environment_download_file" "debian_12" {
   node_name    = local.node
   content_type = "iso"
   datastore_id = "local"
 
-  url       = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
-  file_name = "noble-server-cloudimg-amd64.img"
+  url       = "https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2"
+  file_name = "debian-12-genericcloud-amd64.qcow2"
 
   overwrite = false
 }
@@ -24,7 +24,7 @@ module "infisical" {
   name         = "nuc-infisical"
   description  = "Infisical (secrets manager) + Vaultwarden (password manager)"
   tags         = ["nuc", "infra", "infisical"]
-  image_file_id = proxmox_virtual_environment_download_file.ubuntu_2404.id
+  image_file_id = proxmox_virtual_environment_download_file.debian_12.id
 
   cores        = 2
   memory_mb    = 6144

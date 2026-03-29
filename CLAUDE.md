@@ -25,7 +25,7 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
 ```
 terraform/modules/proxmox-vm/  — shared VM module, edit here for VM-level changes
 terraform/nuc/                 — NUC VMs (DNS, HAOS, Infisical)
-terraform/anton/               — Anton VMs (Ollama, OpenClaw, Ubuntu, services)
+terraform/anton/               — Anton VMs (Ollama, OpenClaw, Debian, services)
 services/dns/                  — AdGuard config (pre-seeded AdGuardHome.yaml)
 services/nuc-infra/            — Docker Compose for NUC infra VM
 services/anton/                — Docker Compose for Anton services VM

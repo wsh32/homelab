@@ -40,31 +40,6 @@ Recommended: shared `modules/vm` module + per-node root modules. Avoids duplicat
 
 ---
 
-## Bootstrap Runbook
-
-**What:** Write a step-by-step runbook with exact commands for the manual
-bootstrap phase.
-
-**Why:** The plan defines a multi-phase bootstrap. A runbook with exact
-commands makes it possible to rebuild the homelab from scratch in an hour
-rather than piecing it together from memory.
-
-**Context:** Bootstrap steps per plan:
-1. Form Proxmox cluster (Anton + NUC) via UI
-2. Create Proxmox API token via UI
-3. Create Storinator NFS datasets + exports via TrueNAS UI
-4. Generate Tailscale API key via dashboard
-5. Run Ansible to install Tailscale on physical nodes
-6. Write `terraform.tfvars`, mount Storinator NFS on laptop
-7. `terraform apply`
-8. Seed Infisical via UI
-
-Should also document: `pvecm expected 1` for quorum recovery.
-
-**Depends on:** NFS export strategy, Terraform module structure.
-
----
-
 ## Proxmox GPU Passthrough for Ollama
 
 **What:** Document and implement IOMMU/VFIO configuration for passing the RTX 3060 through to the Ollama VM on Anton.

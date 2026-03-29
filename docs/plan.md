@@ -46,7 +46,7 @@ Physical nodes get DHCP reservations in the Eero app. VMs get static IPs configu
 | anton-ollama VM | anton-ollama | 192.168.0.10 | Static (Terraform) |
 | anton-services VM | anton-services | 192.168.0.11 | Static (Terraform) |
 | anton-openclaw VM | anton-openclaw | 192.168.0.12 | Static (Terraform) |
-| anton-ubuntu VM | anton-ubuntu | 192.168.0.13 | Static (Terraform) |
+| anton-debian VM | anton-debian | 192.168.0.13 | Static (Terraform) |
 | nuc-infisical VM | nuc-infisical | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
 | nuc-haos VM | nuc-haos | 192.168.0.22 | Static (Terraform) — Home Assistant OS |
 
@@ -166,7 +166,7 @@ populated manually as web UI admin passwords are set during service setup.
 | Proxmox host | 4GB | — | OS overhead |
 | Ollama VM | 32GB | 4 | GPU passthrough (RTX 3060) |
 | OpenClaw VM | 8GB | 2 | AI assistant gateway |
-| Personal Ubuntu VM | 16GB | 6 | Development workstation |
+| Personal Debian VM | 16GB | 6 | Development workstation |
 | Services VM | 32GB | 4 | All temporary services |
 | Headroom | 36GB | — | Future VMs / workloads |
 
@@ -183,7 +183,7 @@ populated manually as web UI admin passwords are set during service setup.
 ## VM Strategy
 
 - **Provisioning:** Terraform + cloud-init templates
-- **Base OS:** Ubuntu Server
+- **Base OS:** Debian 12 (Bookworm)
 - **NFS mounts:** All use `soft,timeo=30` to prevent indefinite hangs during Storinator maintenance or ZFS scrubs. Hangs become errors that services can retry.
 - **Backups:** Proxmox vzdump to Storinator `backups` dataset
 
@@ -242,11 +242,11 @@ Vaultwarden stores all passwords a human types into a browser. The two stores ne
 |---------|-------|
 | OpenClaw | Personal AI assistant gateway; permanent on Anton |
 
-**Personal Ubuntu VM** (`192.168.0.13`):
+**Personal Debian VM** (`192.168.0.13`):
 
 | Service | Notes |
 |---------|-------|
-| Ubuntu Desktop/Server | Development workstation |
+| Debian Server | Development workstation |
 
 **Services VM** (`192.168.0.11`) — temporary, migrates to services node when built:
 

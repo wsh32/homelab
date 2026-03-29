@@ -13,13 +13,13 @@
 
 - name: Add Docker GPG key
   ansible.builtin.apt_key:
-    url: https://download.docker.com/linux/ubuntu/gpg
+    url: https://download.docker.com/linux/debian/gpg
     state: present
   become: true
 
 - name: Add Docker apt repository
   ansible.builtin.apt_repository:
-    repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    repo: "deb [arch=amd64] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
     state: present
   become: true
 
@@ -42,9 +42,9 @@
     enabled: true
   become: true
 
-- name: Add ubuntu user to docker group
+- name: Add debian user to docker group
   ansible.builtin.user:
-    name: ubuntu
+    name: debian
     groups: docker
     append: true
   become: true

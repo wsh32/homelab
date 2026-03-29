@@ -4,28 +4,28 @@ locals {
 
 # Anton VMs use IDs 100–199 and IPs 192.168.0.10–19.
 
-# Download Ubuntu 24.04 LTS cloud image to Anton once.
+# Download Debian 12 (Bookworm) cloud image to Anton once.
 # Re-applying after first download is a no-op (overwrite = false).
-resource "proxmox_virtual_environment_download_file" "ubuntu_2404" {
+resource "proxmox_virtual_environment_download_file" "debian_12" {
   node_name    = local.node
   content_type = "iso"
   datastore_id = "local"
 
-  url       = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
-  file_name = "noble-server-cloudimg-amd64.img"
+  url       = "https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2"
+  file_name = "debian-12-genericcloud-amd64.qcow2"
 
   overwrite = false
 }
 
-module "ubuntu" {
+module "debian" {
   source = "../modules/proxmox-vm"
 
   node_name    = local.node
   vm_id        = 101
-  name         = "anton-ubuntu"
-  description  = "Personal Ubuntu development workstation"
-  tags         = ["anton", "ubuntu"]
-  image_file_id = proxmox_virtual_environment_download_file.ubuntu_2404.id
+  name         = "anton-debian"
+  description  = "Personal Debian development workstation"
+  tags         = ["anton", "debian"]
+  image_file_id = proxmox_virtual_environment_download_file.debian_12.id
 
   cores        = 6
   memory_mb    = 16384
