@@ -88,12 +88,18 @@ Day-2 configuration management — runs after Terraform provisions VMs and cloud
 
 ---
 
+## `scripts/`
+
+**`deploy.sh`** — Single entry point for provisioning. Runs `terraform apply` for the target node(s), waits for VMs to be SSH-reachable, then runs `ansible-playbook base.yml`. Usage: `./scripts/deploy.sh [nuc|anton|both]`.
+
+---
+
 ## What's not here yet
 
 See `docs/TODOS.md` for full context on each item.
 
 - `services/` — Docker Compose files for each VM's services
-- `scripts/` — Headless init scripts (Infisical bootstrap, Jellyfin, Servarr, n8n, etc.)
+- `scripts/infisical-bootstrap.sh`, `jellyfin-init.sh`, etc. — Headless init scripts
 - `cloud-init/` — Shared cloud-init templates
 - `services/dns/adguard/AdGuardHome.yaml` — Pre-seeded AdGuard config
 - Terraform resources for the remaining VMs (DNS, HAOS, Infisical, Ollama, OpenClaw, Services)

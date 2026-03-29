@@ -157,28 +157,27 @@ ssh_public_key     = "<contents of ~/.ssh/id_ed25519.pub>"
 tailscale_auth_key = "tskey-auth-<key-from-step-4>"
 ```
 
-### 8. Apply Terraform (first pass)
+### 8. Deploy VMs and apply base Ansible config
 
 ```bash
-# NUC — provisions nuc-infisical VM
-cd terraform/nuc
-terraform init
-terraform plan   # review before applying
-terraform apply
+cd /path/to/homelab
 
-# Anton — provisions anton-debian VM (and others as defined)
-cd ../anton
-terraform init
-terraform plan
-terraform apply
+# Deploy both nodes: runs terraform apply then ansible base.yml
+./scripts/deploy.sh
+
+# Or deploy one node at a time:
+./scripts/deploy.sh nuc
+./scripts/deploy.sh anton
 ```
 
-Wait for cloud-init to finish on the VMs (~2-3 minutes). VMs should appear in the Tailscale admin console.
+The script runs `terraform apply`, waits for VMs to be SSH-reachable
+(cloud-init takes ~2-3 minutes), then runs `ansible-playbook base.yml`
+automatically. VMs should appear in the Tailscale admin console after apply.
 
-Verify SSH access:
+To preview Terraform changes before deploying:
 ```bash
-ssh debian@192.168.0.21   # nuc-infisical
-ssh debian@192.168.0.13   # anton-debian
+cd terraform/nuc && terraform plan
+cd terraform/anton && terraform plan
 ```
 
 ---
@@ -340,14 +339,15 @@ At this point:
 **Add a new VM:**
 ```bash
 # Edit terraform/<node>/main.tf, then:
-cd terraform/<node> && terraform apply
+./scripts/deploy.sh <node>
 ```
 
 **Rebuild a VM from scratch:**
 ```bash
 cd terraform/<node>
 terraform destroy -target=module.<vm-name>
-terraform apply
+cd /path/to/homelab
+./scripts/deploy.sh <node>
 ```
 
 **Update secrets:**
