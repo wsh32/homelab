@@ -166,7 +166,7 @@ terraform init
 terraform plan   # review before applying
 terraform apply
 
-# Anton — provisions anton-ubuntu VM (and others as defined)
+# Anton — provisions anton-debian VM (and others as defined)
 cd ../anton
 terraform init
 terraform plan
@@ -178,7 +178,7 @@ Wait for cloud-init to finish on the VMs (~2-3 minutes). VMs should appear in th
 Verify SSH access:
 ```bash
 ssh debian@192.168.0.21   # nuc-infisical
-ssh debian@192.168.0.13   # anton-ubuntu
+ssh debian@192.168.0.13   # anton-debian
 ```
 
 ---
