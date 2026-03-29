@@ -170,13 +170,16 @@ executable — first-time setup would still require manual GUI intervention.
 - `services/dns/adguard/AdGuardHome.yaml` — pre-seeded AdGuard config with bcrypt
   admin password, upstream DNS, and default blocklists
 - `services/anton/config/radarr.xml`, `sonarr.xml`, `prowlarr.xml` — pre-seeded
-  config.xml files with predetermined API keys (keys stored in Infisical)
+  config.xml files with predetermined API keys (sourced from Infisical at boot)
 - `services/anton/couchdb-init.sh` — CouchDB single-node setup + CORS config for
   Obsidian LiveSync
+- `scripts/infisical-export.sh` — runs `infisical export --format dotenv` at VM boot
+  to write ephemeral `.env` files for each service group; invoked from cloud-init
 
 **Context:** Research confirmed all these services have fully headless setup paths.
 See "Headless Service Configuration" section in `docs/plan.md` for the strategy
-behind each script.
+behind each script. API keys and inter-service tokens come from Infisical; web UI
+admin passwords are set manually and stored in Vaultwarden.
 
 **Depends on:** Infisical setup (scripts pull secrets from Infisical), Terraform
 module structure (scripts reference service URLs and API keys).
