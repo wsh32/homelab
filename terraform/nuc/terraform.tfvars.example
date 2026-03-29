@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars and fill in values. NEVER commit terraform.tfvars.
+
+# Proxmox API endpoint for the NUC node
+proxmox_endpoint = "https://192.168.0.6:8006"
+
+# Proxmox API token — create via:
+#   Datacenter > Permissions > API Tokens > Add
+#   User: terraform@pam, Token ID: terraform, Privilege Separation: unchecked
+#   Note: the full token format is "terraform@pam!terraform=<uuid>"
+proxmox_api_token = "terraform@pam!terraform=REPLACE_ME"
+
+# Your SSH public key (cat ~/.ssh/id_ed25519.pub)
+ssh_public_key = "ssh-ed25519 AAAAC3... you@machine"
+
+# Tailscale reusable auth key — generate at https://login.tailscale.com/admin/settings/keys
+# Use a reusable, ephemeral key tagged with "tag:homelab"
+tailscale_auth_key = "tskey-auth-REPLACE_ME"

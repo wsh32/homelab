@@ -1,0 +1,15 @@
+# Copy to terraform.tfvars and fill in values. NEVER commit terraform.tfvars.
+
+# Proxmox API endpoint for Anton
+proxmox_endpoint = "https://192.168.0.5:8006"
+
+# Proxmox API token — create via:
+#   Datacenter > Permissions > API Tokens > Add
+#   User: terraform@pam, Token ID: terraform, Privilege Separation: unchecked
+proxmox_api_token = "terraform@pam!terraform=REPLACE_ME"
+
+# Your SSH public key (cat ~/.ssh/id_ed25519.pub)
+ssh_public_key = "ssh-ed25519 AAAAC3... you@machine"
+
+# Tailscale reusable auth key — generate at https://login.tailscale.com/admin/settings/keys
+tailscale_auth_key = "tskey-auth-REPLACE_ME"

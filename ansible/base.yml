@@ -1,0 +1,13 @@
+---
+# Apply base hardening and configuration to all Ubuntu VMs.
+# Run after Terraform provisions VMs and cloud-init completes.
+#
+# Usage: ansible-playbook ansible/base.yml
+#        ansible-playbook ansible/base.yml --limit nuc_vms
+
+- name: Base configuration for all VMs
+  hosts: vms
+  gather_facts: true
+
+  roles:
+    - role: base
