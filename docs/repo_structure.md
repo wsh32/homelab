@@ -76,6 +76,8 @@ Day-2 configuration management — runs after Terraform provisions VMs and cloud
 
 **`base.yml`** — Playbook that applies the `base` role to all VMs. The entry point for day-2 setup: `ansible-playbook ansible/base.yml`.
 
+**`network.yml`** — Configures static IP on Proxmox physical nodes (Anton, NUC) by templating `/etc/network/interfaces` and running `ifreload -a`. Requires `static_ip` and `proxmox_bridge_port` set per host in inventory.
+
 **`tailscale.yml`** — Bootstrap playbook for physical nodes only. Installs Tailscale from the official install script and joins the network. Runs before Terraform (physical nodes need to be on Tailscale before VMs are provisioned). Takes `TAILSCALE_AUTH_KEY` from env.
 
 **`roles/base/tasks/main.yml`** — Applied to every Debian VM. Installs fail2ban and UFW, enables the firewall (deny all inbound except SSH), disables password auth in sshd, sets the timezone, creates `/mnt/nas` (NFS mount point), and keeps Tailscale up to date.
@@ -85,6 +87,12 @@ Day-2 configuration management — runs after Terraform provisions VMs and cloud
 **`roles/docker/tasks/main.yml`** — Applied to VMs that run Docker Compose services. Adds the official Docker apt repo, installs Docker CE + compose plugin, configures log rotation (10MB max, 3 files), and adds the `debian` user to the `docker` group.
 
 **`roles/docker/handlers/main.yml`** — Restart handler for Docker daemon.
+
+**`roles/network/tasks/main.yml`** — Installs `ifupdown2` and templates `/etc/network/interfaces`.
+
+**`roles/network/templates/interfaces.j2`** — Proxmox bridge config template. Sets `vmbr0` as a static bridge over `{{ proxmox_bridge_port }}`.
+
+**`roles/network/handlers/main.yml`** — Runs `ifreload -a` to apply network changes without dropping connections.
 
 ---
 

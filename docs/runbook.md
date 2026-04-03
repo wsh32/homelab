@@ -94,7 +94,31 @@ Log into TrueNAS at `https://192.168.0.4`:
 
 ## Phase 2 — Ansible (physical nodes)
 
-### 5. Install Tailscale on physical nodes
+### 5. Configure static IPs on physical nodes
+
+**Anton and NUC** (Proxmox — Ansible-managed):
+
+First, find the physical NIC name on each machine (the one bridged to `vmbr0`):
+```bash
+ssh root@192.168.0.5 ip link show   # anton
+ssh root@192.168.0.6 ip link show   # nuc
+```
+
+Look for the interface that is not `lo` or `vmbr0` — typically `eno1`, `enp2s0`, or similar.
+Update `ansible/inventory/hosts.yml` with the correct `proxmox_bridge_port` for each host, then run:
+
+```bash
+ansible-playbook ansible/network.yml
+```
+
+**Storinator and Gringotts** (TrueNAS — manual):
+1. Log into TrueNAS UI → Network → Interfaces
+2. Edit the primary interface → set Static IP, disable DHCP
+3. Set IP to `192.168.0.4` (Storinator) / `192.168.0.8` (Gringotts), gateway `192.168.0.1`
+
+**Orange Pi** — defer until OS is chosen.
+
+### 6. Install Tailscale on physical nodes
 
 ```bash
 cd /path/to/homelab
@@ -114,7 +138,7 @@ Verify all four nodes appear in the Tailscale admin console.
 
 ## Phase 3 — Terraform (first apply)
 
-### 6. Mount Storinator NFS on the operator laptop
+### 7. Mount Storinator NFS on the operator laptop
 
 ```bash
 sudo mkdir -p /mnt/terraform-state
@@ -129,7 +153,7 @@ To make the mount persist across reboots, add to `/etc/fstab`:
 storinator:/mnt/pool/terraform-state  /mnt/terraform-state  nfs  soft,timeo=30  0  0
 ```
 
-### 7. Write terraform.tfvars for both nodes
+### 8. Write terraform.tfvars for both nodes
 
 ```bash
 # NUC
@@ -157,7 +181,7 @@ ssh_public_key     = "<contents of ~/.ssh/id_ed25519.pub>"
 tailscale_auth_key = "tskey-auth-<key-from-step-4>"
 ```
 
-### 8. Deploy VMs and apply base Ansible config
+### 9. Deploy VMs and apply base Ansible config
 
 ```bash
 cd /path/to/homelab
@@ -184,7 +208,7 @@ cd terraform/anton && terraform plan
 
 ## Phase 4 — Infisical bootstrap
 
-### 9. Bootstrap Infisical
+### 10. Bootstrap Infisical
 
 Wait for the nuc-infisical VM to be healthy and Docker Compose running:
 ```bash
@@ -206,7 +230,7 @@ client_secret = "..."
 
 Save these — you add them to `terraform.tfvars` next.
 
-### 10. Add Infisical credentials to terraform.tfvars
+### 11. Add Infisical credentials to terraform.tfvars
 
 Add to **both** `terraform/nuc/terraform.tfvars` and `terraform/anton/terraform.tfvars`:
 
@@ -226,7 +250,7 @@ cd ../anton && terraform apply
 
 ## Phase 5 — Vaultwarden account
 
-### 11. Create your Vaultwarden account
+### 12. Create your Vaultwarden account
 
 1. Open `https://vault.home` in a browser (requires `.home` DNS from AdGuard — see note below)
 2. Create Account with your email and a strong master password
@@ -241,7 +265,7 @@ Store the master password somewhere safe immediately — this is your break-glas
 
 ## Phase 6 — Seed Infisical
 
-### 12. Add secrets to Infisical
+### 13. Add secrets to Infisical
 
 Log into Infisical at `https://infisical.home` (or `https://192.168.0.21:<port>`).
 
@@ -269,7 +293,7 @@ infisical run -- env      # inspect all injected vars
 
 ## Phase 7 — Start services
 
-### 13. Reboot VMs to fetch secrets and start services
+### 14. Reboot VMs to fetch secrets and start services
 
 ```bash
 # Trigger a reboot so cloud-init / startup scripts fetch from Infisical
@@ -293,7 +317,7 @@ ssh debian@192.168.0.21 "docker compose logs --tail=50"
 
 ## Phase 8 — Post-bootstrap
 
-### 14. Run headless service init scripts
+### 15. Run headless service init scripts
 
 After services are up and running, initialize services that need first-boot setup:
 
@@ -315,7 +339,7 @@ Each script is idempotent — safe to re-run.
 
 After running each init script, add the service's admin password to Vaultwarden manually.
 
-### 15. Back up terraform.tfvars
+### 16. Back up terraform.tfvars
 
 Store `terraform.tfvars` as an encrypted note or file attachment in Vaultwarden.
 It contains the Proxmox API token, Tailscale key, and Infisical credentials —

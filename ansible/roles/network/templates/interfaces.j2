@@ -1,0 +1,16 @@
+# /etc/network/interfaces — managed by Ansible (ansible/roles/network)
+# Do not edit manually; changes will be overwritten on next ansible run.
+
+auto lo
+iface lo inet loopback
+
+iface {{ proxmox_bridge_port }} inet manual
+
+auto vmbr0
+iface vmbr0 inet static
+        address {{ static_ip }}
+        gateway {{ gateway | default('192.168.0.1') }}
+        bridge-ports {{ proxmox_bridge_port }}
+        bridge-stp off
+        bridge-fd 0
+        bridge-vlan-aware yes

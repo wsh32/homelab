@@ -39,10 +39,10 @@ Physical nodes get DHCP reservations in the Eero app. VMs get static IPs configu
 |--------|----------|----|-------|
 | nuc-dns VM | dns | 192.168.0.2 | Static (Terraform) — AdGuard Home |
 | (future) | dns2 | 192.168.0.3 | Reserved for backup DNS VM |
-| Storinator | storinator | 192.168.0.4 | Eero DHCP reservation |
-| Anton | anton | 192.168.0.5 | Eero DHCP reservation |
-| NUC | nuc | 192.168.0.6 | Eero DHCP reservation |
-| Orange Pi | orangepi | 192.168.0.7 | Eero DHCP reservation |
+| Storinator | storinator | 192.168.0.4 | Static (TrueNAS UI) |
+| Anton | anton | 192.168.0.5 | Static (Ansible — `/etc/network/interfaces`) |
+| NUC | nuc | 192.168.0.6 | Static (Ansible — `/etc/network/interfaces`) |
+| Orange Pi | orangepi | 192.168.0.7 | Static (TBD — depends on OS choice) |
 | anton-ollama VM | anton-ollama | 192.168.0.10 | Static (Terraform) |
 | anton-services VM | anton-services | 192.168.0.11 | Static (Terraform) |
 | anton-openclaw VM | anton-openclaw | 192.168.0.12 | Static (Terraform) |

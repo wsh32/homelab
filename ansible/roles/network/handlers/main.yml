@@ -1,0 +1,6 @@
+---
+- name: Reload network
+  ansible.builtin.command: ifreload -a
+  become: true
+  # ifreload applies network changes without dropping existing connections
+  # as long as the IP/gateway remain the same. Safe to run remotely.

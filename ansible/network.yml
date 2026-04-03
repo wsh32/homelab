@@ -1,0 +1,30 @@
+---
+# Configure static IP on Proxmox physical nodes.
+# Safe to re-run — ifreload -a applies changes without dropping connections
+# as long as the IP address is not changing.
+#
+# Usage:
+#   ansible-playbook ansible/network.yml
+#   ansible-playbook ansible/network.yml --limit anton
+#
+# Prerequisites:
+#   - Set proxmox_bridge_port in inventory/hosts.yml for each host
+#     (verify with `ip link show` on the target machine)
+#   - Run from a machine with SSH access to the target nodes
+
+- name: Configure static IP on Proxmox nodes
+  hosts: proxmox
+  gather_facts: false
+
+  pre_tasks:
+    - name: Verify required variables are set
+      ansible.builtin.assert:
+        that:
+          - static_ip is defined
+          - proxmox_bridge_port is defined
+        fail_msg: >
+          static_ip and proxmox_bridge_port must be set in inventory for {{ inventory_hostname }}.
+          Find the bridge port with: ssh root@{{ ansible_host }} ip link show
+
+  roles:
+    - role: network
