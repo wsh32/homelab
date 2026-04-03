@@ -4,6 +4,8 @@ A walkthrough of every file in this repo and what it does.
 
 ## Root
 
+**`network.yml`** — Single source of truth for all static IP assignments. Every host, VM, gateway, and DNS server is defined here. Terraform reads it directly via `yamldecode()`; Ansible inventory mirrors the IPs. Edit IPs here first.
+
 **`.gitignore`** — Excludes secrets and Terraform internals from git: `terraform.tfvars`, `.env`, `*.tfstate`, `*.tfstate.backup`, `.terraform/`, `.terraform.lock.hcl`, `*.pem`, `*.key`. Nothing sensitive can accidentally be committed.
 
 **`README.md`** — Top-level overview: architecture diagram, repo structure, bootstrap steps, and the three-store secrets model (tfvars / Vaultwarden / Infisical).

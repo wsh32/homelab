@@ -29,6 +29,9 @@ Goals:
 
 ## Local Network
 
+> All static IP assignments are defined in `network.yml` at the repo root.
+> That file is the single source of truth — edit IPs there.
+
 Router: `192.168.0.1` (Eero)
 
 DHCP: `192.168.0.100 – 192.168.0.254` (Eero managed)

@@ -1,8 +1,7 @@
 locals {
   node = "nuc"
+  net  = yamldecode(file("${path.module}/../../network.yml"))
 }
-
-# NUC VMs use IDs 200–299 and IPs 192.168.0.20–29.
 
 # Download Debian 12 (Bookworm) cloud image to NUC once.
 resource "proxmox_virtual_environment_download_file" "debian_12" {
@@ -20,7 +19,7 @@ module "infisical" {
   source = "../modules/proxmox-vm"
 
   node_name    = local.node
-  vm_id        = 201
+  vm_id        = local.net.vms["nuc-infisical"].vm_id
   name         = "nuc-infisical"
   description  = "Infisical (secrets manager) + Vaultwarden (password manager)"
   tags         = ["nuc", "infra", "infisical"]
@@ -30,7 +29,9 @@ module "infisical" {
   memory_mb    = 6144
   disk_size_gb = 20
 
-  ip_address         = "192.168.0.21/24"
+  ip_address         = "${local.net.vms["nuc-infisical"].ip}/24"
+  gateway            = local.net.gateway
+  dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key
   tailscale_auth_key = var.tailscale_auth_key
 

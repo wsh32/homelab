@@ -1,0 +1,72 @@
+# network.yml — single source of truth for all static IP assignments.
+#
+# Terraform reads this file directly via yamldecode().
+# Ansible inventory (ansible/inventory/hosts.yml) mirrors the IPs here —
+# any IP change must be made in both files.
+#
+# IP layout:
+#   .1       gateway (Eero)
+#   .2       nuc-dns VM (AdGuard Home — also primary DNS for all VMs)
+#   .3       reserved (future backup DNS)
+#   .4–.8    physical nodes
+#   .10–.19  Anton VMs
+#   .20–.29  NUC VMs
+#   .100+    DHCP (Eero managed, not used for static hosts)
+
+gateway: 192.168.0.1
+
+# DNS servers injected into all VMs via cloud-init
+dns:
+  - 192.168.0.2   # nuc-dns (AdGuard Home) — primary
+  - 8.8.8.8       # fallback if nuc-dns is down
+
+# Physical nodes
+# bridge_port: the NIC bridged to vmbr0 on Proxmox nodes.
+# Verify with: ssh root@<ip> ip link show
+physical:
+  storinator:
+    ip: 192.168.0.4
+  anton:
+    ip: 192.168.0.5
+    bridge_port: eno1  # TODO: verify with `ip link show`
+  nuc:
+    ip: 192.168.0.6
+    bridge_port: eno1  # TODO: verify with `ip link show`
+  orangepi:
+    ip: 192.168.0.7
+    # bridge_port: tbd — configure once OS is chosen
+  gringotts:
+    ip: 192.168.0.8
+
+# VMs
+# NUC: VM IDs 200–299, IPs .20–.29
+# Anton: VM IDs 100–199, IPs .10–.19
+vms:
+  nuc-dns:
+    ip: 192.168.0.2
+    vm_id: 200
+    node: nuc
+  nuc-infisical:
+    ip: 192.168.0.21
+    vm_id: 201
+    node: nuc
+  nuc-haos:
+    ip: 192.168.0.22
+    vm_id: 202
+    node: nuc
+  anton-ollama:
+    ip: 192.168.0.10
+    vm_id: 100
+    node: anton
+  anton-debian:
+    ip: 192.168.0.13
+    vm_id: 101
+    node: anton
+  anton-openclaw:
+    ip: 192.168.0.12
+    vm_id: 102
+    node: anton
+  anton-services:
+    ip: 192.168.0.11
+    vm_id: 103
+    node: anton

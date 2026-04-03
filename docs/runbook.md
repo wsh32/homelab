@@ -105,7 +105,7 @@ ssh root@192.168.0.6 ip link show   # nuc
 ```
 
 Look for the interface that is not `lo` or `vmbr0` — typically `eno1`, `enp2s0`, or similar.
-Update `ansible/inventory/hosts.yml` with the correct `proxmox_bridge_port` for each host, then run:
+Update `bridge_port` for each host in `network.yml` (repo root), then run:
 
 ```bash
 ansible-playbook ansible/network.yml

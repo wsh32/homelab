@@ -1,8 +1,7 @@
 locals {
   node = "anton"
+  net  = yamldecode(file("${path.module}/../../network.yml"))
 }
-
-# Anton VMs use IDs 100–199 and IPs 192.168.0.10–19.
 
 # Download Debian 12 (Bookworm) cloud image to Anton once.
 # Re-applying after first download is a no-op (overwrite = false).
@@ -21,7 +20,7 @@ module "debian" {
   source = "../modules/proxmox-vm"
 
   node_name    = local.node
-  vm_id        = 101
+  vm_id        = local.net.vms["anton-debian"].vm_id
   name         = "anton-debian"
   description  = "Personal Debian development workstation"
   tags         = ["anton", "debian"]
@@ -31,7 +30,9 @@ module "debian" {
   memory_mb    = 16384
   disk_size_gb = 60
 
-  ip_address         = "192.168.0.13/24"
+  ip_address         = "${local.net.vms["anton-debian"].ip}/24"
+  gateway            = local.net.gateway
+  dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key
   tailscale_auth_key = var.tailscale_auth_key
 }
