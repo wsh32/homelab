@@ -52,7 +52,7 @@ Physical nodes get DHCP reservations in the Eero app. VMs get static IPs configu
 | anton-debian VM | anton-debian | 192.168.0.13 | Static (Terraform) |
 | nuc-infisical VM | nuc-infisical | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
 | nuc-haos VM | nuc-haos | 192.168.0.22 | Static (Terraform) — Home Assistant OS |
-| VPS | vps | Public IP | Hetzner — Headscale coordination server, Terraform execution host, webhook listener |
+| VPS | vps | Public IP | DigitalOcean — Headscale coordination server, Terraform execution host, webhook listener |
 
 Note: Gringotts is offsite and not on the local network. The VPS is on the public internet; it joins the Headscale tailnet and reaches all homelab resources over Tailscale.
 
@@ -121,7 +121,7 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 
 ### One-time manual steps (operator laptop)
 
-5. **Provision VPS** — `cd terraform/vps && terraform apply`. Creates the VPS on Hetzner.
+5. **Provision VPS** — `cd terraform/vps && terraform apply`. Creates the VPS on DigitalOcean.
    State for this workspace is a local file on the operator laptop (the VPS cannot
    manage its own existence).
 6. **Bootstrap VPS** — `ansible-playbook ansible/vps.yml`. Installs Docker, deploys
@@ -625,9 +625,9 @@ NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
 | Calibre-Web headless setup | Post-start `cps.py -s` CLI; library at `/books` mount |
 | n8n headless setup | `POST /api/v1/owner/setup` scripted in `n8n-init.sh` |
 | CouchDB headless setup | Env vars for credentials; init container handles `/_cluster_setup` and CORS |
-| Tailscale coordination server | Self-hosted Headscale on a Hetzner VPS; Tailscale clients point at `--login-server`. Uses Tailscale's public DERP relays. Managed by Ansible (`roles/headscale`). |
+| Tailscale coordination server | Self-hosted Headscale on a DigitalOcean VPS; Tailscale clients point at `--login-server`. Uses Tailscale's public DERP relays. Managed by Ansible (`roles/headscale`). |
 | Terraform execution host | VPS runs `terraform/nuc/` and `terraform/anton/` normally. `terraform/vps/` runs from operator laptop only (VPS cannot manage its own existence). |
 | Terraform state backend | MinIO S3 on Storinator (`http://storinator:9000`) for `nuc/` and `anton/`. Local file on operator laptop for `vps/`. S3 lockfile replaces NFS file locking. Both laptop and VPS reach MinIO over Tailscale. |
 | Physical device management | `ansible-pull` on a 30-minute cron. One-time bootstrap script run via SSH. No ongoing operator action for config changes. |
 | Deployment automation | GitHub webhook on VPS triggers `scripts/webhook-deploy.sh` on push to `main`. Detects changed paths and runs Terraform, Ansible, or Docker Compose deploy as appropriate. `terraform/vps/` is the only manual exception. |
-| VPS Ansible config | VPS manages its own config via `ansible-pull` (same pattern as physical devices). `terraform/vps/` manages only VPS infrastructure on Hetzner; all OS/service config is Ansible's responsibility. |
+| VPS Ansible config | VPS manages its own config via `ansible-pull` (same pattern as physical devices). `terraform/vps/` manages only VPS infrastructure on DigitalOcean; all OS/service config is Ansible's responsibility. |

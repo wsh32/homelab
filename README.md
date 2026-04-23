@@ -10,7 +10,7 @@ Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Te
 │                                                                         │
 │  ┌──────────┐   ┌───────────────┐   ┌────────────────┐   ┌───────────┐ │
 │  │   VPS    │   │     Anton     │   │      NUC       │   │Storinator │ │
-│  │(Hetzner) │   │   (compute)   │   │    (infra)     │   │  (NAS)    │ │
+│  │   (DO)   │   │   (compute)   │   │    (infra)     │   │  (NAS)    │ │
 │  │          │   │               │   │                │   │           │ │
 │  │Headscale │   │ • Ollama      │   │ • AdGuard DNS  │   │ • TrueNAS │ │
 │  │Terraform │   │ • OpenClaw    │   │ • Home Asst.   │   │ • NFS     │ │
@@ -28,7 +28,7 @@ Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Te
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-**VPS** (Hetzner, ~$5/month) is the control plane: runs Headscale (self-hosted Tailscale coordination), executes Terraform for Proxmox VMs, and listens for GitHub webhooks to trigger automated deploys.
+**VPS** (DigitalOcean Droplet, ~$6/month) is the control plane: runs Headscale (self-hosted Tailscale coordination), executes Terraform for Proxmox VMs, and listens for GitHub webhooks to trigger automated deploys.
 
 See [`docs/plan.md`](docs/plan.md) for full architecture, VM layout, and all decisions.
 

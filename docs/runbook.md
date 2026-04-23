@@ -25,13 +25,13 @@ infisical --version
 # SSH key pair (used for VM access)
 ls ~/.ssh/id_ed25519.pub
 
-# Hetzner CLI (for VPS provisioning)
-hcloud version
+# DigitalOcean CLI (for VPS provisioning)
+doctl version
 ```
 
 Install if missing:
 ```bash
-brew install terraform ansible infisical/tap/infisical hcloud
+brew install terraform ansible infisical/tap/infisical doctl
 ssh-keygen -t ed25519  # if no key exists
 ```
 
@@ -103,7 +103,7 @@ From the operator laptop:
 ```bash
 cd terraform/vps
 cp terraform.tfvars.example terraform.tfvars
-# Fill in: hetzner_api_token, ssh_public_key
+# Fill in: digitalocean_api_token, ssh_public_key
 terraform init
 terraform apply
 ```
@@ -409,7 +409,7 @@ Store the following as encrypted notes or file attachments in Vaultwarden:
 - `terraform/nuc/terraform.tfvars` and `terraform/anton/terraform.tfvars` — Proxmox
   API tokens, Headscale key, MinIO credentials, Infisical credentials
 - `terraform/vps/terraform.tfstate` — the only state file not in MinIO
-- `terraform/vps/terraform.tfvars` — Hetzner API token
+- `terraform/vps/terraform.tfvars` — DigitalOcean API token
 
 ---
 
