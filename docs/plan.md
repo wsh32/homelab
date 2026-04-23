@@ -177,7 +177,7 @@ from the operator laptop.
 | Infisical VM | 6GB | 2 | Infisical + Vaultwarden |
 | Headroom | 2GB | — | Buffer / future |
 
-### Anton (128GB RAM, i5-12600kf 10c/16t)
+### Anton (128GB ECC RAM, Threadripper 3975WX 32c/64t)
 
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
@@ -185,8 +185,8 @@ from the operator laptop.
 | Ollama VM | 32GB | 4 | GPU passthrough (RTX 3060) |
 | OpenClaw VM | 8GB | 2 | AI assistant gateway |
 | Personal Debian VM | 16GB | 6 | Development workstation |
-| Services VM | 32GB | 4 | All temporary services |
-| Headroom | 36GB | — | Future VMs / workloads |
+| Services VM | 32GB | 8 | All temporary services; GPU passthrough (Quadro P2000) for Jellyfin |
+| Headroom | 40GB | — | Future VMs / workloads |
 
 ### Services node (planned — 48GB RAM, Ryzen 7 3700x 8c/16t)
 
@@ -289,7 +289,7 @@ persistent data lives on Storinator NFS, so services redeploy by retargeting Ter
 | Service | Notes |
 |---------|-------|
 | Traefik | Reverse proxy |
-| Jellyfin | GPU transcoding via P2000 (if installed) |
+| Jellyfin | GPU transcoding via P2000 (migrates with services VM) |
 | Servarr stack | Radarr, Sonarr, Prowlarr |
 | PhotoPrism | Photo archive and browsing |
 | Calibre-Web | Ebook server |

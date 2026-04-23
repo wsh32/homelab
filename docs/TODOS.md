@@ -50,7 +50,7 @@ Recommended: shared `modules/vm` module + per-node root modules. Avoids duplicat
 
 **Cons:** VFIO config ties the GPU exclusively to one VM — the GPU can't be shared with other VMs or the host.
 
-**Context:** Anton has an i5-12600kf (supports VT-d) and RTX 3060. The Ollama VM needs the GPU passed through exclusively. After passthrough, the Proxmox host will have no display output from that GPU. Plan for this: Anton likely has no monitor attached anyway.
+**Context:** Anton is a Lenovo P620 ThinkStation (Threadripper 3975WX, AMD platform) with two GPUs: RTX 3060 and Quadro P2000. Both can be passed through to separate VMs — RTX 3060 → Ollama VM (inference), Quadro P2000 → Services VM (Jellyfin transcoding). After passthrough, the Proxmox host will have no display output. Plan for this: Anton likely has no monitor attached anyway. Note: AMD Threadripper uses AMD-Vi (IOMMU) rather than Intel VT-d — kernel param is `amd_iommu=on`.
 
 **Depends on:** Terraform module structure (GPU passthrough config goes in the Ollama VM definition).
 
