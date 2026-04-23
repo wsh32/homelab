@@ -17,7 +17,16 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
 - **VM IDs**: NUC VMs use 200–299, Anton VMs use 100–199. Reserve 300+ for the services node.
 - **IP addresses**: NUC VMs use 192.168.0.20–29, Anton VMs use 192.168.0.10–19.
 - **Docker Compose**: persistent data always mounts to `/mnt/nas/<dataset>/<service>` (Storinator NFS). Never use named volumes for stateful data — it must survive VM recreation.
-- **Traefik routing**: every service gets a `traefik.http.routers.<name>.rule=Host('<name>.home')` label. Use `websecure` entrypoint with the `letsencrypt` cert resolver.
+- **Traefik routing**: each service gets two routers — `<name>-wsh` (Tailscale, HTTPS) and `<name>-home` (LAN, HTTP). Omit a router to restrict exposure on that network. Default is both. See DNS Architecture in `docs/plan.md` for the full two-domain design.
+  ```yaml
+  - "traefik.http.routers.<name>-wsh.rule=Host(`<name>.wsh`)"
+  - "traefik.http.routers.<name>-wsh.entrypoints=websecure"
+  - "traefik.http.routers.<name>-wsh.tls=true"
+  - "traefik.http.routers.<name>-home.rule=Host(`<name>.home`)"
+  - "traefik.http.routers.<name>-home.entrypoints=web"
+  - "traefik.http.services.<name>-svc.loadbalancer.server.port=<port>"
+  ```
+  TLS cert resolver is `step` (local step-ca CA), not `letsencrypt`.
 - **Headless config**: all services are configured without the web UI. Two accepted exceptions: HAOS (restored from backup) and Vaultwarden (one manual browser registration). See "Headless Service Configuration" in `docs/plan.md`.
 
 ## Repo structure

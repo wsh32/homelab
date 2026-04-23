@@ -358,9 +358,95 @@ ssh debian@192.168.0.21 "docker compose logs --tail=50"
 
 ---
 
-## Phase 9 — Webhook setup
+## Phase 9 — DNS and TLS setup
 
-### 17. Configure GitHub webhook
+### 17. Bootstrap step-ca
+
+step-ca runs as a container in the services VM Docker Compose. It needs a one-time
+initialization to generate the root CA key and issue the wildcard cert for `*.wsh`.
+
+```bash
+ssh debian@192.168.0.11
+
+# Initialize step-ca (generates root CA + intermediate)
+docker exec step-ca step ca init \
+  --name "homelab" \
+  --dns "step-ca.wsh,step-ca.home" \
+  --address ":9000" \
+  --provisioner "acme" \
+  --deployment-type standalone
+
+# The root CA cert is at: /home/step/.step/certs/root_ca.crt inside the container
+docker cp step-ca:/home/step/.step/certs/root_ca.crt /tmp/homelab-root-ca.crt
+```
+
+Copy the root CA cert to your operator laptop and trust it:
+```bash
+scp debian@192.168.0.11:/tmp/homelab-root-ca.crt ~/homelab-root-ca.crt
+
+# macOS
+sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ~/homelab-root-ca.crt
+
+# Linux (Debian/Ubuntu)
+sudo cp ~/homelab-root-ca.crt /usr/local/share/ca-certificates/homelab-root-ca.crt
+sudo update-ca-certificates
+```
+
+Repeat the trust step on every personal device that will use `*.wsh` services.
+
+### 18. Configure Headscale dns_config
+
+Tell Headscale to push AdGuard's Tailscale IP as the resolver for `.wsh` and `.home`
+to all tailnet members. Edit the Headscale config on the VPS:
+
+```bash
+ssh debian@<vps-public-ip>
+# Edit /etc/headscale/config.yaml (or the Docker Compose config mount):
+```
+
+Add/update the `dns_config` section:
+```yaml
+dns_config:
+  nameservers:
+    - <adguard-tailscale-ip>   # tailscale IP of the DNS VM (192.168.0.2 LAN, ts.home resolves it)
+  restricted_nameservers:
+    "wsh":
+      - <adguard-tailscale-ip>
+    "home":
+      - <adguard-tailscale-ip>
+  magic_dns: true
+  base_domain: ts.home
+```
+
+Restart Headscale:
+```bash
+docker compose restart headscale
+# Verify all nodes pick up new DNS config:
+docker exec headscale headscale nodes list
+```
+
+On a tailnet member, verify `*.wsh` resolves:
+```bash
+dig jellyfin.wsh    # should return the services VM's Tailscale IP
+dig jellyfin.home   # should return 192.168.0.11
+```
+
+### 19. Verify AdGuard DNS rewrites
+
+The pre-seeded `AdGuardHome.yaml` includes the DNS rewrites. Confirm they are active:
+
+1. Open AdGuard at `http://192.168.0.2` (or `http://dns.home` once DNS is working)
+2. Filters → DNS rewrites → verify:
+   - `*.wsh` → CNAME `anton-services.ts.home`
+   - `*.home` → A `192.168.0.11`
+
+If missing, add them via the UI and commit the updated `AdGuardHome.yaml` to the repo.
+
+---
+
+## Phase 10 — Webhook setup
+
+### 20. Configure GitHub webhook
 
 1. In the repo on GitHub: Settings → Webhooks → Add webhook
    - Payload URL: `https://<vps-domain>/hooks/deploy`
@@ -379,9 +465,9 @@ ssh debian@192.168.0.21 "docker compose logs --tail=50"
 
 ---
 
-## Phase 10 — Post-bootstrap
+## Phase 11 — Post-bootstrap
 
-### 18. Run headless service init scripts
+### 21. Run headless service init scripts
 
 After services are up and running, initialize services that need first-boot setup:
 
@@ -403,7 +489,7 @@ Each script is idempotent — safe to re-run.
 
 After running each init script, add the service's admin password to Vaultwarden manually.
 
-### 19. Back up critical files
+### 22. Back up critical files
 
 Store the following as encrypted notes or file attachments in Vaultwarden:
 - `terraform/nuc/terraform.tfvars` and `terraform/anton/terraform.tfvars` — Proxmox

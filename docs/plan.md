@@ -64,6 +64,45 @@ All physical nodes and VMs join Tailscale. VM auth keys are provisioned automati
 
 ---
 
+## DNS Architecture
+
+Two domains serve different audiences without subnet routing or internet exposure:
+
+| Domain | Path | DNS resolution | Protocol | Audience |
+|--------|------|----------------|----------|----------|
+| `*.wsh` | Tailscale | AdGuard CNAME → `anton-services.ts.home` | HTTPS (step-ca TLS) | Personal devices on Tailscale |
+| `*.home` | LAN | AdGuard A → `192.168.0.11` | HTTP | Any LAN device (including guests) |
+
+**How resolution works:**
+
+- Headscale pushes AdGuard's Tailscale IP as the authoritative resolver for both `.wsh` and
+  `.home` to all tailnet members via `dns_config` → `nameservers`.
+- On-tailnet devices query AdGuard over Tailscale. `*.wsh` resolves to
+  `anton-services.ts.home` (Tailscale MagicDNS), which each node resolves locally from its
+  peer map to the services VM's Tailscale IP. Traefik answers on port 443 with a valid
+  step-ca TLS cert.
+- LAN-only devices (guests, IoT) use AdGuard via the LAN IP `192.168.0.2`. `*.home` resolves
+  to `192.168.0.11` directly. Traefik answers on port 80, plain HTTP.
+- A device on the LAN with Tailscale uses the `*.wsh` path (Tailscale is preferred);
+  `*.home` is the fallback for non-Tailscale LAN clients.
+
+**TLS:**
+
+- `*.wsh` — step-ca local CA issues a wildcard cert. Traefik uses ACME against the local
+  step-ca endpoint (`step` cert resolver). Personal devices trust the step-ca root CA
+  (installed once per device).
+- `*.home` — plain HTTP. LAN fallback for guests; no TLS required.
+- Let's Encrypt is not used — it does not issue certs for private TLDs like `.wsh` or `.home`.
+
+**Per-service exposure control:**
+
+Each service defaults to being exposed on both domains. To restrict:
+- Tailscale-only: include only the `-wsh` Traefik router, omit `-home`.
+- LAN-only: include only the `-home` router, omit `-wsh`.
+- Both (default): include both routers.
+
+---
+
 # 4. Storage Architecture
 
 **Storinator** is NAS-only. The only additional software is Tailscale and the TrueNAS Scale built-in MinIO S3 API (used as the Terraform state backend). No Docker, no services beyond TrueNAS.
@@ -270,7 +309,8 @@ Vaultwarden stores all passwords a human types into a browser. The two stores ne
 
 | Service | Notes |
 |---------|-------|
-| Traefik | Reverse proxy |
+| Traefik | Reverse proxy; two entrypoints: `web` (80, `*.home`) and `websecure` (443, `*.wsh`) |
+| step-ca | Local CA; issues wildcard `*.wsh` cert; Traefik ACME uses local step-ca endpoint |
 | Jellyfin | Media server; GPU transcoding |
 | Servarr stack | Radarr, Sonarr, Prowlarr |
 | PhotoPrism | Photo archive and browsing |
@@ -288,7 +328,8 @@ persistent data lives on Storinator NFS, so services redeploy by retargeting Ter
 
 | Service | Notes |
 |---------|-------|
-| Traefik | Reverse proxy |
+| Traefik | Reverse proxy; `web` (80, `*.home`) and `websecure` (443, `*.wsh`) |
+| step-ca | Local CA; issues wildcard `*.wsh` cert (migrates with services VM) |
 | Jellyfin | GPU transcoding via P2000 (migrates with services VM) |
 | Servarr stack | Radarr, Sonarr, Prowlarr |
 | PhotoPrism | Photo archive and browsing |
@@ -315,6 +356,11 @@ a valid config on startup and skips the wizard entirely.
 - Config file: `services/dns/adguard/AdGuardHome.yaml` (committed to repo)
 - Admin password stored as bcrypt hash in the config file; plaintext in Vaultwarden
 - Upstream DNS: `8.8.8.8`, `8.8.4.4`
+- DNS rewrites (committed in `AdGuardHome.yaml`):
+  - `*.wsh` → CNAME `anton-services.ts.home` (Tailscale MagicDNS hostname for the services VM)
+  - `*.home` → A record `192.168.0.11` (services VM LAN IP)
+- Headscale pushes the AdGuard VM's Tailscale IP as the DNS resolver for `.wsh` and `.home`
+  to all tailnet members via `dns_config` → `nameservers`
 
 ### Infisical
 
@@ -407,9 +453,39 @@ Two backends, split by execution environment:
 
 ## Reverse Proxy
 
-Single Traefik instance on Anton serves all services across all nodes. NUC-hosted services
-(Infisical, Vaultwarden) are configured as external backends pointing at their local IPs
-(e.g. `192.168.0.21`). All nodes are on the same LAN so Traefik on Anton reaches them directly.
+Single Traefik instance on Anton (services VM at `192.168.0.11`) serves all services across
+all nodes. NUC-hosted services (Infisical, Vaultwarden) are configured as external backends
+pointing at their local IPs (e.g. `192.168.0.21`). All nodes are on the same LAN so Traefik
+on Anton reaches them directly.
+
+Traefik listens on two entrypoints:
+
+| Entrypoint | Port | Protocol | Domain | Audience |
+|------------|------|----------|--------|----------|
+| `web` | 80 | HTTP | `*.home` | LAN devices (including guests without Tailscale) |
+| `websecure` | 443 | HTTPS | `*.wsh` | Tailscale-connected devices; TLS via step-ca local CA |
+
+Each service gets two Docker Compose router labels:
+
+```yaml
+# Tailscale path — HTTPS, personal devices
+- "traefik.http.routers.<name>-wsh.rule=Host(`<name>.wsh`)"
+- "traefik.http.routers.<name>-wsh.entrypoints=websecure"
+- "traefik.http.routers.<name>-wsh.tls=true"
+# LAN fallback — HTTP, guests
+- "traefik.http.routers.<name>-home.rule=Host(`<name>.home`)"
+- "traefik.http.routers.<name>-home.entrypoints=web"
+# Backend
+- "traefik.http.services.<name>-svc.loadbalancer.server.port=<port>"
+```
+
+To restrict a service to Tailscale-only, omit the `-home` router. To restrict to LAN-only,
+omit the `-wsh` router. Both routers share the same backend service, so the same container
+serves both domains.
+
+TLS: Traefik uses a local ACME endpoint (`step` cert resolver) pointing at step-ca.
+step-ca issues a wildcard cert for `*.wsh`. No Let's Encrypt — Let's Encrypt does not issue
+certs for private TLDs. `*.home` is HTTP only (LAN fallback for guests; no TLS needed).
 
 ---
 
@@ -631,3 +707,7 @@ NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
 | Physical device management | `ansible-pull` on a 30-minute cron. One-time bootstrap script run via SSH. No ongoing operator action for config changes. |
 | Deployment automation | GitHub webhook on VPS triggers `scripts/webhook-deploy.sh` on push to `main`. Detects changed paths and runs Terraform, Ansible, or Docker Compose deploy as appropriate. `terraform/vps/` is the only manual exception. |
 | VPS Ansible config | VPS manages its own config via `ansible-pull` (same pattern as physical devices). `terraform/vps/` manages only VPS infrastructure on DigitalOcean; all OS/service config is Ansible's responsibility. |
+| DNS domain strategy | Two domains: `*.wsh` (Tailscale/HTTPS, personal devices) and `*.home` (LAN/HTTP, guests). Avoids subnet routing; guests can reach services without Tailscale. Single Traefik instance handles both. |
+| TLS for private TLDs | Let's Encrypt does not issue certs for `.wsh` or `.home`. `*.wsh` uses step-ca (local CA, wildcard cert, Traefik ACME). `*.home` is plain HTTP (LAN only, acceptable). |
+| AdGuard DNS rewrites | `*.wsh` CNAME → `anton-services.ts.home` (MagicDNS). `*.home` A → `192.168.0.11` (LAN IP). Headscale `dns_config` pushes AdGuard's Tailscale IP as resolver for both TLDs to all tailnet members. |
+| Per-service network exposure | Each service defines which domains it exposes via presence/absence of `-wsh` and `-home` Traefik router labels. Default is both. |

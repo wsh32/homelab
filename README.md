@@ -30,6 +30,8 @@ Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Te
 
 **VPS** (DigitalOcean Droplet, ~$6/month) is the control plane: runs Headscale (self-hosted Tailscale coordination), executes Terraform for Proxmox VMs, and listens for GitHub webhooks to trigger automated deploys.
 
+**Two-domain DNS**: services are exposed on `*.wsh` (Tailscale/HTTPS via step-ca local CA, personal devices) and `*.home` (LAN/HTTP, guests). AdGuard resolves `*.wsh` as a CNAME to Tailscale MagicDNS and `*.home` as an A record to the services VM LAN IP. See [DNS Architecture in docs/plan.md](docs/plan.md) for details.
+
 See [`docs/plan.md`](docs/plan.md) for full architecture, VM layout, and all decisions.
 
 ## Repo structure
