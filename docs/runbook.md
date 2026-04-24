@@ -184,15 +184,29 @@ ssh debian@<vps-public-ip> "docker exec headscale headscale nodes list"
 
 ## Phase 4 — Terraform (first apply, from VPS)
 
-### 9. Set up the repo on the VPS
+### 9. Bootstrap the deploy VM
+
+The deploy VM (`nuc-deploy`, `192.168.0.23`) is a chicken-and-egg problem: it needs
+Terraform to be provisioned, but it's also the machine that runs Terraform. For the
+first apply only, run from the operator laptop:
 
 ```bash
-ssh debian@<vps-public-ip>
+cd terraform/nuc
+terraform apply -target=module.nuc-deploy
+```
+
+Once the deploy VM exists and is on the Tailscale network, all subsequent Terraform
+runs happen from it.
+
+### 10. Set up the repo on the deploy VM
+
+```bash
+ssh debian@192.168.0.23
 git clone git@github.com:wsh32/homelab.git
 cd homelab
 ```
 
-### 10. Write terraform.tfvars on the VPS
+### 11. Write terraform.tfvars on the deploy VM
 
 ```bash
 # NUC
@@ -218,9 +232,12 @@ cp terraform/anton/terraform.tfvars.example terraform/anton/terraform.tfvars
 Edit `terraform/anton/terraform.tfvars` with the same values, changing
 `proxmox_endpoint` to `https://192.168.0.5:8006`.
 
-### 11. Deploy VMs and apply base Ansible config
+> `terraform.tfvars` lives on the deploy VM only — never on the VPS. The VPS
+> holds only the webhook secret for GitHub signature validation.
 
-Run from the VPS:
+### 12. Deploy remaining VMs and apply base Ansible config
+
+Run from the deploy VM:
 
 ```bash
 cd ~/homelab
@@ -526,7 +543,7 @@ git push origin main
 
 **Rebuild a VM from scratch:**
 ```bash
-# SSH to VPS:
+# SSH to deploy VM:
 cd ~/homelab
 cd terraform/<node> && terraform destroy -target=module.<vm-name>
 cd ~/homelab && ./scripts/deploy.sh <node>
@@ -561,6 +578,6 @@ cd terraform/vps && terraform apply
 
 **Apply day-2 config manually (bypass webhook):**
 ```bash
-# SSH to VPS:
+# SSH to deploy VM:
 cd ~/homelab && ansible-playbook ansible/base.yml
 ```

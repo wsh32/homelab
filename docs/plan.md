@@ -52,6 +52,7 @@ Physical nodes get DHCP reservations in the Eero app. VMs get static IPs configu
 | anton-debian VM | anton-debian | 192.168.0.13 | Static (Terraform) |
 | nuc-infisical VM | nuc-infisical | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
 | nuc-haos VM | nuc-haos | 192.168.0.22 | Static (Terraform) — Home Assistant OS |
+| nuc-deploy VM | nuc-deploy | 192.168.0.23 | Static (Terraform) — Terraform + Ansible + internal webhook listener |
 | VPS | vps | Public IP | DigitalOcean — Headscale coordination server, Terraform execution host, webhook listener |
 
 Note: Gringotts is offsite and not on the local network. The VPS is on the public internet; it joins the Headscale tailnet and reaches all homelab resources over Tailscale.
@@ -214,7 +215,8 @@ from the operator laptop.
 | DNS VM | 2GB | 2 | AdGuard + Tailscale exit node |
 | Home Assistant VM | 4GB | 2 | HAOS |
 | Infisical VM | 6GB | 2 | Infisical + Vaultwarden |
-| Headroom | 2GB | — | Buffer / future |
+| Deploy VM | 1GB | 1 | Terraform + Ansible + internal webhook listener |
+| Headroom | 1GB | — | Buffer / future |
 
 ### Anton (128GB ECC RAM, Threadripper 3975WX 32c/64t)
 
@@ -278,6 +280,14 @@ On rebuild, restore from the latest vzdump backup via the HAOS UI or `ha` CLI.
 |---------|-------|
 | Infisical | Machine-consumed secrets: service API keys, inter-service tokens, developer API keys |
 | Vaultwarden | Human-consumed secrets: web UI admin passwords, personal credentials |
+
+**Deploy VM** (`192.168.0.23`):
+
+| Service | Notes |
+|---------|-------|
+| adnanh/webhook | Internal listener (Tailscale only, not internet-facing); receives forwarded payloads from VPS and runs deploy scripts |
+| Terraform | Manages NUC and Anton VMs; `terraform.tfvars` lives here, never on the VPS |
+| Ansible | Runs `base.yml` after Terraform apply; reaches all VMs over Tailscale SSH |
 
 Infisical stores all machine-read secrets — both service API keys (fetched at VM boot via
 `infisical export`) and developer API keys accessed via `infisical run -- <command>` on the
@@ -637,23 +647,28 @@ The inventory is used for manual push operations; ansible-pull on the device use
 
 All changes to `main` trigger an automated deploy from the VPS via GitHub webhook.
 
-**Webhook listener**: `adnanh/webhook` binary running as a systemd service on the VPS.
-Listens on a dedicated port behind Traefik (TLS via Let's Encrypt). Verifies GitHub's
-HMAC-SHA256 signature before executing anything. Webhook secret stored in Infisical.
-
-**Deploy script** (`scripts/webhook-deploy.sh`):
+**Webhook flow**: two-stage. The VPS is the only internet-facing node; the deploy VM
+is internal (Tailscale only) and holds all credentials.
 
 ```
 git push to main
   → GitHub webhook POST to VPS
-  → signature verified
-  → git diff HEAD origin/main to detect changed paths
-  → git pull
-  → terraform/nuc/ or terraform/anton/ changed? → ./scripts/deploy.sh
-  → ansible/ changed?                            → ansible-playbook base.yml
-  → services/ changed?                           → ./scripts/deploy-services.sh
-  → terraform/vps/ changed?                      → exit 1 (notify operator)
+  → VPS: validate HMAC-SHA256 signature
+  → VPS: forward payload to http://nuc-deploy.ts.home:9001/hooks/deploy (Tailscale)
+  → deploy VM: detect changed paths, run appropriate commands
+      terraform/nuc/ or terraform/anton/ changed? → ./scripts/deploy.sh (Terraform + Ansible)
+      ansible/ changed?                            → ansible-playbook base.yml
+      services/ changed?                           → ./scripts/deploy-services.sh
+      terraform/vps/ changed?                      → exit 1 (notify operator)
 ```
+
+**VPS webhook** (`adnanh/webhook`): validates GitHub HMAC signature, then forwards the
+raw payload to the deploy VM over Tailscale. The VPS holds only the webhook secret
+(for signature validation) — no Proxmox credentials, no `terraform.tfvars`.
+
+**Deploy VM webhook** (`adnanh/webhook`, internal): receives forwarded payload, runs
+`scripts/webhook-deploy.sh`. Holds `terraform.tfvars` and all deploy credentials.
+Not internet-facing — only reachable over Tailscale.
 
 Physical device and VPS config changes do not need webhook handling — ansible-pull
 on each machine picks them up within 30 minutes automatically.
@@ -705,7 +720,7 @@ NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
 | Terraform execution host | VPS runs `terraform/nuc/` and `terraform/anton/` normally. `terraform/vps/` runs from operator laptop only (VPS cannot manage its own existence). |
 | Terraform state backend | MinIO S3 on Storinator (`http://storinator:9000`) for `nuc/` and `anton/`. Local file on operator laptop for `vps/`. S3 lockfile replaces NFS file locking. Both laptop and VPS reach MinIO over Tailscale. |
 | Physical device management | `ansible-pull` on a 30-minute cron. One-time bootstrap script run via SSH. No ongoing operator action for config changes. |
-| Deployment automation | GitHub webhook on VPS triggers `scripts/webhook-deploy.sh` on push to `main`. Detects changed paths and runs Terraform, Ansible, or Docker Compose deploy as appropriate. `terraform/vps/` is the only manual exception. |
+| Deployment automation | Two-stage webhook: VPS validates GitHub HMAC and forwards payload over Tailscale to internal deploy VM (`nuc-deploy`, `192.168.0.23`). Deploy VM runs Terraform + Ansible + Docker Compose deploy. VPS holds only the webhook secret; all deploy credentials stay on the internal deploy VM. `terraform/vps/` is the only manual exception (run from operator laptop). |
 | VPS Ansible config | VPS manages its own config via `ansible-pull` (same pattern as physical devices). `terraform/vps/` manages only VPS infrastructure on DigitalOcean; all OS/service config is Ansible's responsibility. |
 | DNS domain strategy | Two domains: `*.wsh` (Tailscale/HTTPS, personal devices) and `*.home` (LAN/HTTP, guests). Avoids subnet routing; guests can reach services without Tailscale. Single Traefik instance handles both. |
 | TLS for private TLDs | Let's Encrypt does not issue certs for `.wsh` or `.home`. `*.wsh` uses step-ca (local CA, wildcard cert, Traefik ACME). `*.home` is plain HTTP (LAN only, acceptable). |
