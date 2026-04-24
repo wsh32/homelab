@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]
+
+  - job_name: node
+    static_configs:
+      # Add node_exporter targets as VMs are stood up.
+      - targets:
+          - nuc-infisical:9100
+          - nuc-deploy:9100
+          - nuc-dns:9100
+          - anton-services:9100
+          - anton-ollama:9100
+          - anton-openclaw:9100
+          - anton-debian:9100

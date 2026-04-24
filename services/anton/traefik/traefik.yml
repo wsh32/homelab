@@ -1,0 +1,31 @@
+api:
+  dashboard: true
+  insecure: false
+
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    exposedByDefault: false
+    network: bridge
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+certificatesResolvers:
+  step:
+    acme:
+      email: wesoohoo@gmail.com
+      storage: /acme/acme.json
+      caServer: https://step-ca.wsh/acme/acme/directory
+      httpChallenge:
+        entryPoint: web
+
+log:
+  level: INFO
+
+accessLog: {}

@@ -1,0 +1,11 @@
+---
+# Apply base config to physical (non-VM) devices.
+# Usage: ansible-playbook ansible/physical.yml
+#        ansible-playbook ansible/physical.yml --limit orangepi
+
+- name: Configure physical devices
+  hosts: physical
+  gather_facts: true
+
+  roles:
+    - role: base

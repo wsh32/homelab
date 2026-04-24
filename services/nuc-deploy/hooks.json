@@ -1,0 +1,13 @@
+[
+  {
+    "id": "deploy",
+    "execute-command": "/homelab/scripts/webhook-deploy.sh",
+    "pass-arguments-to-command": [
+      {
+        "source": "payload",
+        "name": "ref"
+      }
+    ],
+    "response-message": "Deploy triggered"
+  }
+]

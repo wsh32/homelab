@@ -1,0 +1,11 @@
+services:
+  adguardhome:
+    image: adguard/adguardhome:latest
+    container_name: adguardhome
+    restart: unless-stopped
+    network_mode: host  # needs port 53 on host IP
+    volumes:
+      - ./adguard:/opt/adguardhome/conf
+      - /mnt/nas/docker/adguardhome/work:/opt/adguardhome/work
+    # Pre-seeded AdGuardHome.yaml in ./adguard/ bypasses the setup wizard.
+    # Admin password (bcrypt) and DNS rewrites are committed in AdGuardHome.yaml.

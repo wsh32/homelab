@@ -1,0 +1,34 @@
+# External backends for NUC-hosted services routed through Anton's Traefik.
+# Traefik on Anton reaches NUC services directly via LAN.
+
+http:
+  routers:
+    infisical-wsh:
+      rule: Host(`infisical.wsh`)
+      entryPoints: [websecure]
+      tls: true
+      service: infisical-svc
+    infisical-home:
+      rule: Host(`infisical.home`)
+      entryPoints: [web]
+      service: infisical-svc
+
+    vault-wsh:
+      rule: Host(`vault.wsh`)
+      entryPoints: [websecure]
+      tls: true
+      service: vault-svc
+    vault-home:
+      rule: Host(`vault.home`)
+      entryPoints: [web]
+      service: vault-svc
+
+  services:
+    infisical-svc:
+      loadBalancer:
+        servers:
+          - url: http://192.168.0.21:8080
+    vault-svc:
+      loadBalancer:
+        servers:
+          - url: http://192.168.0.21:80

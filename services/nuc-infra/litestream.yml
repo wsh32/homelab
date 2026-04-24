@@ -1,0 +1,4 @@
+dbs:
+  - path: /data/db.sqlite3
+    replicas:
+      - path: /backup/db.sqlite3

@@ -19,27 +19,6 @@ in VM cloud-init.
 
 ---
 
-## Terraform Module Structure
-
-**What:** Define the directory layout for Terraform code before writing any `.tf` files.
-
-**Why:** The plan says "all VMs defined in Terraform" but doesn't specify structure. Deciding upfront prevents inconsistency as the repo grows.
-
-**Pros:** Consistent, navigable codebase from day one.
-
-**Cons:** Requires upfront design time before any VMs exist.
-
-**Context:** Options to consider:
-- `terraform/nodes/nuc/`, `terraform/nodes/anton/` — one directory per Proxmox node
-- `terraform/services/jellyfin/`, `terraform/services/adguard/` — one directory per service
-- `terraform/modules/vm/` shared module, called from per-node root modules
-
-Recommended: shared `modules/vm` module + per-node root modules. Avoids duplication across nodes.
-
-**Depends on:** Nothing — should be decided before any `.tf` files are written.
-
----
-
 ## Proxmox GPU Passthrough for Ollama
 
 **What:** Document and implement IOMMU/VFIO configuration for passing the RTX 3060 through to the Ollama VM on Anton.
@@ -122,39 +101,3 @@ be exported).
 
 ---
 
-## Headless Bootstrap Scripts
-
-**What:** Write the init scripts and config files needed for headless service
-configuration, as documented in `docs/plan.md` under "Headless Service Configuration".
-
-**Why:** The plan documents headless configuration strategies for every service.
-Without the actual scripts and config files, the plan is correct but not
-executable — first-time setup would still require manual GUI intervention.
-
-**Files to create:**
-
-- `scripts/infisical-bootstrap.sh` — runs `infisical bootstrap` CLI against a
-  running Infisical instance, creates workspace and machine identity, outputs
-  credentials to add to `terraform.tfvars`
-- `scripts/jellyfin-init.sh` — drives Jellyfin `/Startup/*` API to create admin
-  account and configure media libraries headlessly
-- `scripts/servarr-init.sh` — links Prowlarr to Radarr and Sonarr via
-  `POST /api/v1/applications`; expects predetermined API keys already set in config.xml
-- `scripts/calibre-init.sh` — sets Calibre-Web admin password via `cps.py -s` CLI
-- `scripts/n8n-init.sh` — creates n8n owner account via `POST /api/v1/owner/setup`
-- `services/dns/adguard/AdGuardHome.yaml` — pre-seeded AdGuard config with bcrypt
-  admin password, upstream DNS, and default blocklists
-- `services/anton/config/radarr.xml`, `sonarr.xml`, `prowlarr.xml` — pre-seeded
-  config.xml files with predetermined API keys (sourced from Infisical at boot)
-- `services/anton/couchdb-init.sh` — CouchDB single-node setup + CORS config for
-  Obsidian LiveSync
-- `scripts/infisical-export.sh` — runs `infisical export --format dotenv` at VM boot
-  to write ephemeral `.env` files for each service group; invoked from cloud-init
-
-**Context:** Research confirmed all these services have fully headless setup paths.
-See "Headless Service Configuration" section in `docs/plan.md` for the strategy
-behind each script. API keys and inter-service tokens come from Infisical; web UI
-admin passwords are set manually and stored in Vaultwarden.
-
-**Depends on:** Infisical setup (scripts pull secrets from Infisical), Terraform
-module structure (scripts reference service URLs and API keys).

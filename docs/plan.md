@@ -566,19 +566,13 @@ cloud-init (runs once at VM creation):
   - NFS mount entries in /etc/fstab (soft,timeo=30)
   - First boot: pull and start Docker Compose services
 
-Ansible (push — runs on demand for day-2 operations on VMs):
-  - Triggered automatically by webhook deploy script after terraform apply
+Ansible (push — all targets, all operations):
+  - VMs: triggered automatically by webhook deploy script after terraform apply
+  - Physical devices and VPS: triggered by webhook when ansible/ paths change
   - Docker engine upgrades
   - NFS mount option changes
   - Package updates / security patches
   - Ad-hoc debugging / config fixes across fleet
-
-Ansible (pull — runs on a cron on each physical device and the VPS):
-  - Each machine runs ansible-pull every 30 minutes
-  - Clones the repo using a read-only GitHub deploy key
-  - Applies its own playbook against localhost
-  - Self-healing: config drift is corrected on the next run
-  - No operator action needed for config changes to physical devices or the VPS
 ```
 
 Rule of thumb: cloud-init for "birth", Ansible for "life". Prefer recreating a VM over
@@ -587,15 +581,14 @@ patching it. Ansible is the escape hatch when recreation is disruptive.
 ```
 ansible/
   inventory/
-    hosts.yml         # all physical nodes, VMS, and VPS
+    hosts.yml         # all physical nodes, VMs, and VPS
   tailscale.yml       # installs Tailscale on physical nodes, pointing at Headscale
-  base.yml            # day-2 config for VMs (push)
-  vps.yml             # VPS bootstrap and config (push on first provision, then pull)
-  physical.yml        # physical device config (pull mode, targets localhost)
+  base.yml            # day-2 config for all VMs (push)
+  physical.yml        # day-2 config for physical devices (push, targets physical group)
+  vps.yml             # VPS bootstrap and config (push); syncs repo, then applies roles
   roles/
-    base/             # applied to all Debian VMs
+    base/             # applied to all Debian VMs and physical devices
     docker/           # applied to VMs running Docker Compose services
-    physical/         # applied to physical devices (non-VM)
     headscale/        # applied to VPS — Headscale Docker Compose + config
     network/          # Proxmox bridge config for physical nodes
 ```
@@ -608,38 +601,33 @@ at run time.
 
 ## Physical Device Management
 
-Physical devices (non-VM machines: Orange Pi, future devices) are managed via
-`ansible-pull` rather than Terraform + cloud-init.
+Physical devices (non-VM machines: Orange Pi, future devices) are managed via Ansible
+push, the same as VMs. Terraform + cloud-init don't apply since there's no Proxmox
+provisioning step.
 
 **Bootstrap** (one manual SSH session per new device):
 
 ```bash
 ssh root@<device-ip> \
   TAILSCALE_AUTH_KEY=<headscale-preauth-key> \
-  REPO_DEPLOY_KEY="$(cat ~/.ssh/homelab_deploy_key)" \
   bash -s < scripts/bootstrap-physical.sh
 ```
 
-The bootstrap script:
-1. Installs Ansible, git, curl
-2. Installs Tailscale and joins the Headscale tailnet
-3. Writes the repo deploy key to `/etc/ansible/deploy_key`
-4. Runs an initial `ansible-pull` to apply config immediately
-5. Drops `/etc/cron.d/ansible-pull` to re-run every 30 minutes
+The bootstrap script installs Tailscale and joins the Headscale tailnet. That's all —
+once the device is on Tailscale, Ansible can reach it.
 
-**Ongoing** (fully automatic):
+Then from the operator laptop (or deploy VM):
 
-Every 30 minutes each device pulls the repo and applies `ansible/physical.yml`
-against `localhost`. Config changes in Git are picked up within 30 minutes with no
-operator intervention. To apply immediately: `ssh <device> sudo ansible-pull -U <repo> ansible/physical.yml`.
+```bash
+ansible-playbook ansible/physical.yml --limit <hostname>
+```
 
-**Registration**: add the device to `network.yml` and `ansible/inventory/hosts.yml`.
-The inventory is used for manual push operations; ansible-pull on the device uses
-`localhost` and does not depend on the inventory.
+**Ongoing**: the same webhook that triggers `base.yml` for VMs also triggers
+`physical.yml` for physical devices when `ansible/` paths change. For ad-hoc changes:
+`ansible-playbook ansible/physical.yml --limit <hostname>` from the deploy VM.
 
-**Deploy key**: one read-only GitHub deploy key for the repo, stored in Infisical
-(`HOMELAB_DEPLOY_KEY`). The bootstrap script receives it via env var; it lives at
-`/etc/ansible/deploy_key` on each device thereafter.
+**Registration**: add the device to `network.yml` and `ansible/inventory/hosts.yml`
+(under the appropriate `physical` subgroup).
 
 ---
 
@@ -670,8 +658,8 @@ raw payload to the deploy VM over Tailscale. The VPS holds only the webhook secr
 `scripts/webhook-deploy.sh`. Holds `terraform.tfvars` and all deploy credentials.
 Not internet-facing — only reachable over Tailscale.
 
-Physical device and VPS config changes do not need webhook handling — ansible-pull
-on each machine picks them up within 30 minutes automatically.
+When `ansible/` paths change, the webhook also runs `physical.yml` (physical devices)
+and `vps.yml` (VPS) in addition to `base.yml` (VMs).
 
 **`terraform/vps/` exception**: changes to the VPS's own Terraform definition cannot
 self-apply. The webhook script detects this path, exits non-zero, and sends a
@@ -707,7 +695,6 @@ NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
 | Vaultwarden account creation | Cannot be headlessly pre-seeded (client-side key derivation); one manual browser registration accepted as bootstrap exception alongside HAOS. Account persists on NFS — never repeated. |
 | NUC RAM headroom | Accept the risk; monitor closely |
 | Tailscale exit node coupling | Accept DNS+exit node coupling on NUC; Anton is backup exit node |
-| Ansible code missing | Acknowledged — code update deferred |
 | Monitoring stack | Prometheus + Grafana + Loki only; Mimir/Tempo removed |
 | OpenClaw placement | Permanent on Anton; not in services node migration list |
 | AdGuard headless config | Pre-seeded `AdGuardHome.yaml`; setup wizard bypassed entirely |
@@ -719,9 +706,9 @@ NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
 | Tailscale coordination server | Self-hosted Headscale on a DigitalOcean VPS; Tailscale clients point at `--login-server`. Uses Tailscale's public DERP relays. Managed by Ansible (`roles/headscale`). |
 | Terraform execution host | VPS runs `terraform/nuc/` and `terraform/anton/` normally. `terraform/vps/` runs from operator laptop only (VPS cannot manage its own existence). |
 | Terraform state backend | MinIO S3 on Storinator (`http://storinator:9000`) for `nuc/` and `anton/`. Local file on operator laptop for `vps/`. S3 lockfile replaces NFS file locking. Both laptop and VPS reach MinIO over Tailscale. |
-| Physical device management | `ansible-pull` on a 30-minute cron. One-time bootstrap script run via SSH. No ongoing operator action for config changes. |
+| Physical device management | Ansible push, same model as VMs. One-time bootstrap via `scripts/bootstrap-physical.sh` (installs Tailscale only). All further config pushed via `ansible-playbook ansible/physical.yml`. Webhook triggers it when `ansible/` changes. |
 | Deployment automation | Two-stage webhook: VPS validates GitHub HMAC and forwards payload over Tailscale to internal deploy VM (`nuc-deploy`, `192.168.0.23`). Deploy VM runs Terraform + Ansible + Docker Compose deploy. VPS holds only the webhook secret; all deploy credentials stay on the internal deploy VM. `terraform/vps/` is the only manual exception (run from operator laptop). |
-| VPS Ansible config | VPS manages its own config via `ansible-pull` (same pattern as physical devices). `terraform/vps/` manages only VPS infrastructure on DigitalOcean; all OS/service config is Ansible's responsibility. |
+| VPS Ansible config | Ansible push via `ansible/vps.yml`. Syncs repo to `/opt/homelab/` on the VPS, then applies `base`, `docker`, and `headscale` roles. `terraform/vps/` manages only the DigitalOcean infrastructure; all OS and service config is Ansible's responsibility. |
 | DNS domain strategy | Two domains: `*.wsh` (Tailscale/HTTPS, personal devices) and `*.home` (LAN/HTTP, guests). Avoids subnet routing; guests can reach services without Tailscale. Single Traefik instance handles both. |
 | TLS for private TLDs | Let's Encrypt does not issue certs for `.wsh` or `.home`. `*.wsh` uses step-ca (local CA, wildcard cert, Traefik ACME). `*.home` is plain HTTP (LAN only, acceptable). |
 | AdGuard DNS rewrites | `*.wsh` CNAME → `anton-services.ts.home` (MagicDNS). `*.home` A → `192.168.0.11` (LAN IP). Headscale `dns_config` pushes AdGuard's Tailscale IP as resolver for both TLDs to all tailnet members. |

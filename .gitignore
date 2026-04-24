@@ -10,5 +10,14 @@
 **/*.pem
 **/*.key
 
+# Headscale runtime state
+services/vps/headscale/*.pem
+services/vps/headscale/private.key
+services/vps/headscale/noise_private.key
+/var/lib/headscale/
+
+# ACME certs
+services/anton/traefik/acme/
+
 # OS
 .DS_Store

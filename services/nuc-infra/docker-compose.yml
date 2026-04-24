@@ -1,0 +1,85 @@
+services:
+  # ── Infisical ─────────────────────────────────────────────────────────────
+  infisical-db:
+    image: mongo:7
+    container_name: infisical-db
+    restart: unless-stopped
+    volumes:
+      - /var/lib/infisical/mongo:/data/db   # local disk — not NFS (avoid soft-mount corruption)
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+
+  infisical-redis:
+    image: redis:7-alpine
+    container_name: infisical-redis
+    restart: unless-stopped
+
+  infisical:
+    image: infisical/infisical:latest
+    container_name: infisical
+    restart: unless-stopped
+    depends_on:
+      - infisical-db
+      - infisical-redis
+    ports:
+      - "8080:8080"
+    environment:
+      DB_CONNECTION_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@infisical-db:27017/infisical?authSource=admin
+      REDIS_URL: redis://infisical-redis:6379
+      AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
+      ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
+      SITE_URL: https://infisical.wsh
+
+  # ── MongoDB backup ─────────────────────────────────────────────────────────
+  infisical-backup:
+    image: mongo:7
+    container_name: infisical-backup
+    restart: unless-stopped
+    depends_on:
+      - infisical-db
+    volumes:
+      - /mnt/nas/docker/infisical-backups:/backups
+    entrypoint: >
+      /bin/sh -c "
+        while true; do
+          mongodump --uri='mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@infisical-db:27017/infisical?authSource=admin'
+            --out=/backups/$$(date +%Y%m%d-%H%M%S);
+          find /backups -maxdepth 1 -mtime +7 -exec rm -rf {} +;
+          sleep 21600;
+        done
+      "
+
+  # ── Vaultwarden ────────────────────────────────────────────────────────────
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    volumes:
+      - /var/lib/vaultwarden:/data   # local disk — backed up continuously by litestream
+    environment:
+      DOMAIN: https://vault.wsh
+      # SIGNUPS_ALLOWED=true on first boot; set to false after registering your account.
+      SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
+      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vault-wsh.rule=Host(`vault.wsh`)"
+      - "traefik.http.routers.vault-wsh.entrypoints=websecure"
+      - "traefik.http.routers.vault-wsh.tls=true"
+      - "traefik.http.routers.vault-home.rule=Host(`vault.home`)"
+      - "traefik.http.routers.vault-home.entrypoints=web"
+      - "traefik.http.services.vault-svc.loadbalancer.server.port=80"
+
+  # Litestream — continuous WAL streaming for Vaultwarden SQLite to NFS.
+  litestream:
+    image: litestream/litestream:latest
+    container_name: litestream
+    restart: unless-stopped
+    depends_on:
+      - vaultwarden
+    volumes:
+      - /var/lib/vaultwarden:/data:ro
+      - /mnt/nas/docker/vaultwarden-backup:/backup
+      - ./litestream.yml:/etc/litestream.yml:ro
+    command: replicate

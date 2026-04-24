@@ -20,7 +20,7 @@ A walkthrough of every file in this repo and what it does.
 
 **`runbook.md`** — Step-by-step bootstrap runbook with exact commands. Follow this to rebuild the homelab from scratch.
 
-**`TODOS.md`** — Deferred work items with full context: NFS export strategy, GPU passthrough, backup DNS, Tailscale ACL segmentation, external uptime monitor, break-glass procedure, and headless bootstrap scripts. Each item has what/why/context/dependencies so they're actionable later.
+**`TODOS.md`** — Deferred work items with full context. Each item has what/why/context/dependencies so they're actionable later.
 
 **`hardware_inventory.md`** — Physical hardware reference: specs for Anton, NUC, Storinator, Gringotts, Orange Pi.
 
@@ -30,7 +30,7 @@ A walkthrough of every file in this repo and what it does.
 
 ## `terraform/modules/proxmox-vm/`
 
-The shared VM module. Every VM in the homelab is an instance of this module.
+The shared VM module. Every standard (Debian, cloud-init) VM is an instance of this module. HAOS uses a dedicated `proxmox_virtual_environment_vm` resource in `terraform/nuc/main.tf` instead.
 
 **`variables.tf`** — All inputs: `node_name`, `vm_id`, `name`, `cores`, `memory_mb`, `disk_size_gb`, `datastore`, `image_file_id` (the already-downloaded cloud image), `ip_address`, `gateway`, `dns_servers`, `ssh_public_key`, `tailscale_auth_key`, `user_data_extra`, `tags`.
 
@@ -42,74 +42,166 @@ The shared VM module. Every VM in the homelab is an instance of this module.
 
 ---
 
-## `terraform/anton/`
+## `terraform/nuc/`
 
-Root module for Anton. Owns everything on that Proxmox node.
+Root module for the NUC node. VM ID range 200–299, IP range `192.168.0.20–29`.
 
-**`versions.tf`** — Pins Terraform ≥1.9 and `bpg/proxmox ~0.73`. Configures the state backend — a local file path at `/mnt/terraform-state/anton/terraform.tfstate` (that path is on Storinator NFS, which you mount before running Terraform).
-
-**`providers.tf`** — Configures the Proxmox provider with Anton's endpoint, API token, and SSH agent auth. SSH is required by the bpg provider to upload cloud-init snippets.
-
-**`variables.tf`** — Four inputs: `proxmox_endpoint`, `proxmox_api_token`, `ssh_public_key`, `tailscale_auth_key`.
-
-**`main.tf`** — Currently one download resource and one VM:
-- `proxmox_virtual_environment_download_file.debian_12` — downloads the Debian 12 (Bookworm) cloud image to Anton's local storage once. `overwrite = false` means re-applying is a no-op after the first download.
-- `module.debian` — the `anton-debian` VM (VM ID 101, `192.168.0.13`, 6 cores, 16GB RAM, 60GB disk).
-
-**`terraform.tfvars.example`** — Template showing the four values you need to fill in. Copy to `terraform.tfvars` (gitignored) and populate.
+**`main.tf`** — Defines:
+- `proxmox_virtual_environment_download_file.debian_12` — downloads the Debian 12 cloud image once; re-applying is a no-op.
+- `proxmox_virtual_environment_download_file.haos` — downloads the HAOS qcow2 image for the Home Assistant VM.
+- `module.dns` — `nuc-dns` VM (VM 200, `192.168.0.2`, 2 cores, 2GB): AdGuard Home + primary Tailscale exit node.
+- `module.infisical` — `nuc-infisical` VM (VM 201, `192.168.0.21`, 2 cores, 6GB): Infisical + Vaultwarden.
+- `resource.proxmox_virtual_environment_vm.haos` — `nuc-haos` VM (VM 202, `192.168.0.22`, 2 cores, 4GB): Home Assistant OS. Uses a dedicated resource (not the shared module) because HAOS boots from its own qcow2 image, not cloud-init.
+- `module.deploy` — `nuc-deploy` VM (VM 203, `192.168.0.23`, 1 core, 1GB): Terraform + Ansible + internal webhook listener.
 
 ---
 
-## `terraform/nuc/`
+## `terraform/anton/`
 
-Same structure as `terraform/anton/`, but for the NUC node. VM ID range 200–299, IP range `192.168.0.20–29`.
+Root module for Anton. VM ID range 100–199, IP range `192.168.0.10–19`.
 
-Currently defines one VM: `nuc-infisical` (VM ID 201, `192.168.0.21`, 2 cores, 6GB RAM) with extra cloud-init to install Docker, since Infisical and Vaultwarden both run in containers.
+**`main.tf`** — Defines:
+- `proxmox_virtual_environment_download_file.debian_12` — downloads the Debian 12 cloud image once.
+- `module.ollama` — `anton-ollama` VM (VM 100, `192.168.0.10`, 4 cores, 32GB): Ollama GPU inference + backup Tailscale exit node. RTX 3060 hostpci block pending (see TODOS.md).
+- `module.services` — `anton-services` VM (VM 103, `192.168.0.11`, 8 cores, 32GB): all Docker Compose services, Traefik reverse proxy, Quadro P2000 for Jellyfin transcoding. hostpci block pending.
+- `module.openclaw` — `anton-openclaw` VM (VM 102, `192.168.0.12`, 2 cores, 8GB): OpenClaw AI assistant gateway.
+- `module.debian` — `anton-debian` VM (VM 101, `192.168.0.13`, 6 cores, 16GB): personal development workstation.
+
+---
+
+## `terraform/vps/`
+
+Root module for the DigitalOcean VPS. Runs only from the operator laptop — the VPS cannot manage its own existence. State stored locally (gitignored); back up in Vaultwarden.
+
+**`main.tf`** — Creates a DigitalOcean droplet and firewall. Firewall opens SSH (22), the GitHub webhook port (9000), Headscale HTTPS (443), and Headscale DERP UDP (41641). Outputs `vps_ip`.
+
+**`variables.tf`** — `do_token`, `do_region`, `do_size`, `ssh_public_key`.
+
+---
+
+## `services/dns/`
+
+Docker Compose stack for the `nuc-dns` VM.
+
+**`docker-compose.yml`** — AdGuard Home, `network_mode: host` (needs port 53 on host IP).
+
+**`adguard/AdGuardHome.yaml`** — Pre-seeded config. AdGuard detects a valid config on startup and skips the setup wizard entirely. Contains: bcrypt admin password hash (plaintext in Vaultwarden), upstream DNS (8.8.8.8 / 8.8.4.4), DNS rewrites (`*.wsh` CNAME → `anton-services.ts.home`, `*.home` A → `192.168.0.11`), and default blocklists.
+
+---
+
+## `services/nuc-infra/`
+
+Docker Compose stack for the `nuc-infisical` VM.
+
+**`docker-compose.yml`** — Infisical (+ MongoDB + Redis), Vaultwarden, and a Litestream sidecar that continuously streams the Vaultwarden SQLite WAL to Storinator NFS. Infisical's MongoDB data lives on local VM disk (not NFS) to avoid soft-mount corruption; backed up every 6 hours via a mongodump container to Storinator.
+
+**`litestream.yml`** — Litestream replica config: streams `/var/lib/vaultwarden/db.sqlite3` to `/mnt/nas/docker/vaultwarden-backup/`.
+
+**`.env.example`** — Documents all env vars this stack expects from Infisical.
+
+---
+
+## `services/nuc-deploy/`
+
+Docker Compose stack for the `nuc-deploy` VM.
+
+**`docker-compose.yml`** — `adnanh/webhook` listening on port 9001 (Tailscale only; not internet-facing). Receives forwarded payloads from the VPS webhook and runs `scripts/webhook-deploy.sh`.
+
+**`hooks.json`** — Webhook hook definition: accepts any payload and passes the `ref` field to `webhook-deploy.sh`.
+
+---
+
+## `services/anton/`
+
+Docker Compose stack for the `anton-services` VM. This is the main services stack.
+
+**`docker-compose.yml`** — All services:
+- **Traefik** — reverse proxy; two entrypoints: `web` (80, `*.home`) and `websecure` (443, `*.wsh`)
+- **step-ca** — local CA; Traefik uses it as the ACME endpoint for `*.wsh` TLS certs
+- **Jellyfin** — media server; `/dev/dri` passthrough for Quadro P2000 transcoding
+- **Prowlarr, Radarr, Sonarr** — Servarr stack
+- **PhotoPrism** — photo archive
+- **Calibre-Web** — ebook server
+- **n8n** — automation workflows
+- **CouchDB + couchdb-init** — Obsidian LiveSync backend; init container runs `couchdb-init.sh`
+- **Quartz** — read-only Obsidian vault web publishing
+- **Homepage** — service dashboard
+- **Prometheus, Grafana, Loki, Promtail** — metrics and log aggregation
+
+**`traefik/traefik.yml`** — Static Traefik config: entrypoints, Docker provider, file provider pointing at `dynamic/`, and `step` ACME cert resolver.
+
+**`traefik/dynamic/nuc-services.yml`** — Static Traefik routes for NUC-hosted services (Infisical, Vaultwarden). Since those containers run on `nuc-infisical` (not in Docker on `anton-services`), they're external backends pointing at `192.168.0.21`.
+
+**`config/radarr.xml`, `sonarr.xml`, `prowlarr.xml`** — Pre-seeded config files mounted read-only into each container. API keys use `${RADARR_API_KEY}` etc., sourced from Infisical at boot via `.env`.
+
+**`couchdb-init.sh`** — Runs as a one-shot init container: waits for CouchDB, runs `/_cluster_setup`, creates the `obsidian` database, and sets CORS headers for Obsidian LiveSync clients.
+
+**`prometheus/prometheus.yml`** — Prometheus scrape config; lists all VMs as node_exporter targets.
+
+**`loki/loki.yml`** — Loki local storage config.
+
+**`loki/promtail.yml`** — Promtail config; scrapes Docker container logs via the Docker socket.
+
+**`.env.example`** — Documents all env vars this stack expects from Infisical.
+
+---
+
+## `services/vps/`
+
+Docker Compose stack for the DigitalOcean VPS. Deployed by `ansible/roles/headscale/` via `vps.yml`. The repo is synced to `/opt/homelab/` on the VPS by `ansible-playbook ansible/vps.yml`.
+
+**`docker-compose.yml`** — Headscale (Tailscale coordination server) and a webhook forwarder (`adnanh/webhook`) that validates GitHub HMAC signatures and forwards payloads to the deploy VM over Tailscale.
+
+**`headscale/config.yml`** — Headscale config: server URL, IP prefixes, DNS config (pushes AdGuard's Tailscale IP as resolver for `.wsh` and `.home` to all tailnet members).
+
+**`webhook/hooks.json`** — Webhook hook definition: validates GitHub HMAC-SHA256, then shells out to forward the payload to `nuc-deploy.ts.home:9001`.
 
 ---
 
 ## `ansible/`
 
-Day-2 configuration management — runs after Terraform provisions VMs and cloud-init finishes.
+Day-2 configuration management. Runs after Terraform provisions VMs and cloud-init finishes. All Ansible is push — no pull mode, no crons on target machines.
 
-**`ansible.cfg`** — Project-level Ansible config: points at the inventory, sets `debian` as remote user, disables host key checking (VMs are freshly provisioned), enables SSH pipelining for speed.
+**`ansible.cfg`** — Project-level config: points at the inventory, sets `debian` as remote user, disables host key checking (freshly provisioned VMs), enables SSH pipelining.
 
-**`inventory/hosts.yml`** — All hosts organized into groups: `physical` (Anton, NUC, Storinator, Orange Pi), `nuc_vms`, `anton_vms`, and a parent `vms` group that includes both. Playbooks can target `vms` to hit everything, or `nuc_vms` to hit just NUC VMs.
+**`inventory/hosts.yml`** — All hosts: `physical` (Anton, NUC, Storinator, Orange Pi), `vps`, `nuc_vms` (dns, infisical, deploy), `anton_vms` (ollama, services, openclaw, debian), and a parent `vms` group. Note: `nuc-haos` is excluded — HAOS has no SSH access for Ansible.
 
-**`base.yml`** — Playbook that applies the `base` role to all VMs. The entry point for day-2 setup: `ansible-playbook ansible/base.yml`.
+**`base.yml`** — Applies the `base` role to all VMs.
 
-**`network.yml`** — Configures static IP on Proxmox physical nodes (Anton, NUC) by templating `/etc/network/interfaces` and running `ifreload -a`. Requires `static_ip` and `proxmox_bridge_port` set per host in inventory.
+**`physical.yml`** — Applies the `base` role to all physical devices (targets `physical` inventory group).
 
-**`tailscale.yml`** — Bootstrap playbook for physical nodes only. Installs Tailscale from the official install script and joins the network. Runs before Terraform (physical nodes need to be on Tailscale before VMs are provisioned). Takes `TAILSCALE_AUTH_KEY` from env.
+**`vps.yml`** — Syncs the repo to `/opt/homelab/` on the VPS, then applies `base`, `docker`, and `headscale` roles. Run from the operator laptop after first Terraform provision; re-run any time to push config changes.
 
-**`roles/base/tasks/main.yml`** — Applied to every Debian VM. Installs fail2ban and UFW, enables the firewall (deny all inbound except SSH), disables password auth in sshd, sets the timezone, creates `/mnt/nas` (NFS mount point), and keeps Tailscale up to date.
+**`tailscale.yml`** — Bootstrap-only playbook for physical nodes: installs Tailscale and joins the Headscale network. Run once before Terraform.
 
-**`roles/base/handlers/main.yml`** — Restart handlers for sshd, fail2ban, and tailscaled, triggered by the base tasks when config changes.
+**`network.yml`** — Configures static IP on Proxmox physical nodes by templating `/etc/network/interfaces` and running `ifreload -a`.
 
-**`roles/docker/tasks/main.yml`** — Applied to VMs that run Docker Compose services. Adds the official Docker apt repo, installs Docker CE + compose plugin, configures log rotation (10MB max, 3 files), and adds the `debian` user to the `docker` group.
+**`roles/base/`** — Applied to every Debian host (VMs and physical). Installs fail2ban, UFW, sets timezone, disables password SSH auth, keeps Tailscale up to date, creates `/mnt/nas`.
 
-**`roles/docker/handlers/main.yml`** — Restart handler for Docker daemon.
+**`roles/docker/`** — Applied to VMs running Docker Compose. Adds the official Docker apt repo, installs Docker CE + compose plugin, configures log rotation, adds `debian` user to the `docker` group.
 
-**`roles/network/tasks/main.yml`** — Installs `ifupdown2` and templates `/etc/network/interfaces`.
+**`roles/headscale/`** — Applied to the VPS. Ensures `/var/lib/headscale/` exists and deploys `services/vps/` via `docker compose up`.
 
-**`roles/network/templates/interfaces.j2`** — Proxmox bridge config template. Sets `vmbr0` as a static bridge over `{{ proxmox_bridge_port }}`.
-
-**`roles/network/handlers/main.yml`** — Runs `ifreload -a` to apply network changes without dropping connections.
+**`roles/network/`** — Installs `ifupdown2` and templates `/etc/network/interfaces` for Proxmox bridge config on physical nodes.
 
 ---
 
 ## `scripts/`
 
-**`deploy.sh`** — Single entry point for provisioning. Runs `terraform apply` for the target node(s), waits for VMs to be SSH-reachable, then runs `ansible-playbook base.yml`. Usage: `./scripts/deploy.sh [nuc|anton|both]`.
+**`deploy.sh`** — Main entry point for VM provisioning. Runs `terraform apply` for the target node(s), waits for VMs to be SSH-reachable, then runs `ansible-playbook base.yml`. Usage: `./scripts/deploy.sh [nuc|anton|both]`.
 
----
+**`deploy-services.sh`** — SSHes to the relevant VM and runs `docker compose pull && docker compose up -d` for whichever `services/` subdirectory changed. Called by `webhook-deploy.sh`.
 
-## What's not here yet
+**`webhook-deploy.sh`** — Runs on `nuc-deploy`, triggered by the internal webhook. Pulls latest code, detects changed paths, and dispatches: Terraform changed → `deploy.sh`; `ansible/` changed → `base.yml` + `physical.yml` + `vps.yml`; `services/` changed → `deploy-services.sh`; `terraform/vps/` changed → exit 1 (notify operator). Holds a lock to prevent concurrent runs.
 
-See `docs/TODOS.md` for full context on each item.
+**`infisical-bootstrap.sh`** — Runs `infisical bootstrap` against a fresh Infisical instance. Creates admin user, organization, workspace, and machine identity. Outputs credentials to add to `terraform.tfvars`.
 
-- `services/` — Docker Compose files for each VM's services
-- `scripts/infisical-bootstrap.sh`, `jellyfin-init.sh`, etc. — Headless init scripts
-- `cloud-init/` — Shared cloud-init templates
-- `services/dns/adguard/AdGuardHome.yaml` — Pre-seeded AdGuard config
-- Terraform resources for the remaining VMs (DNS, HAOS, Infisical, Ollama, OpenClaw, Services)
+**`jellyfin-init.sh`** — Drives the Jellyfin `/Startup/*` API headlessly: sets locale, creates admin user, configures remote access, completes wizard.
+
+**`servarr-init.sh`** — Links Prowlarr to Radarr and Sonarr via `POST /api/v1/applications`. Run after first container start.
+
+**`calibre-init.sh`** — Sets the Calibre-Web admin password via `docker exec calibre-web python3 cps.py -s`.
+
+**`n8n-init.sh`** — Creates the n8n owner account via `POST /api/v1/owner/setup`.
+
+**`bootstrap-physical.sh`** — Minimal one-time bootstrap for new physical devices. Installs Tailscale and joins the tailnet so Ansible can reach the device. Run via SSH from the operator laptop.

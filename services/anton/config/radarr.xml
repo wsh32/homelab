@@ -1,0 +1,9 @@
+<Config>
+  <LogLevel>info</LogLevel>
+  <Branch>master</Branch>
+  <ApiKey>${RADARR_API_KEY}</ApiKey>
+  <AuthenticationMethod>None</AuthenticationMethod>
+  <AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>
+  <AnalyticsEnabled>False</AnalyticsEnabled>
+  <UpdateMechanism>Docker</UpdateMechanism>
+</Config>

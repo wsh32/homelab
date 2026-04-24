@@ -1,0 +1,54 @@
+http:
+  address: 0.0.0.0:3000
+
+users:
+  - name: admin
+    # bcrypt hash — plaintext in Vaultwarden. Generate with: htpasswd -bnBC 10 "" <password> | tr -d ':\n'
+    password: $2y$10$CHANGEME_BCRYPT_HASH_HERE
+
+dns:
+  bind_hosts:
+    - 0.0.0.0
+  port: 53
+
+  upstream_dns:
+    - 8.8.8.8
+    - 8.8.4.4
+  bootstrap_dns:
+    - 8.8.8.8
+    - 8.8.4.4
+
+  # DNS rewrites — two-domain architecture:
+  #   *.wsh  → Tailscale HTTPS path (step-ca TLS, personal devices)
+  #   *.home → LAN HTTP path (guests, IoT, no TLS)
+  rewrites:
+    - domain: "*.wsh"
+      answer: anton-services.ts.home   # Tailscale MagicDNS; each node resolves to services VM Tailscale IP
+    - domain: "*.home"
+      answer: 192.168.0.11              # services VM LAN IP
+
+  cache_size: 4194304
+  ratelimit: 20
+
+  blocked_hosts:
+    - version.bind
+    - id.server
+    - hostname.bind
+
+filters:
+  - enabled: true
+    url: https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt
+    name: AdGuard DNS filter
+    id: 1
+  - enabled: true
+    url: https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+    name: StevenBlack Unified Hosts
+    id: 2
+
+log_file: ""
+log_max_backups: 0
+log_max_size: 100
+log_max_age: 3
+log_compress: false
+log_localtime: false
+verbose: false
