@@ -52,15 +52,14 @@ IP ranges: physical nodes `.2–.19`, NUC VMs `.20–.29`, Anton VMs `.30–.49`
 | Services node | services | 192.168.0.9 | Static (Ansible — `/etc/network/interfaces`) — planned |
 | nuc-infisical VM | nuc-infisical | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
 | nuc-haos VM | nuc-haos | 192.168.0.22 | Static (Terraform) — Home Assistant OS |
-| nuc-deploy VM | nuc-deploy | 192.168.0.23 | Static (Terraform) — Terraform + Ansible + internal webhook listener |
+| nuc-deploy VM | nuc-deploy | 192.168.0.23 | Static (Terraform) — Headscale + cloudflared + Terraform + Ansible |
 | anton-ollama VM | anton-ollama | 192.168.0.30 | Static (Terraform) |
 | anton-services VM | anton-services | 192.168.0.31 | Static (Terraform) |
 | anton-openclaw VM | anton-openclaw | 192.168.0.32 | Static (Terraform) |
 | anton-debian VM | anton-debian | 192.168.0.33 | Static (Terraform) |
 | services-node VM | services-node | 192.168.0.50 | Static (Terraform) — planned |
-| VPS | vps | Public IP | DigitalOcean — Headscale coordination server, Terraform execution host, webhook listener |
 
-Note: Gringotts is offsite and not on the local network. The VPS is on the public internet; it joins the Headscale tailnet and reaches all homelab resources over Tailscale.
+Note: Gringotts is offsite and not on the local network.
 
 ---
 
@@ -161,32 +160,33 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 3. **NFS datasets** — create and export:
    - `docker` — persistent Docker volumes for all services
 4. **Enable MinIO** — enable the TrueNAS Scale S3 service, create a `terraform-state`
-   bucket and an access key. Used as the Terraform state backend by both the VPS and
-   the operator laptop over Tailscale.
+   bucket and an access key. Used as the Terraform state backend by both the deploy VM
+   and the operator laptop over Tailscale.
 
 ### One-time manual steps (operator laptop)
 
-5. **Provision VPS** — `cd terraform/vps && terraform apply`. Creates the VPS on DigitalOcean.
-   State for this workspace is a local file on the operator laptop (the VPS cannot
-   manage its own existence).
-6. **Bootstrap VPS** — `ansible-playbook ansible/vps.yml`. Installs Docker, deploys
-   Headscale via Docker Compose, hardens the node. VPS joins its own Headscale network.
-7. **Generate Headscale pre-auth key** — `headscale preauthkeys create --reusable`
-   on the VPS. This key is used by all physical nodes and VMs to join the tailnet.
+5. **Bootstrap deploy VM** — chicken-and-egg: run `terraform apply -target=module.deploy`
+   from the operator laptop. SSH in, clone repo, write `terraform.tfvars`.
+6. **Bootstrap Headscale** — on the deploy VM, start the Headscale container and generate
+   a reusable pre-auth key: `docker exec headscale headscale preauthkeys create --reusable --expiration 90d`.
+   Save the key; add to `terraform.tfvars`.
+7. **Create Cloudflare Tunnel** — in the Cloudflare dashboard, create a tunnel pointing at
+   `http://headscale:8080` on the deploy VM's Docker network. Copy the tunnel token to
+   Infisical (after step 10) and `terraform.tfvars`.
 
 ### Ansible (automated)
 
 8. **Tailscale on physical nodes** — `ansible-playbook ansible/tailscale.yml`
    installs Tailscale on Anton, NUC, Storinator, Gringotts, Orange Pi, pointing at
-   the Headscale server (`--login-server https://headscale.yourdomain.com`).
+   the Headscale server (`--login-server https://headscale.<domain>`).
 
-### Terraform (from VPS, automated)
+### Terraform (from deploy VM or operator laptop)
 
 9. **Write `terraform.tfvars`** — populate with Proxmox API token, Headscale pre-auth
-   key, MinIO credentials, SSH public key.
-10. **`terraform apply`** — run from the VPS via `./scripts/deploy.sh`. Provisions all
-    VMs; cloud-init handles Tailscale auth (pointing at Headscale), Docker install, and
-    Docker Compose startup.
+   key, MinIO credentials, Cloudflare tunnel token, SSH public key.
+10. **`terraform apply`** — run from the deploy VM via `./scripts/deploy.sh`. Provisions
+    all VMs; cloud-init handles Tailscale auth (pointing at Headscale), Docker install,
+    and Docker Compose startup.
 11. **Bootstrap Infisical** — run `scripts/infisical-bootstrap.sh` against the newly
     provisioned Infisical VM. Creates admin user, organization, workspace, and machine
     identity. Outputs `workspace_id`, `client_id`, `client_secret`.
@@ -196,17 +196,12 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
     it locks automatically. One-time manual step; account persists on Storinator NFS
     across all future VM rebuilds.
 14. **Seed Infisical via UI** — add all service API keys, inter-service tokens, and
-    developer API keys (Claude, Codex, GitHub, etc.). One-time manual step.
+    developer API keys (Claude, Codex, GitHub, Cloudflare tunnel token, etc.). One-time manual step.
 15. **Re-run cloud-init / reboot VMs** — services fetch secrets from Infisical via
     `infisical export` and write ephemeral `.env` files. Services start up.
-16. **Set up webhook** — add GitHub webhook pointing at `https://vps-ip/hooks/deploy`
-    with a secret stored in Infisical. All future pushes to `main` trigger automated
-    deployment from the VPS.
 
-After step 16, all further infrastructure changes are driven by `git push`. The VPS
-receives the webhook, detects what changed, and runs the appropriate deploy commands.
-`terraform/vps/` is the only workspace that still requires a manual `terraform apply`
-from the operator laptop.
+After step 15, all further infrastructure changes are applied manually from the deploy VM
+via `./scripts/deploy.sh`. No webhook or automation; operator triggers deploys explicitly.
 
 ---
 
@@ -220,8 +215,8 @@ from the operator laptop.
 | DNS VM | 2GB | 2 | AdGuard + Tailscale exit node |
 | Home Assistant VM | 4GB | 2 | HAOS |
 | Infisical VM | 6GB | 2 | Infisical + Vaultwarden |
-| Deploy VM | 1GB | 1 | Terraform + Ansible + internal webhook listener |
-| Headroom | 1GB | — | Buffer / future |
+| Deploy VM | 2GB | 1 | Terraform + Ansible + Headscale + cloudflared |
+| Headroom | 0GB | — | — |
 
 ### Anton (128GB ECC RAM, Threadripper 3975WX 32c/64t)
 
@@ -290,8 +285,9 @@ On rebuild, restore from the latest vzdump backup via the HAOS UI or `ha` CLI.
 
 | Service | Notes |
 |---------|-------|
-| adnanh/webhook | Internal listener (Tailscale only, not internet-facing); receives forwarded payloads from VPS and runs deploy scripts |
-| Terraform | Manages NUC and Anton VMs; `terraform.tfvars` lives here, never on the VPS |
+| Headscale | Tailscale coordination server; Cloudflare Tunnel provides the public HTTPS endpoint |
+| cloudflared | Cloudflare Tunnel client; exposes Headscale without a public IP or open port |
+| Terraform | Manages NUC, Anton, and services node VMs; `terraform.tfvars` lives here |
 | Ansible | Runs `base.yml` after Terraform apply; reaches all VMs over Tailscale SSH |
 
 Infisical stores all machine-read secrets — both service API keys (fetched at VM boot via
@@ -301,20 +297,20 @@ Vaultwarden stores all passwords a human types into a browser. The two stores ne
 
 ### Anton (compute — GPU workloads)
 
-**Ollama VM** (`192.168.0.10`):
+**Ollama VM** (`192.168.0.30`):
 
 | Service | Notes |
 |---------|-------|
 | Ollama | GPU inference via RTX 3060 passthrough |
 | Tailscale exit node (backup) | Secondary exit node |
 
-**OpenClaw VM** (`192.168.0.12`):
+**OpenClaw VM** (`192.168.0.32`):
 
 | Service | Notes |
 |---------|-------|
 | OpenClaw | Personal AI assistant gateway; permanent on Anton |
 
-**Personal Debian VM** (`192.168.0.13`):
+**Personal Debian VM** (`192.168.0.33`):
 
 | Service | Notes |
 |---------|-------|
@@ -448,21 +444,13 @@ done via an init container.
 
 ## Terraform State Backend
 
-Two backends, split by execution environment:
-
-**`terraform/nuc/` and `terraform/anton/`** — MinIO S3 on Storinator, accessed over Tailscale.
+All workspaces use MinIO S3 on Storinator, accessed over Tailscale.
 
 - Endpoint: `http://storinator:9000` (Tailscale MagicDNS)
-- Bucket: `terraform-state`, keys `nuc/terraform.tfstate` and `anton/terraform.tfstate`
+- Bucket: `terraform-state`, keys `nuc/terraform.tfstate`, `anton/terraform.tfstate`, `services/terraform.tfstate`
 - Locking via S3 lockfile (`use_lockfile = true`, Terraform ≥ 1.10) — no DynamoDB needed
-- Accessible from both the VPS (normal execution) and operator laptop (break-glass)
+- Accessible from deploy VM (normal execution) and operator laptop (break-glass)
 - Replicated to Gringotts daily; ZFS snapshots provide version history
-
-**`terraform/vps/`** — local file on operator laptop.
-
-- State file: `terraform/vps/terraform.tfstate` (gitignored)
-- Only ever runs from the operator laptop; VPS cannot manage its own existence
-- Back up the state file alongside `terraform.tfvars` as an encrypted attachment in Vaultwarden
 
 ---
 
@@ -572,8 +560,8 @@ cloud-init (runs once at VM creation):
   - First boot: pull and start Docker Compose services
 
 Ansible (push — all targets, all operations):
-  - VMs: triggered automatically by webhook deploy script after terraform apply
-  - Physical devices and VPS: triggered by webhook when ansible/ paths change
+  - VMs: run manually from deploy VM after terraform apply
+  - Physical devices: run manually when ansible/ paths change
   - Docker engine upgrades
   - NFS mount option changes
   - Package updates / security patches
@@ -586,21 +574,20 @@ patching it. Ansible is the escape hatch when recreation is disruptive.
 ```
 ansible/
   inventory/
-    hosts.yml         # all physical nodes, VMs, and VPS
+    hosts.yml         # all physical nodes and VMs
   tailscale.yml       # installs Tailscale on physical nodes, pointing at Headscale
   base.yml            # day-2 config for all VMs (push)
   physical.yml        # day-2 config for physical devices (push, targets physical group)
-  vps.yml             # VPS bootstrap and config (push); syncs repo, then applies roles
   roles/
     base/             # applied to all Debian VMs and physical devices
     docker/           # applied to VMs running Docker Compose services
-    headscale/        # applied to VPS — Headscale Docker Compose + config
+    headscale/        # applied to deploy VM — Headscale + cloudflared Docker Compose + config
     network/          # Proxmox bridge config for physical nodes
 ```
 
 Headscale pre-auth keys for physical nodes are generated via the Headscale CLI on the
-VPS and stored in Infisical. The `tailscale.yml` playbook reads the key from Infisical
-at run time.
+deploy VM and stored in Infisical. The `tailscale.yml` playbook reads the key from
+Infisical at run time.
 
 ---
 
@@ -627,9 +614,8 @@ Then from the operator laptop (or deploy VM):
 ansible-playbook ansible/physical.yml --limit <hostname>
 ```
 
-**Ongoing**: the same webhook that triggers `base.yml` for VMs also triggers
-`physical.yml` for physical devices when `ansible/` paths change. For ad-hoc changes:
-`ansible-playbook ansible/physical.yml --limit <hostname>` from the deploy VM.
+**Ongoing**: run `ansible-playbook ansible/physical.yml --limit <hostname>` from the
+deploy VM when needed.
 
 **Registration**: add the device to `network.yml` and `ansible/inventory/hosts.yml`
 (under the appropriate `physical` subgroup).
@@ -638,41 +624,22 @@ ansible-playbook ansible/physical.yml --limit <hostname>
 
 ## Deployment Automation
 
-All changes to `main` trigger an automated deploy from the VPS via GitHub webhook.
-
-**Webhook flow**: two-stage. The VPS is the only internet-facing node; the deploy VM
-is internal (Tailscale only) and holds all credentials.
+Deploys are triggered manually from the deploy VM. No webhook or CI automation.
 
 ```
-git push to main
-  → GitHub webhook POST to VPS
-  → VPS: validate HMAC-SHA256 signature
-  → VPS: forward payload to http://nuc-deploy.ts.home:9001/hooks/deploy (Tailscale)
-  → deploy VM: detect changed paths, run appropriate commands
-      terraform/nuc/ or terraform/anton/ changed? → ./scripts/deploy.sh (Terraform + Ansible)
-      ansible/ changed?                            → ansible-playbook base.yml
-      services/ changed?                           → ./scripts/deploy-services.sh
-      terraform/vps/ changed?                      → exit 1 (notify operator)
+# SSH to deploy VM, then:
+./scripts/deploy.sh nuc      # terraform apply + ansible for NUC VMs
+./scripts/deploy.sh anton    # terraform apply + ansible for Anton VMs
+./scripts/deploy.sh services # terraform apply + ansible for services node VMs
+./scripts/deploy.sh both     # all nodes
+./scripts/deploy-services.sh # redeploy Docker Compose stacks only (no Terraform)
 ```
 
-**VPS webhook** (`adnanh/webhook`): validates GitHub HMAC signature, then forwards the
-raw payload to the deploy VM over Tailscale. The VPS holds only the webhook secret
-(for signature validation) — no Proxmox credentials, no `terraform.tfvars`.
-
-**Deploy VM webhook** (`adnanh/webhook`, internal): receives forwarded payload, runs
-`scripts/webhook-deploy.sh`. Holds `terraform.tfvars` and all deploy credentials.
-Not internet-facing — only reachable over Tailscale.
-
-When `ansible/` paths change, the webhook also runs `physical.yml` (physical devices)
-and `vps.yml` (VPS) in addition to `base.yml` (VMs).
-
-**`terraform/vps/` exception**: changes to the VPS's own Terraform definition cannot
-self-apply. The webhook script detects this path, exits non-zero, and sends a
-notification. The operator runs `cd terraform/vps && terraform apply` from their laptop.
+The deploy VM holds `terraform.tfvars` and all deploy credentials. It is not
+internet-facing — only reachable over Tailscale or the local LAN.
 
 **Concurrency**: the deploy script holds a lock (`/var/lock/homelab-deploy.lock`)
-so a second webhook firing during a long apply is dropped rather than running in
-parallel.
+so concurrent runs are prevented rather than running in parallel.
 
 ---
 
@@ -708,12 +675,11 @@ NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
 | Calibre-Web headless setup | Post-start `cps.py -s` CLI; library at `/books` mount |
 | n8n headless setup | `POST /api/v1/owner/setup` scripted in `n8n-init.sh` |
 | CouchDB headless setup | Env vars for credentials; init container handles `/_cluster_setup` and CORS |
-| Tailscale coordination server | Self-hosted Headscale on a DigitalOcean VPS; Tailscale clients point at `--login-server`. Uses Tailscale's public DERP relays. Managed by Ansible (`roles/headscale`). |
-| Terraform execution host | VPS runs `terraform/nuc/` and `terraform/anton/` normally. `terraform/vps/` runs from operator laptop only (VPS cannot manage its own existence). |
-| Terraform state backend | MinIO S3 on Storinator (`http://storinator:9000`) for `nuc/` and `anton/`. Local file on operator laptop for `vps/`. S3 lockfile replaces NFS file locking. Both laptop and VPS reach MinIO over Tailscale. |
-| Physical device management | Ansible push, same model as VMs. One-time bootstrap via `scripts/bootstrap-physical.sh` (installs Tailscale only). All further config pushed via `ansible-playbook ansible/physical.yml`. Webhook triggers it when `ansible/` changes. |
-| Deployment automation | Two-stage webhook: VPS validates GitHub HMAC and forwards payload over Tailscale to internal deploy VM (`nuc-deploy`, `192.168.0.23`). Deploy VM runs Terraform + Ansible + Docker Compose deploy. VPS holds only the webhook secret; all deploy credentials stay on the internal deploy VM. `terraform/vps/` is the only manual exception (run from operator laptop). |
-| VPS Ansible config | Ansible push via `ansible/vps.yml`. Syncs repo to `/opt/homelab/` on the VPS, then applies `base`, `docker`, and `headscale` roles. `terraform/vps/` manages only the DigitalOcean infrastructure; all OS and service config is Ansible's responsibility. |
+| Tailscale coordination server | Self-hosted Headscale on the NUC deploy VM (`192.168.0.23`). Public HTTPS endpoint provided by a Cloudflare Tunnel (cloudflared container alongside Headscale). No public IP or open port required. Uses Tailscale's public DERP relays. Managed by Ansible (`roles/headscale`). |
+| Terraform execution host | Deploy VM (`nuc-deploy`) runs all Terraform workspaces. Operator laptop is break-glass fallback. No VPS. |
+| Terraform state backend | MinIO S3 on Storinator (`http://storinator:9000`) for all workspaces (`nuc/`, `anton/`, `services/`). S3 lockfile replaces NFS file locking. Both deploy VM and operator laptop reach MinIO over Tailscale. |
+| Physical device management | Ansible push, same model as VMs. One-time bootstrap via `scripts/bootstrap-physical.sh` (installs Tailscale only). All further config pushed via `ansible-playbook ansible/physical.yml` from the deploy VM. |
+| Deployment automation | Manual. Operator SSHes to deploy VM and runs `./scripts/deploy.sh`. No webhook, no CI. Simpler and sufficient for a personal homelab. |
 | DNS domain strategy | Two domains: `*.wsh` (Tailscale/HTTPS, personal devices) and `*.home` (LAN/HTTP, guests). Avoids subnet routing; guests can reach services without Tailscale. Single Traefik instance handles both. |
 | TLS for private TLDs | Let's Encrypt does not issue certs for `.wsh` or `.home`. `*.wsh` uses step-ca (local CA, wildcard cert, Traefik ACME). `*.home` is plain HTTP (LAN only, acceptable). |
 | AdGuard DNS rewrites | `*.wsh` CNAME → `anton-services.ts.home` (MagicDNS). `*.home` A → `192.168.0.31` (LAN IP). Headscale `dns_config` pushes AdGuard's Tailscale IP as resolver for both TLDs to all tailnet members. |

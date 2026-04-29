@@ -35,14 +35,13 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
 terraform/modules/proxmox-vm/  — shared VM module, edit here for VM-level changes
 terraform/nuc/                 — NUC VMs (DNS, HAOS, Infisical, Deploy)
 terraform/anton/               — Anton VMs (Ollama, OpenClaw, Debian, Services)
-terraform/vps/                 — DigitalOcean VPS (operator laptop only)
+terraform/services/            — services node VMs (planned)
 services/dns/                  — AdGuard Home (pre-seeded AdGuardHome.yaml)
 services/nuc-infra/            — Infisical + Vaultwarden + Litestream
-services/nuc-deploy/           — internal webhook listener (adnanh/webhook)
+services/nuc-deploy/           — Headscale + cloudflared + Terraform + Ansible
 services/anton/                — all Docker Compose services (Traefik, Jellyfin, etc.)
-services/vps/                  — Headscale + GitHub webhook forwarder
 scripts/                       — bootstrap and init scripts (headless service setup)
-ansible/                       — push-only config management for VMs, physical devices, VPS
+ansible/                       — push-only config management for VMs and physical devices
 docs/                          — architecture docs, plan, TODOs
 ```
 
