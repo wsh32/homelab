@@ -229,13 +229,13 @@ from the operator laptop.
 | Services VM | 32GB | 8 | All temporary services; GPU passthrough (Quadro P2000) for Jellyfin |
 | Headroom | 40GB | — | Future VMs / workloads |
 
-### Services node (planned — 48GB RAM, Ryzen 7 3700x 8c/16t)
+### Services node (planned — 128GB RAM, Ryzen 7 3700x 8c/16t)
 
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
 | Proxmox host | 4GB | — | OS overhead |
 | Services VM | 32GB | 8 | All migrated services from Anton |
-| Headroom | 12GB | — | Future VMs |
+| Headroom | 92GB | — | Future VMs / workloads |
 
 ---
 
