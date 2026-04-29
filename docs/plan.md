@@ -46,6 +46,7 @@ Physical nodes get DHCP reservations in the Eero app. VMs get static IPs configu
 | Anton | anton | 192.168.0.5 | Static (Ansible — `/etc/network/interfaces`) |
 | NUC | nuc | 192.168.0.6 | Static (Ansible — `/etc/network/interfaces`) |
 | Orange Pi | orangepi | 192.168.0.7 | Static (TBD — depends on OS choice) |
+| Services node | services | 192.168.0.8 | Static (Ansible — `/etc/network/interfaces`) — planned |
 | anton-ollama VM | anton-ollama | 192.168.0.10 | Static (Terraform) |
 | anton-services VM | anton-services | 192.168.0.11 | Static (Terraform) |
 | anton-openclaw VM | anton-openclaw | 192.168.0.12 | Static (Terraform) |
@@ -53,6 +54,7 @@ Physical nodes get DHCP reservations in the Eero app. VMs get static IPs configu
 | nuc-infisical VM | nuc-infisical | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
 | nuc-haos VM | nuc-haos | 192.168.0.22 | Static (Terraform) — Home Assistant OS |
 | nuc-deploy VM | nuc-deploy | 192.168.0.23 | Static (Terraform) — Terraform + Ansible + internal webhook listener |
+| services-node VM | services-node | 192.168.0.30 | Static (Terraform) — migrated services from Anton; planned |
 | VPS | vps | Public IP | DigitalOcean — Headscale coordination server, Terraform execution host, webhook listener |
 
 Note: Gringotts is offsite and not on the local network. The VPS is on the public internet; it joins the Headscale tailnet and reaches all homelab resources over Tailscale.

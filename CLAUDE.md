@@ -14,8 +14,8 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
   - Human-consumed secrets (web UI admin passwords) → Vaultwarden. Set manually when configuring a service. Never in Infisical.
   - Infrastructure credentials (Proxmox, Tailscale, Infisical, Vaultwarden master password) → `var.*` from `terraform.tfvars`, gitignored.
   - Developer API keys (Claude, Codex, GitHub) → Infisical, entered via UI, accessed via `infisical run --` on the operator laptop.
-- **VM IDs**: NUC VMs use 200–299, Anton VMs use 100–199. Reserve 300+ for the services node.
-- **IP addresses**: NUC VMs use 192.168.0.20–29, Anton VMs use 192.168.0.10–19.
+- **VM IDs**: NUC VMs use 200–299, Anton VMs use 100–199, services node VMs use 300–399.
+- **IP addresses**: Anton VMs use 192.168.0.10–19, NUC VMs use 192.168.0.20–29, services node VMs use 192.168.0.30–39. Physical nodes use 192.168.0.2–9.
 - **Docker Compose**: persistent data always mounts to `/mnt/nas/<dataset>/<service>` (Storinator NFS). Never use named volumes for stateful data — it must survive VM recreation.
 - **Traefik routing**: each service gets two routers — `<name>-wsh` (Tailscale, HTTPS) and `<name>-home` (LAN, HTTP). Omit a router to restrict exposure on that network. Default is both. See DNS Architecture in `docs/plan.md` for the full two-domain design.
   ```yaml
