@@ -6,9 +6,9 @@ groupings, and group vars. This script reads it and emits Ansible inventory
 JSON with no hardcoded values.
 
 Groups produced:
-  physical  → one child group per unique `type` value in physical[*].type
-  vms       → one child group per entry in nodes[*], named nodes[*].group,
-              with vars from nodes[*].vars
+  physical  → one child group per unique `type` value across all nodes
+  vms       → one child group per node that defines ansible_group,
+              named by ansible_group, with vars from ansible_group_vars
 
 VMs with ansible_managed: false are excluded (e.g. nuc-haos).
 """
@@ -28,19 +28,19 @@ def load_network():
 
 def build_inventory(network):
     hostvars = {}
-
-    # Collect unique physical types to create child groups dynamically
-    physical_types = sorted({
-        attrs.get("type", "other")
-        for attrs in network.get("physical", {}).values()
-    })
-
-    # Build node → group mapping and VM groups from nodes section
     nodes = network.get("nodes", {})
-    node_to_group = {name: cfg["group"] for name, cfg in nodes.items()}
+
+    # Collect unique physical types for child group list
+    physical_types = sorted({attrs.get("type", "other") for attrs in nodes.values()})
+
+    # Collect VM groups from nodes that define ansible_group
     vm_groups = {
-        cfg["group"]: {"hosts": [], "vars": cfg.get("vars", {})}
-        for cfg in nodes.values()
+        attrs["ansible_group"]: {
+            "hosts": [],
+            "vars": attrs.get("ansible_group_vars", {}),
+        }
+        for attrs in nodes.values()
+        if "ansible_group" in attrs
     }
 
     inventory = {
@@ -50,20 +50,19 @@ def build_inventory(network):
             "children": ["physical", "vms"],
         },
         "physical": {"children": physical_types},
-        "vms": {"children": list(node_to_group.values())},
+        "vms": {"children": list(vm_groups)},
     }
 
     # Initialise one group per physical type
     for ptype in physical_types:
         inventory[ptype] = {"hosts": []}
 
-    # Merge VM groups into inventory
     inventory.update(vm_groups)
 
-    # Physical nodes — grouped by type field
-    for hostname, attrs in network.get("physical", {}).items():
-        group = attrs.get("type", "other")
-        inventory[group]["hosts"].append(hostname)
+    for hostname, attrs in nodes.items():
+        # Add physical host to its type group
+        ptype = attrs.get("type", "other")
+        inventory[ptype]["hosts"].append(hostname)
 
         hvars = {"ansible_host": attrs["ip"]}
         if attrs.get("bridge_port"):
@@ -73,14 +72,14 @@ def build_inventory(network):
             hvars["ansible_user"] = attrs["ansible_user"]
         hostvars[hostname] = hvars
 
-    # VMs — grouped by node field; excluded if ansible_managed: false
-    for vmname, attrs in network.get("vms", {}).items():
-        if not attrs.get("ansible_managed", True):
-            continue
-        group = node_to_group.get(attrs.get("node"))
-        if group:
-            inventory[group]["hosts"].append(vmname)
-            hostvars[vmname] = {"ansible_host": attrs["ip"]}
+        # Add VMs to their node's ansible_group
+        group = attrs.get("ansible_group")
+        for vmname, vmattrs in attrs.get("vms", {}).items():
+            if not vmattrs.get("ansible_managed", True):
+                continue
+            if group:
+                inventory[group]["hosts"].append(vmname)
+                hostvars[vmname] = {"ansible_host": vmattrs["ip"]}
 
     return inventory
 

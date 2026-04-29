@@ -1,6 +1,7 @@
 locals {
   node = "anton"
   net  = yamldecode(file("${path.module}/../../network.yml"))
+  vms  = local.net.nodes[local.node].vms
 }
 
 # Download Debian 12 (Bookworm) cloud image to Anton once.
@@ -20,7 +21,7 @@ module "ollama" {
   source = "../modules/proxmox-vm"
 
   node_name     = local.node
-  vm_id         = local.net.vms["anton-ollama"].vm_id
+  vm_id         = local.vms["anton-ollama"].vm_id
   name          = "anton-ollama"
   description   = "Ollama GPU inference (RTX 3060 passthrough) + Tailscale exit node (backup)"
   tags          = ["anton", "gpu", "ollama"]
@@ -30,7 +31,7 @@ module "ollama" {
   memory_mb    = 32768
   disk_size_gb = 60
 
-  ip_address         = "${local.net.vms["anton-ollama"].ip}/24"
+  ip_address         = "${local.vms["anton-ollama"].ip}/24"
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key
@@ -52,7 +53,7 @@ module "openclaw" {
   source = "../modules/proxmox-vm"
 
   node_name     = local.node
-  vm_id         = local.net.vms["anton-openclaw"].vm_id
+  vm_id         = local.vms["anton-openclaw"].vm_id
   name          = "anton-openclaw"
   description   = "OpenClaw — personal AI assistant gateway (permanent on Anton)"
   tags          = ["anton", "ai", "openclaw"]
@@ -62,7 +63,7 @@ module "openclaw" {
   memory_mb    = 8192
   disk_size_gb = 20
 
-  ip_address         = "${local.net.vms["anton-openclaw"].ip}/24"
+  ip_address         = "${local.vms["anton-openclaw"].ip}/24"
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key
@@ -79,7 +80,7 @@ module "debian" {
   source = "../modules/proxmox-vm"
 
   node_name     = local.node
-  vm_id         = local.net.vms["anton-debian"].vm_id
+  vm_id         = local.vms["anton-debian"].vm_id
   name          = "anton-debian"
   description   = "Personal Debian development workstation"
   tags          = ["anton", "debian"]
@@ -89,7 +90,7 @@ module "debian" {
   memory_mb    = 16384
   disk_size_gb = 60
 
-  ip_address         = "${local.net.vms["anton-debian"].ip}/24"
+  ip_address         = "${local.vms["anton-debian"].ip}/24"
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key
@@ -100,7 +101,7 @@ module "services" {
   source = "../modules/proxmox-vm"
 
   node_name     = local.node
-  vm_id         = local.net.vms["anton-services"].vm_id
+  vm_id         = local.vms["anton-services"].vm_id
   name          = "anton-services"
   description   = "Services VM — Traefik, Jellyfin, Servarr, Monitoring, etc. (Quadro P2000 passthrough)"
   tags          = ["anton", "gpu", "services"]
@@ -110,7 +111,7 @@ module "services" {
   memory_mb    = 32768
   disk_size_gb = 40
 
-  ip_address         = "${local.net.vms["anton-services"].ip}/24"
+  ip_address         = "${local.vms["anton-services"].ip}/24"
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key

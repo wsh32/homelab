@@ -21,94 +21,92 @@ dns:
   - 192.168.0.2   # nuc-dns (AdGuard Home) — primary
   - 8.8.8.8       # fallback if nuc-dns is down
 
-# Proxmox nodes — defines the Ansible group and group vars for each node's VMs.
-# hosts.py creates one VM group per entry here; all values come from this section.
-nodes:
-  nuc:
-    group: nuc_vms
-    vars:
-      proxmox_node: nuc
-      ansible_user: debian
-  anton:
-    group: anton_vms
-    vars:
-      proxmox_node: anton
-      ansible_user: debian
-  services:
-    group: services_vms
-    vars:
-      proxmox_node: services
-      ansible_user: debian
+# All nodes — physical and compute.
+#
+# Fields on every node:
+#   ip:              LAN IP address
+#   type:            Ansible physical group (proxmox | nas | other)
+#   ansible_user:    SSH user override (default: debian)
+#
+# Additional fields for Proxmox nodes:
+#   bridge_port:     NIC bridged to vmbr0. Verify: ssh root@<ip> ip link show
+#   ansible_group:   Ansible group name for this node's VMs
+#   ansible_group_vars: Group vars applied to all VMs on this node
+#   vms:             VMs provisioned on this node
+#
+# VM fields:
+#   ip:              LAN IP (static, set via cloud-init)
+#   vm_id:           Proxmox VM ID
+#   ansible_managed: Set false to exclude from Ansible inventory (default: true)
 
-# Physical nodes
-# type:         used by ansible/inventory/hosts.py to assign Ansible groups;
-#               any value is valid — a group is created for each unique type.
-# bridge_port:  the NIC bridged to vmbr0 on Proxmox nodes.
-#               Verify with: ssh root@<ip> ip link show
-# ansible_user: overrides the default (debian) for this host only
-physical:
+nodes:
   storinator:
     ip: 192.168.0.4
     type: nas
-  anton:
-    ip: 192.168.0.5
-    type: proxmox
-    bridge_port: eno1  # TODO: verify with `ip link show`
-  nuc:
-    ip: 192.168.0.6
-    type: proxmox
-    bridge_port: eno1  # TODO: verify with `ip link show`
+
+  gringotts:
+    ip: 192.168.0.8
+    type: nas  # offsite; only reachable via Tailscale
+
   orangepi:
     ip: 192.168.0.7
     type: other
     ansible_user: root
-  gringotts:
-    ip: 192.168.0.8
-    type: nas  # offsite; only reachable via Tailscale
+
+  nuc:
+    ip: 192.168.0.6
+    type: proxmox
+    bridge_port: eno1  # TODO: verify with `ip link show`
+    ansible_group: nuc_vms
+    ansible_group_vars:
+      proxmox_node: nuc
+      ansible_user: debian
+    vms:
+      nuc-dns:
+        ip: 192.168.0.2
+        vm_id: 200
+      nuc-infisical:
+        ip: 192.168.0.21
+        vm_id: 201
+      nuc-haos:
+        ip: 192.168.0.22
+        vm_id: 202
+        ansible_managed: false  # HAOS — no SSH access via Ansible
+      nuc-deploy:
+        ip: 192.168.0.23
+        vm_id: 203
+
+  anton:
+    ip: 192.168.0.5
+    type: proxmox
+    bridge_port: eno1  # TODO: verify with `ip link show`
+    ansible_group: anton_vms
+    ansible_group_vars:
+      proxmox_node: anton
+      ansible_user: debian
+    vms:
+      anton-ollama:
+        ip: 192.168.0.30
+        vm_id: 100
+      anton-services:
+        ip: 192.168.0.31
+        vm_id: 103
+      anton-openclaw:
+        ip: 192.168.0.32
+        vm_id: 102
+      anton-debian:
+        ip: 192.168.0.33
+        vm_id: 101
+
   services:
     ip: 192.168.0.9
     type: proxmox
     bridge_port: eno1  # TODO: verify with `ip link show`
-
-# VMs
-# NUC:           VM IDs 200–299, IPs .20–.29
-# Anton:         VM IDs 100–199, IPs .30–.49
-# Services node: VM IDs 300–399, IPs .50–.69
-vms:
-  nuc-dns:
-    ip: 192.168.0.2
-    vm_id: 200
-    node: nuc
-  nuc-infisical:
-    ip: 192.168.0.21
-    vm_id: 201
-    node: nuc
-  nuc-haos:
-    ip: 192.168.0.22
-    vm_id: 202
-    node: nuc
-    ansible_managed: false  # HAOS — no SSH access via Ansible
-  nuc-deploy:
-    ip: 192.168.0.23
-    vm_id: 203
-    node: nuc
-  anton-ollama:
-    ip: 192.168.0.30
-    vm_id: 100
-    node: anton
-  anton-openclaw:
-    ip: 192.168.0.32
-    vm_id: 102
-    node: anton
-  anton-debian:
-    ip: 192.168.0.33
-    vm_id: 101
-    node: anton
-  anton-services:
-    ip: 192.168.0.31
-    vm_id: 103
-    node: anton
-  services-node:
-    ip: 192.168.0.50
-    vm_id: 300
-    node: services
+    ansible_group: services_vms
+    ansible_group_vars:
+      proxmox_node: services
+      ansible_user: debian
+    vms:
+      services-node:
+        ip: 192.168.0.50
+        vm_id: 300
