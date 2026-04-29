@@ -3,8 +3,8 @@
 Step-by-step rebuild guide. Follow in order. After completing this runbook,
 all infrastructure is managed via Terraform and all services are running.
 
-Normal deploys after bootstrap are fully automated: push to `main` and the VPS
-webhook handles Terraform, Ansible, and Docker Compose updates automatically.
+Normal deploys after bootstrap are manual: SSH to the deploy VM and run
+`./scripts/deploy.sh`.
 
 ---
 
@@ -19,25 +19,22 @@ terraform -version
 # Ansible
 ansible --version
 
-# Infisical CLI >= 0.28
-infisical --version
+# Bitwarden CLI (for Vaultwarden account creation)
+bw --version
 
 # SSH key pair (used for VM access)
 ls ~/.ssh/id_ed25519.pub
-
-# DigitalOcean CLI (for VPS provisioning)
-doctl version
 ```
 
 Install if missing:
 ```bash
-brew install terraform ansible infisical/tap/infisical doctl
+brew install terraform ansible bitwarden-cli
 ssh-keygen -t ed25519  # if no key exists
 ```
 
 ---
 
-## Phase 1 — Manual (one-time, UI-based)
+## Phase 1 — Physical setup (one-time, manual)
 
 ### 1. Form the Proxmox cluster
 
@@ -82,437 +79,221 @@ Log into TrueNAS at `https://192.168.0.4`:
    - `pool/photos`
    - `pool/lightroom`
 3. Sharing → NFS → Add for the docker dataset:
-   - Path: `/mnt/pool/docker`, Networks: `192.168.0.0/24`, `Maproot User: root`
+   - Path: `/mnt/pool/docker`, Networks: `192.168.0.0/24`, Maproot User: `root`
 4. Services → NFS → Start, set to start automatically
-5. Apps → MinIO (or System → S3 Service depending on TrueNAS version) → Enable S3 service:
+5. Enable MinIO (System → S3 Service or Apps → MinIO depending on TrueNAS version):
    - Create bucket: `terraform-state`
-   - Create access key and secret key — save these for `terraform.tfvars`
-   - Note the endpoint (typically `http://storinator:9000` over Tailscale)
+   - Create access key + secret key — save both for `terraform.tfvars`
 
-MinIO replaces the old `terraform-state` NFS export. Both the VPS and operator laptop
-access state via S3 over Tailscale — no NFS mount needed.
+### 4. Configure static IPs on physical nodes
 
----
-
-## Phase 2 — VPS bootstrap
-
-### 4. Provision the VPS
-
-From the operator laptop:
-
+Find the NIC bridged to `vmbr0` on Anton and NUC:
 ```bash
-cd terraform/vps
-cp terraform.tfvars.example terraform.tfvars
-# Fill in: digitalocean_api_token, ssh_public_key
-terraform init
-terraform apply
-```
-
-Note the VPS public IP from the output. State for this workspace is a local file
-(`terraform/vps/terraform.tfstate`) — back it up in Vaultwarden after this step.
-
-### 5. Bootstrap Headscale on the VPS
-
-```bash
-ansible-playbook ansible/vps.yml
-```
-
-This installs Docker, deploys Headscale via Docker Compose, and hardens the node.
-Verify Headscale is running:
-
-```bash
-ssh debian@<vps-public-ip> "docker ps"
-# Should show headscale container
-```
-
-### 6. Generate a Headscale pre-auth key
-
-```bash
-ssh debian@<vps-public-ip> \
-  "docker exec headscale headscale preauthkeys create --reusable --expiration 90d"
-```
-
-Copy the key (`<long-hex-string>`) — you'll use it in steps 8 and 10.
-
----
-
-## Phase 3 — Ansible (physical nodes)
-
-### 7. Configure static IPs on physical nodes
-
-**Anton and NUC** (Proxmox — Ansible-managed):
-
-First, find the physical NIC name on each machine (the one bridged to `vmbr0`):
-```bash
-ssh root@192.168.0.5 ip link show   # anton
+ssh root@192.168.0.5 ip link show   # anton — look for eno1 or similar
 ssh root@192.168.0.6 ip link show   # nuc
 ```
 
-Look for the interface that is not `lo` or `vmbr0` — typically `eno1`, `enp2s0`, or similar.
-Update `bridge_port` for each host in `network.yml` (repo root), then run:
-
+Update `bridge_port` in `network.yml` if needed, then:
 ```bash
 ansible-playbook ansible/network.yml
 ```
 
-**Storinator and Gringotts** (TrueNAS — manual):
-1. Log into TrueNAS UI → Network → Interfaces
-2. Edit the primary interface → set Static IP, disable DHCP
-3. Set IP to `192.168.0.4` (Storinator) / `192.168.0.8` (Gringotts), gateway `192.168.0.1`
-
-**Orange Pi** — defer until OS is chosen.
-
-### 8. Install Tailscale on physical nodes
-
-```bash
-cd /path/to/homelab
-
-# Run the Tailscale playbook against all physical nodes
-# (Anton, NUC, Storinator, Orange Pi)
-TAILSCALE_AUTH_KEY=<headscale-preauth-key-from-step-6> \
-  ansible-playbook ansible/tailscale.yml --ask-become-pass
-```
-
-This points all physical nodes at the Headscale server (`--login-server` is set in
-the playbook). Verify all nodes appear in Headscale:
-
-```bash
-ssh debian@<vps-public-ip> "docker exec headscale headscale nodes list"
-```
+For Storinator and Gringotts: Network → Interfaces in TrueNAS UI → set static IPs
+(`192.168.0.4` and `192.168.0.8`).
 
 ---
 
-## Phase 4 — Terraform (first apply, from VPS)
+## Phase 2 — Bootstrap the deploy VM (operator laptop)
 
-### 9. Bootstrap the deploy VM
-
-The deploy VM (`nuc-deploy`, `192.168.0.23`) is a chicken-and-egg problem: it needs
-Terraform to be provisioned, but it's also the machine that runs Terraform. For the
-first apply only, run from the operator laptop:
+### 5. Write terraform.tfvars
 
 ```bash
-cd terraform/nuc
-terraform apply -target=module.nuc-deploy
-```
-
-Once the deploy VM exists and is on the Tailscale network, all subsequent Terraform
-runs happen from it.
-
-### 10. Set up the repo on the deploy VM
-
-```bash
-ssh debian@192.168.0.23
-git clone git@github.com:wsh32/homelab.git
-cd homelab
-```
-
-### 11. Write terraform.tfvars on the deploy VM
-
-```bash
-# NUC
 cp terraform/nuc/terraform.tfvars.example terraform/nuc/terraform.tfvars
 ```
 
-Edit `terraform/nuc/terraform.tfvars`:
+Fill in:
 ```hcl
-proxmox_endpoint      = "https://192.168.0.6:8006"
-proxmox_api_token     = "terraform@pam!terraform=<uuid-from-step-2>"
-ssh_public_key        = "<contents of ~/.ssh/id_ed25519.pub>"
-tailscale_auth_key    = "<headscale-preauth-key-from-step-6>"
-headscale_server      = "https://<vps-public-ip>"
-minio_access_key      = "<access-key-from-step-3>"
-minio_secret_key      = "<secret-key-from-step-3>"
+# Proxmox — NUC
+proxmox_endpoint  = "https://192.168.0.6:8006"
+proxmox_api_token = "terraform@pam!terraform=<uuid-from-step-2>"
+
+# Proxmox — Anton (used by terraform/anton/)
+# proxmox_endpoint  = "https://192.168.0.5:8006"
+# proxmox_api_token = "terraform@pam!terraform=<uuid-from-step-2>"
+
+# Shared
+ssh_public_key   = "<contents of ~/.ssh/id_ed25519.pub>"
+minio_access_key = "<access-key-from-step-3>"
+minio_secret_key = "<secret-key-from-step-3>"
+
+# Cloudflare (for Headscale tunnel + DNS)
+cloudflare_api_token = "<cloudflare-api-token>"
+
+# headscale_preauth_key = ""  # filled automatically by bootstrap-headscale.yml
 ```
 
+### 6. Provision the deploy VM
+
 ```bash
-# Anton
-cp terraform/anton/terraform.tfvars.example terraform/anton/terraform.tfvars
+cd terraform/nuc
+terraform init
+terraform apply -target=module.deploy
 ```
 
-Edit `terraform/anton/terraform.tfvars` with the same values, changing
-`proxmox_endpoint` to `https://192.168.0.5:8006`.
-
-> `terraform.tfvars` lives on the deploy VM only — never on the VPS. The VPS
-> holds only the webhook secret for GitHub signature validation.
-
-### 12. Deploy remaining VMs and apply base Ansible config
-
-Run from the deploy VM:
+### 7. Bootstrap the deploy VM via Ansible
 
 ```bash
+ansible-playbook ansible/bootstrap-deploy.yml
+```
+
+This clones the repo, installs Terraform and Ansible on the deploy VM, and copies
+`terraform.tfvars`. All remaining steps run from the deploy VM.
+
+---
+
+## Phase 3 — Full deployment (from the deploy VM)
+
+SSH to the deploy VM:
+```bash
+ssh debian@192.168.0.23
 cd ~/homelab
+```
 
-# Deploy both nodes: runs terraform apply then ansible base.yml
+### 8. Provision the DNS VM
+
+```bash
+cd terraform/nuc
+terraform apply -target=module.dns
+```
+
+Terraform creates the Cloudflare Tunnel automatically and passes the tunnel token to
+the DNS VM via cloud-init. AdGuard, Headscale, and cloudflared all start on first boot.
+
+Verify:
+```bash
+ssh debian@192.168.0.2 "docker ps --format 'table {{.Names}}\t{{.Status}}'"
+# Should show adguard, headscale, cloudflared all Up
+```
+
+### 9. Generate Headscale pre-auth key
+
+```bash
+ansible-playbook ansible/bootstrap-headscale.yml
+```
+
+This waits for Headscale to be healthy, generates a reusable pre-auth key, and writes
+it to `terraform.tfvars` automatically.
+
+### 10. Deploy all remaining VMs
+
+```bash
 ./scripts/deploy.sh
-
-# Or deploy one node at a time:
+# Or node by node:
 ./scripts/deploy.sh nuc
 ./scripts/deploy.sh anton
+./scripts/deploy.sh services   # when services node is built
 ```
 
-The script runs `terraform apply` (state goes to MinIO on Storinator over Tailscale),
-waits for VMs to be SSH-reachable (cloud-init takes ~2-3 minutes), then runs
-`ansible-playbook base.yml`. VMs join the Headscale tailnet after first boot.
+VMs provision, cloud-init handles Docker install and NFS mounts. Tailscale auth runs
+at first boot using the pre-auth key. Wait ~2-3 minutes for cloud-init to complete,
+then verify:
 
-To preview before deploying:
 ```bash
-cd terraform/nuc && terraform plan
-cd terraform/anton && terraform plan
+ansible-playbook ansible/base.yml   # should complete with no failures
 ```
+
+### 11. Bootstrap Infisical
+
+```bash
+ansible-playbook ansible/bootstrap-infisical.yml
+```
+
+This:
+- Waits for the Infisical VM to be healthy
+- Runs `infisical bootstrap` to create admin user, org, workspace
+- Creates a scoped machine identity for each VM that needs secrets
+- Writes `/etc/infisical.env` (root-owned, mode 0600) on each VM
+
+### 12. Bring up all services
+
+```bash
+ansible-playbook ansible/site.yml
+```
+
+Each service role:
+1. Generates the service's API keys/passwords
+2. Seeds them to Infisical (`infisical secrets set ...`)
+3. Writes pre-seeded config files
+4. Starts the container
+5. Runs any headless init (Jellyfin wizard, Servarr linking, etc.)
+6. Stores the admin password in Vaultwarden
+
+Vaultwarden account creation is attempted automatically via `bw register`. If the
+Bitwarden CLI doesn't support registration against Vaultwarden, the playbook will
+pause with instructions for the one manual browser step.
 
 ---
 
-## Phase 5 — Infisical bootstrap
+## Phase 4 — Post-bootstrap
 
-### 12. Bootstrap Infisical
+### 13. TLS — trust the step-ca root CA
 
-Wait for the nuc-infisical VM to be healthy and Docker Compose running:
-```bash
-ssh debian@192.168.0.21 "docker ps"
-# Should show infisical and vaultwarden containers
-```
-
-Run the bootstrap script from the VPS:
-```bash
-./scripts/infisical-bootstrap.sh
-```
-
-The script outputs:
-```
-workspace_id  = "..."
-client_id     = "..."
-client_secret = "..."
-```
-
-Save these — you add them to `terraform.tfvars` next.
-
-### 13. Add Infisical credentials to terraform.tfvars
-
-Add to **both** `terraform/nuc/terraform.tfvars` and `terraform/anton/terraform.tfvars`:
-
-```hcl
-infisical_workspace_id  = "<workspace_id from step 12>"
-infisical_client_id     = "<client_id from step 12>"
-infisical_client_secret = "<client_secret from step 12>"
-```
-
-Re-apply Terraform from the VPS to pick up the updated variables:
-```bash
-./scripts/deploy.sh
-```
-
----
-
-## Phase 6 — Vaultwarden account
-
-### 14. Create your Vaultwarden account
-
-1. Open `https://vault.home` in a browser (requires `.home` DNS from AdGuard — see note below)
-2. Create Account with your email and a strong master password
-3. Vaultwarden locks signups automatically after the first account
-
-> **DNS note:** If AdGuard DNS isn't set up yet, access Vaultwarden directly:
-> `https://192.168.0.21:8443` (or whichever port is configured in docker-compose)
-
-Store the master password somewhere safe immediately — this is your break-glass credential.
-
----
-
-## Phase 7 — Seed Infisical
-
-### 15. Add secrets to Infisical
-
-Log into Infisical at `https://infisical.home` (or `https://192.168.0.21:<port>`).
-
-Add all machine-consumed secrets to the `prod` environment:
-
-**Service API keys and inter-service tokens** (add as you set up each service):
-- `RADARR_API_KEY` — will be set when Radarr first starts; add after init
-- `SONARR_API_KEY` — same
-- `PROWLARR_API_KEY` — same
-- Any other service-to-service tokens
-
-**Developer API keys** (add now):
-- `ANTHROPIC_API_KEY`
-- `OPENAI_API_KEY`
-- `GITHUB_TOKEN`
-- Any other keys you use in terminal workflows
-
-**Infrastructure secrets** (add now):
-- `HOMELAB_DEPLOY_KEY` — private half of the GitHub deploy key (read-only repo access).
-  Used by physical devices and the VPS for `ansible-pull`.
-- `WEBHOOK_SECRET` — random string used to authenticate GitHub webhooks on the VPS.
-
-To use developer keys on the operator laptop:
-```bash
-infisical run -- claude   # example
-infisical run -- env      # inspect all injected vars
-```
-
----
-
-## Phase 8 — Start services
-
-### 16. Reboot VMs to fetch secrets and start services
+step-ca is initialized by the `site.yml` Ansible role. Copy the root CA cert to your
+operator laptop and trust it:
 
 ```bash
-# Trigger a reboot so cloud-init / startup scripts fetch from Infisical
-ssh debian@192.168.0.21 "sudo reboot"
-ssh debian@192.168.0.13 "sudo reboot"
-# ... repeat for each VM
-```
-
-After reboot, verify services are up:
-```bash
-ssh debian@192.168.0.21 "docker ps --format 'table {{.Names}}\t{{.Status}}'"
-ssh debian@192.168.0.13 "docker ps --format 'table {{.Names}}\t{{.Status}}'"
-```
-
-All containers should show `Up`. Check logs for any startup failures:
-```bash
-ssh debian@192.168.0.21 "docker compose logs --tail=50"
-```
-
----
-
-## Phase 9 — DNS and TLS setup
-
-### 17. Bootstrap step-ca
-
-step-ca runs as a container in the services VM Docker Compose. It needs a one-time
-initialization to generate the root CA key and issue the wildcard cert for `*.wsh`.
-
-```bash
-ssh debian@192.168.0.11
-
-# Initialize step-ca (generates root CA + intermediate)
-docker exec step-ca step ca init \
-  --name "homelab" \
-  --dns "step-ca.wsh,step-ca.home" \
-  --address ":9000" \
-  --provisioner "acme" \
-  --deployment-type standalone
-
-# The root CA cert is at: /home/step/.step/certs/root_ca.crt inside the container
-docker cp step-ca:/home/step/.step/certs/root_ca.crt /tmp/homelab-root-ca.crt
-```
-
-Copy the root CA cert to your operator laptop and trust it:
-```bash
-scp debian@192.168.0.11:/tmp/homelab-root-ca.crt ~/homelab-root-ca.crt
+scp debian@192.168.0.31:/tmp/homelab-root-ca.crt ~/homelab-root-ca.crt
 
 # macOS
-sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ~/homelab-root-ca.crt
+sudo security add-trusted-cert -d -r trustRoot \
+  -k /Library/Keychains/System.keychain ~/homelab-root-ca.crt
 
 # Linux (Debian/Ubuntu)
 sudo cp ~/homelab-root-ca.crt /usr/local/share/ca-certificates/homelab-root-ca.crt
 sudo update-ca-certificates
 ```
 
-Repeat the trust step on every personal device that will use `*.wsh` services.
+Repeat on every personal device that will use `*.wsh` services.
 
-### 18. Configure Headscale dns_config
+### 14. Verify DNS resolution
 
-Tell Headscale to push AdGuard's Tailscale IP as the resolver for `.wsh` and `.home`
-to all tailnet members. Edit the Headscale config on the VPS:
-
+From a device on the LAN:
 ```bash
-ssh debian@<vps-public-ip>
-# Edit /etc/headscale/config.yaml (or the Docker Compose config mount):
+dig jellyfin.home @192.168.0.2   # should return 192.168.0.31
 ```
 
-Add/update the `dns_config` section:
-```yaml
-dns_config:
-  nameservers:
-    - <adguard-tailscale-ip>   # tailscale IP of the DNS VM (192.168.0.2 LAN, ts.home resolves it)
-  restricted_nameservers:
-    "wsh":
-      - <adguard-tailscale-ip>
-    "home":
-      - <adguard-tailscale-ip>
-  magic_dns: true
-  base_domain: ts.home
-```
-
-Restart Headscale:
+From a device on Tailscale:
 ```bash
-docker compose restart headscale
-# Verify all nodes pick up new DNS config:
-docker exec headscale headscale nodes list
+dig jellyfin.wsh                  # should return services VM Tailscale IP
+curl -k https://jellyfin.wsh      # should reach Jellyfin
 ```
 
-On a tailnet member, verify `*.wsh` resolves:
+Check AdGuard DNS rewrites are active at `http://dns.home` → Filters → DNS rewrites:
+- `*.wsh` → CNAME `anton-services.ts.home`
+- `*.home` → A `192.168.0.31`
+
+### 15. Add external API keys to Infisical
+
+Log into Infisical at `http://infisical.home` and add secrets that cannot be generated
+locally:
+
+```
+ANTHROPIC_API_KEY
+OPENAI_API_KEY
+GITHUB_TOKEN
+# any other external keys used in terminal workflows
+```
+
+To use them on the operator laptop:
 ```bash
-dig jellyfin.wsh    # should return the services VM's Tailscale IP
-dig jellyfin.home   # should return 192.168.0.11
+infisical run -- claude
+infisical run -- env   # inspect all injected vars
 ```
 
-### 19. Verify AdGuard DNS rewrites
+### 16. Back up terraform.tfvars
 
-The pre-seeded `AdGuardHome.yaml` includes the DNS rewrites. Confirm they are active:
-
-1. Open AdGuard at `http://192.168.0.2` (or `http://dns.home` once DNS is working)
-2. Filters → DNS rewrites → verify:
-   - `*.wsh` → CNAME `anton-services.ts.home`
-   - `*.home` → A `192.168.0.11`
-
-If missing, add them via the UI and commit the updated `AdGuardHome.yaml` to the repo.
-
----
-
-## Phase 10 — Webhook setup
-
-### 20. Configure GitHub webhook
-
-1. In the repo on GitHub: Settings → Webhooks → Add webhook
-   - Payload URL: `https://<vps-domain>/hooks/deploy`
-   - Content type: `application/json`
-   - Secret: value of `WEBHOOK_SECRET` from Infisical
-   - Events: **Just the push event**
-   - Active: yes
-
-2. On the VPS, configure the `webhook` service (part of `ansible/roles/headscale`
-   or a dedicated `webhook` role). It reads `WEBHOOK_SECRET` from Infisical at startup.
-
-3. Test by pushing a non-breaking change to `main` and watching the deploy log:
-   ```bash
-   ssh debian@<vps> "journalctl -u webhook -f"
-   ```
-
----
-
-## Phase 11 — Post-bootstrap
-
-### 21. Run headless service init scripts
-
-After services are up and running, initialize services that need first-boot setup:
-
-```bash
-# Jellyfin — creates admin account, configures libraries
-./scripts/jellyfin-init.sh
-
-# Servarr — links Prowlarr to Radarr and Sonarr
-./scripts/servarr-init.sh
-
-# Calibre-Web — sets admin password
-./scripts/calibre-init.sh
-
-# n8n — creates owner account
-./scripts/n8n-init.sh
-```
-
-Each script is idempotent — safe to re-run.
-
-After running each init script, add the service's admin password to Vaultwarden manually.
-
-### 22. Back up critical files
-
-Store the following as encrypted notes or file attachments in Vaultwarden:
-- `terraform/nuc/terraform.tfvars` and `terraform/anton/terraform.tfvars` — Proxmox
-  API tokens, Headscale key, MinIO credentials, Infisical credentials
-- `terraform/vps/terraform.tfstate` — the only state file not in MinIO
-- `terraform/vps/terraform.tfvars` — DigitalOcean API token
+Store `terraform.tfvars` as an encrypted file attachment in Vaultwarden. This is the
+break-glass credential set — without it you cannot reprovision from scratch.
 
 ---
 
@@ -522,62 +303,59 @@ At this point:
 - All VMs are provisioned and on the Headscale tailnet
 - All services are running with secrets from Infisical
 - Admin passwords are in Vaultwarden
-- `terraform.tfvars` and VPS state are backed up in Vaultwarden
-- All future infrastructure changes are triggered by `git push` to `main`
+- `terraform.tfvars` is backed up in Vaultwarden
+- All future infrastructure changes are applied manually from the deploy VM
 
 ---
 
 ## Day-2 operations
 
-**Deploy any change:**
+**Deploy a change:**
 ```bash
-git push origin main
-# Webhook on VPS detects what changed and runs the right commands automatically.
+ssh debian@192.168.0.23
+cd ~/homelab && git pull
+./scripts/deploy.sh           # terraform + ansible for all nodes
+./scripts/deploy-services.sh  # docker compose only, no terraform
 ```
 
 **Add a new VM:**
-```bash
-# Edit terraform/<node>/main.tf and network.yml, commit, push to main.
-# Webhook handles the rest.
-```
+1. Add a `module "<name>"` block in `terraform/<node>/main.tf`
+2. Add IP and VM ID to `network.yml` and `ansible/inventory/hosts.yml`
+3. From deploy VM: `./scripts/deploy.sh <node>`
 
 **Rebuild a VM from scratch:**
 ```bash
-# SSH to deploy VM:
-cd ~/homelab
-cd terraform/<node> && terraform destroy -target=module.<vm-name>
+ssh debian@192.168.0.23
+cd ~/homelab/terraform/<node>
+terraform destroy -target=module.<vm-name>
 cd ~/homelab && ./scripts/deploy.sh <node>
 ```
 
 **Add a new physical device:**
+1. Add to `network.yml` and `ansible/inventory/hosts.yml`
+2. Bootstrap the device (one SSH session):
 ```bash
-# 1. Add to network.yml and ansible/inventory/hosts.yml, commit, push.
-# 2. Bootstrap the device (one-time, run from operator laptop):
 ssh root@<device-ip> \
   TAILSCALE_AUTH_KEY=<headscale-preauth-key> \
-  REPO_DEPLOY_KEY="$(infisical run -- printenv HOMELAB_DEPLOY_KEY)" \
   bash -s < scripts/bootstrap-physical.sh
-# Device joins Headscale and starts self-updating via ansible-pull every 30 min.
 ```
+3. From deploy VM: `ansible-playbook ansible/physical.yml --limit <hostname>`
 
 **Update secrets:**
-Update in Infisical UI, then reboot the affected VM to pick up changes.
+Update in Infisical UI, then on the affected VM:
+```bash
+ssh debian@<vm-ip> "sudo systemctl restart infisical-export && docker compose up -d"
+```
 
 **Rotate Headscale pre-auth key:**
 ```bash
-# SSH to VPS:
-docker exec headscale headscale preauthkeys create --reusable --expiration 90d
-# Update TAILSCALE_AUTH_KEY in terraform.tfvars on the VPS, commit, push.
+ssh debian@192.168.0.2 \
+  "docker exec headscale headscale preauthkeys create --reusable --expiration 365d"
+# Update headscale_preauth_key in terraform.tfvars on the deploy VM
 ```
 
-**VPS infrastructure change** (the one manual exception):
+**Run Ansible only (no Terraform):**
 ```bash
-# From operator laptop:
-cd terraform/vps && terraform apply
-```
-
-**Apply day-2 config manually (bypass webhook):**
-```bash
-# SSH to deploy VM:
+ssh debian@192.168.0.23
 cd ~/homelab && ansible-playbook ansible/base.yml
 ```

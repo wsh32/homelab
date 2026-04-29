@@ -10,12 +10,13 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
 
 - **Terraform provider**: `bpg/proxmox` (not `telmate/proxmox`)
 - **Secrets**:
-  - Machine-consumed secrets (service API keys, inter-service tokens) → Infisical. Fetched at VM boot via `infisical export` to generate an ephemeral `.env` file. Never hardcoded, never in `terraform.tfvars`.
-  - Human-consumed secrets (web UI admin passwords) → Vaultwarden. Set manually when configuring a service. Never in Infisical.
-  - Infrastructure credentials (Proxmox, Tailscale, Infisical, Vaultwarden master password) → `var.*` from `terraform.tfvars`, gitignored.
-  - Developer API keys (Claude, Codex, GitHub) → Infisical, entered via UI, accessed via `infisical run --` on the operator laptop.
-- **VM IDs**: NUC VMs use 200–299, Anton VMs use 100–199. Reserve 300+ for the services node.
-- **IP addresses**: NUC VMs use 192.168.0.20–29, Anton VMs use 192.168.0.10–19.
+  - Machine-consumed secrets (service API keys, inter-service tokens) → Infisical. Fetched at VM boot via `infisical export` to generate an ephemeral `.env` file. Seeded by each service's Ansible role at bring-up time. Never hardcoded, never in `terraform.tfvars`.
+  - Human-consumed secrets (web UI admin passwords) → Vaultwarden. Stored by each service's Ansible role after configuration. Never in Infisical.
+  - Infrastructure credentials (Proxmox API tokens, MinIO creds, SSH key, Cloudflare API token) → `var.*` from `terraform.tfvars`, gitignored. Lives on the deploy VM.
+  - Infisical machine identity credentials → `/etc/infisical.env` on each VM (root-owned, 0600), written by `ansible/bootstrap-infisical.yml`.
+  - Developer API keys (Claude, Codex, GitHub) → Infisical, entered manually via UI, accessed via `infisical run --` on the operator laptop.
+- **VM IDs**: NUC VMs use 200–299, Anton VMs use 100–199, services node VMs use 300–399.
+- **IP addresses**: physical nodes use 192.168.0.2–19, NUC VMs use 192.168.0.20–29, Anton VMs use 192.168.0.30–49, services node VMs use 192.168.0.50–69.
 - **Docker Compose**: persistent data always mounts to `/mnt/nas/<dataset>/<service>` (Storinator NFS). Never use named volumes for stateful data — it must survive VM recreation.
 - **Traefik routing**: each service gets two routers — `<name>-wsh` (Tailscale, HTTPS) and `<name>-home` (LAN, HTTP). Omit a router to restrict exposure on that network. Default is both. See DNS Architecture in `docs/plan.md` for the full two-domain design.
   ```yaml
@@ -35,14 +36,13 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
 terraform/modules/proxmox-vm/  — shared VM module, edit here for VM-level changes
 terraform/nuc/                 — NUC VMs (DNS, HAOS, Infisical, Deploy)
 terraform/anton/               — Anton VMs (Ollama, OpenClaw, Debian, Services)
-terraform/vps/                 — DigitalOcean VPS (operator laptop only)
-services/dns/                  — AdGuard Home (pre-seeded AdGuardHome.yaml)
+terraform/services/            — services node VMs (planned)
+services/dns/                  — AdGuard Home + Headscale + cloudflared
 services/nuc-infra/            — Infisical + Vaultwarden + Litestream
-services/nuc-deploy/           — internal webhook listener (adnanh/webhook)
+services/nuc-deploy/           — Terraform + Ansible (deploy tooling only)
 services/anton/                — all Docker Compose services (Traefik, Jellyfin, etc.)
-services/vps/                  — Headscale + GitHub webhook forwarder
 scripts/                       — bootstrap and init scripts (headless service setup)
-ansible/                       — push-only config management for VMs, physical devices, VPS
+ansible/                       — push-only config management for VMs and physical devices
 docs/                          — architecture docs, plan, TODOs
 ```
 

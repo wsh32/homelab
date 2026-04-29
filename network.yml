@@ -8,9 +8,10 @@
 #   .1       gateway (Eero)
 #   .2       nuc-dns VM (AdGuard Home — also primary DNS for all VMs)
 #   .3       reserved (future backup DNS)
-#   .4–.8    physical nodes
-#   .10–.19  Anton VMs
-#   .20–.29  NUC VMs
+#   .4–.19   physical nodes
+#   .20–.29  NUC VMs       (10 slots, VM IDs 200–299)
+#   .30–.49  Anton VMs     (20 slots, VM IDs 100–199)
+#   .50–.69  Services node VMs (20 slots, VM IDs 300–399)
 #   .100+    DHCP (Eero managed, not used for static hosts)
 
 gateway: 192.168.0.1
@@ -36,11 +37,15 @@ physical:
     ip: 192.168.0.7
     # bridge_port: tbd — configure once OS is chosen
   gringotts:
-    ip: 192.168.0.8
+    ip: 192.168.0.8  # offsite; only reachable via Tailscale
+  services:
+    ip: 192.168.0.9
+    bridge_port: eno1  # TODO: verify with `ip link show`
 
 # VMs
-# NUC: VM IDs 200–299, IPs .20–.29
-# Anton: VM IDs 100–199, IPs .10–.19
+# NUC:           VM IDs 200–299, IPs .20–.29
+# Anton:         VM IDs 100–199, IPs .30–.49
+# Services node: VM IDs 300–399, IPs .50–.69
 vms:
   nuc-dns:
     ip: 192.168.0.2
@@ -54,23 +59,27 @@ vms:
     ip: 192.168.0.22
     vm_id: 202
     node: nuc
-  anton-ollama:
-    ip: 192.168.0.10
-    vm_id: 100
-    node: anton
-  anton-debian:
-    ip: 192.168.0.13
-    vm_id: 101
-    node: anton
-  anton-openclaw:
-    ip: 192.168.0.12
-    vm_id: 102
-    node: anton
-  anton-services:
-    ip: 192.168.0.11
-    vm_id: 103
-    node: anton
   nuc-deploy:
     ip: 192.168.0.23
     vm_id: 203
     node: nuc
+  anton-ollama:
+    ip: 192.168.0.30
+    vm_id: 100
+    node: anton
+  anton-openclaw:
+    ip: 192.168.0.32
+    vm_id: 102
+    node: anton
+  anton-debian:
+    ip: 192.168.0.33
+    vm_id: 101
+    node: anton
+  anton-services:
+    ip: 192.168.0.31
+    vm_id: 103
+    node: anton
+  services-node:
+    ip: 192.168.0.50
+    vm_id: 300
+    node: services

@@ -25,7 +25,7 @@ dns:
     - domain: "*.wsh"
       answer: anton-services.ts.home   # Tailscale MagicDNS; each node resolves to services VM Tailscale IP
     - domain: "*.home"
-      answer: 192.168.0.11              # services VM LAN IP
+      answer: 192.168.0.31              # anton-services VM LAN IP
 
   cache_size: 4194304
   ratelimit: 20

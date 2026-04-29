@@ -46,8 +46,8 @@ What hardware do I own that is part of my homelab?
     * Nickname: tbd
     * Role: Services node
     * OS: Proxmox (planned)
-    * CPU: Ryzen 7 3700x
-    * RAM: 48GB DDR4
+    * CPU: Ryzen 7 3700x (8c/16t)
+    * RAM: 128GB DDR4
     * GPU: none (P2000 is on Anton; will migrate to this node with the services VM when built)
     * Boot drive: tbd (small SSD)
     * NVMe storage: 2TB NVMe SSD

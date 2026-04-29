@@ -3,13 +3,13 @@
 # Run once after first container start; idempotent (checks wizard status first).
 #
 # Usage:
-#   JELLYFIN_HOST=http://192.168.0.11:8096 \
+#   JELLYFIN_HOST=http://192.168.0.31:8096 \
 #   JELLYFIN_ADMIN_PASSWORD=<password> \
 #   ./scripts/jellyfin-init.sh
 
 set -euo pipefail
 
-JELLYFIN_HOST="${JELLYFIN_HOST:-http://192.168.0.11:8096}"
+JELLYFIN_HOST="${JELLYFIN_HOST:-http://192.168.0.31:8096}"
 ADMIN_USER="${JELLYFIN_ADMIN_USER:-admin}"
 ADMIN_PASSWORD="${JELLYFIN_ADMIN_PASSWORD:-}"
 
