@@ -36,9 +36,9 @@ terraform/modules/proxmox-vm/  — shared VM module, edit here for VM-level chan
 terraform/nuc/                 — NUC VMs (DNS, HAOS, Infisical, Deploy)
 terraform/anton/               — Anton VMs (Ollama, OpenClaw, Debian, Services)
 terraform/services/            — services node VMs (planned)
-services/dns/                  — AdGuard Home (pre-seeded AdGuardHome.yaml)
+services/dns/                  — AdGuard Home + Headscale + cloudflared
 services/nuc-infra/            — Infisical + Vaultwarden + Litestream
-services/nuc-deploy/           — Headscale + cloudflared + Terraform + Ansible
+services/nuc-deploy/           — Terraform + Ansible (deploy tooling only)
 services/anton/                — all Docker Compose services (Traefik, Jellyfin, etc.)
 scripts/                       — bootstrap and init scripts (headless service setup)
 ansible/                       — push-only config management for VMs and physical devices

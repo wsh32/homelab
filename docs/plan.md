@@ -52,7 +52,7 @@ IP ranges: physical nodes `.2–.19`, NUC VMs `.20–.29`, Anton VMs `.30–.49`
 | Services node | services | 192.168.0.9 | Static (Ansible — `/etc/network/interfaces`) — planned |
 | nuc-infisical VM | nuc-infisical | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
 | nuc-haos VM | nuc-haos | 192.168.0.22 | Static (Terraform) — Home Assistant OS |
-| nuc-deploy VM | nuc-deploy | 192.168.0.23 | Static (Terraform) — Headscale + cloudflared + Terraform + Ansible |
+| nuc-deploy VM | nuc-deploy | 192.168.0.23 | Static (Terraform) — Terraform + Ansible |
 | anton-ollama VM | anton-ollama | 192.168.0.30 | Static (Terraform) |
 | anton-services VM | anton-services | 192.168.0.31 | Static (Terraform) |
 | anton-openclaw VM | anton-openclaw | 192.168.0.32 | Static (Terraform) |
@@ -212,11 +212,11 @@ via `./scripts/deploy.sh`. No webhook or automation; operator triggers deploys e
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
 | Proxmox host | 2GB | — | OS overhead |
-| DNS VM | 2GB | 2 | AdGuard + Tailscale exit node |
+| DNS VM | 2GB | 2 | AdGuard + Tailscale exit node + Headscale + cloudflared |
 | Home Assistant VM | 4GB | 2 | HAOS |
 | Infisical VM | 6GB | 2 | Infisical + Vaultwarden |
-| Deploy VM | 2GB | 1 | Terraform + Ansible + Headscale + cloudflared |
-| Headroom | 0GB | — | — |
+| Deploy VM | 1GB | 1 | Terraform + Ansible |
+| Headroom | 1GB | — | Buffer / future |
 
 ### Anton (128GB ECC RAM, Threadripper 3975WX 32c/64t)
 
@@ -263,6 +263,8 @@ via `./scripts/deploy.sh`. No webhook or automation; operator triggers deploys e
 |---------|-------|
 | AdGuard Home | DNS + ad blocking; 8.8.8.8 as fallback upstream |
 | Tailscale exit node (primary) | Coupled with DNS VM; acceptable since exit node is used infrequently |
+| Headscale | Tailscale coordination server; Cloudflare Tunnel provides the public HTTPS endpoint |
+| cloudflared | Cloudflare Tunnel client; exposes Headscale without a public IP or open port |
 
 **Home Assistant VM** (`192.168.0.22`):
 
@@ -285,8 +287,6 @@ On rebuild, restore from the latest vzdump backup via the HAOS UI or `ha` CLI.
 
 | Service | Notes |
 |---------|-------|
-| Headscale | Tailscale coordination server; Cloudflare Tunnel provides the public HTTPS endpoint |
-| cloudflared | Cloudflare Tunnel client; exposes Headscale without a public IP or open port |
 | Terraform | Manages NUC, Anton, and services node VMs; `terraform.tfvars` lives here |
 | Ansible | Runs `base.yml` after Terraform apply; reaches all VMs over Tailscale SSH |
 
@@ -581,7 +581,7 @@ ansible/
   roles/
     base/             # applied to all Debian VMs and physical devices
     docker/           # applied to VMs running Docker Compose services
-    headscale/        # applied to deploy VM — Headscale + cloudflared Docker Compose + config
+    headscale/        # applied to DNS VM — Headscale + cloudflared Docker Compose + config
     network/          # Proxmox bridge config for physical nodes
 ```
 
@@ -675,7 +675,7 @@ NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
 | Calibre-Web headless setup | Post-start `cps.py -s` CLI; library at `/books` mount |
 | n8n headless setup | `POST /api/v1/owner/setup` scripted in `n8n-init.sh` |
 | CouchDB headless setup | Env vars for credentials; init container handles `/_cluster_setup` and CORS |
-| Tailscale coordination server | Self-hosted Headscale on the NUC deploy VM (`192.168.0.23`). Public HTTPS endpoint provided by a Cloudflare Tunnel (cloudflared container alongside Headscale). No public IP or open port required. Uses Tailscale's public DERP relays. Managed by Ansible (`roles/headscale`). |
+| Tailscale coordination server | Self-hosted Headscale on the NUC DNS VM (`192.168.0.2`), co-located with AdGuard. Public HTTPS endpoint provided by a Cloudflare Tunnel (cloudflared container). No public IP or open port required. Uses Tailscale's public DERP relays. Managed by Ansible (`roles/headscale`). |
 | Terraform execution host | Deploy VM (`nuc-deploy`) runs all Terraform workspaces. Operator laptop is break-glass fallback. No VPS. |
 | Terraform state backend | MinIO S3 on Storinator (`http://storinator:9000`) for all workspaces (`nuc/`, `anton/`, `services/`). S3 lockfile replaces NFS file locking. Both deploy VM and operator laptop reach MinIO over Tailscale. |
 | Physical device management | Ansible push, same model as VMs. One-time bootstrap via `scripts/bootstrap-physical.sh` (installs Tailscale only). All further config pushed via `ansible-playbook ansible/physical.yml` from the deploy VM. |
