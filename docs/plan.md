@@ -38,6 +38,8 @@ DHCP: `192.168.0.100 – 192.168.0.254` (Eero managed)
 
 Physical nodes get DHCP reservations in the Eero app. VMs get static IPs configured via cloud-init, outside the DHCP range.
 
+IP ranges: physical nodes `.2–.19`, NUC VMs `.20–.29`, Anton VMs `.30–.49`, services node VMs `.50–.69`.
+
 | Device | Hostname | IP | Notes |
 |--------|----------|----|-------|
 | nuc-dns VM | dns | 192.168.0.2 | Static (Terraform) — AdGuard Home |
@@ -46,15 +48,16 @@ Physical nodes get DHCP reservations in the Eero app. VMs get static IPs configu
 | Anton | anton | 192.168.0.5 | Static (Ansible — `/etc/network/interfaces`) |
 | NUC | nuc | 192.168.0.6 | Static (Ansible — `/etc/network/interfaces`) |
 | Orange Pi | orangepi | 192.168.0.7 | Static (TBD — depends on OS choice) |
-| Services node | services | 192.168.0.8 | Static (Ansible — `/etc/network/interfaces`) — planned |
-| anton-ollama VM | anton-ollama | 192.168.0.10 | Static (Terraform) |
-| anton-services VM | anton-services | 192.168.0.11 | Static (Terraform) |
-| anton-openclaw VM | anton-openclaw | 192.168.0.12 | Static (Terraform) |
-| anton-debian VM | anton-debian | 192.168.0.13 | Static (Terraform) |
+| Gringotts | gringotts | 192.168.0.8 | Offsite — only reachable via Tailscale |
+| Services node | services | 192.168.0.9 | Static (Ansible — `/etc/network/interfaces`) — planned |
 | nuc-infisical VM | nuc-infisical | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
 | nuc-haos VM | nuc-haos | 192.168.0.22 | Static (Terraform) — Home Assistant OS |
 | nuc-deploy VM | nuc-deploy | 192.168.0.23 | Static (Terraform) — Terraform + Ansible + internal webhook listener |
-| services-node VM | services-node | 192.168.0.30 | Static (Terraform) — migrated services from Anton; planned |
+| anton-ollama VM | anton-ollama | 192.168.0.30 | Static (Terraform) |
+| anton-services VM | anton-services | 192.168.0.31 | Static (Terraform) |
+| anton-openclaw VM | anton-openclaw | 192.168.0.32 | Static (Terraform) |
+| anton-debian VM | anton-debian | 192.168.0.33 | Static (Terraform) |
+| services-node VM | services-node | 192.168.0.50 | Static (Terraform) — planned |
 | VPS | vps | Public IP | DigitalOcean — Headscale coordination server, Terraform execution host, webhook listener |
 
 Note: Gringotts is offsite and not on the local network. The VPS is on the public internet; it joins the Headscale tailnet and reaches all homelab resources over Tailscale.
@@ -74,7 +77,7 @@ Two domains serve different audiences without subnet routing or internet exposur
 | Domain | Path | DNS resolution | Protocol | Audience |
 |--------|------|----------------|----------|----------|
 | `*.wsh` | Tailscale | AdGuard CNAME → `anton-services.ts.home` | HTTPS (step-ca TLS) | Personal devices on Tailscale |
-| `*.home` | LAN | AdGuard A → `192.168.0.11` | HTTP | Any LAN device (including guests) |
+| `*.home` | LAN | AdGuard A → `192.168.0.31` | HTTP | Any LAN device (including guests) |
 
 **How resolution works:**
 
@@ -85,7 +88,7 @@ Two domains serve different audiences without subnet routing or internet exposur
   peer map to the services VM's Tailscale IP. Traefik answers on port 443 with a valid
   step-ca TLS cert.
 - LAN-only devices (guests, IoT) use AdGuard via the LAN IP `192.168.0.2`. `*.home` resolves
-  to `192.168.0.11` directly. Traefik answers on port 80, plain HTTP.
+  to `192.168.0.31` directly. Traefik answers on port 80, plain HTTP.
 - A device on the LAN with Tailscale uses the `*.wsh` path (Tailscale is preferred);
   `*.home` is the fallback for non-Tailscale LAN clients.
 
@@ -317,7 +320,7 @@ Vaultwarden stores all passwords a human types into a browser. The two stores ne
 |---------|-------|
 | Debian Server | Development workstation |
 
-**Services VM** (`192.168.0.11`) — temporary, migrates to services node when built:
+**Services VM** (`192.168.0.31`) — temporary, migrates to services node when built:
 
 | Service | Notes |
 |---------|-------|
@@ -370,7 +373,7 @@ a valid config on startup and skips the wizard entirely.
 - Upstream DNS: `8.8.8.8`, `8.8.4.4`
 - DNS rewrites (committed in `AdGuardHome.yaml`):
   - `*.wsh` → CNAME `anton-services.ts.home` (Tailscale MagicDNS hostname for the services VM)
-  - `*.home` → A record `192.168.0.11` (services VM LAN IP)
+  - `*.home` → A record `192.168.0.31` (services VM LAN IP)
 - Headscale pushes the AdGuard VM's Tailscale IP as the DNS resolver for `.wsh` and `.home`
   to all tailnet members via `dns_config` → `nameservers`
 
@@ -465,7 +468,7 @@ Two backends, split by execution environment:
 
 ## Reverse Proxy
 
-Single Traefik instance on Anton (services VM at `192.168.0.11`) serves all services across
+Single Traefik instance on Anton (services VM at `192.168.0.31`) serves all services across
 all nodes. NUC-hosted services (Infisical, Vaultwarden) are configured as external backends
 pointing at their local IPs (e.g. `192.168.0.21`). All nodes are on the same LAN so Traefik
 on Anton reaches them directly.
@@ -713,5 +716,5 @@ NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
 | VPS Ansible config | Ansible push via `ansible/vps.yml`. Syncs repo to `/opt/homelab/` on the VPS, then applies `base`, `docker`, and `headscale` roles. `terraform/vps/` manages only the DigitalOcean infrastructure; all OS and service config is Ansible's responsibility. |
 | DNS domain strategy | Two domains: `*.wsh` (Tailscale/HTTPS, personal devices) and `*.home` (LAN/HTTP, guests). Avoids subnet routing; guests can reach services without Tailscale. Single Traefik instance handles both. |
 | TLS for private TLDs | Let's Encrypt does not issue certs for `.wsh` or `.home`. `*.wsh` uses step-ca (local CA, wildcard cert, Traefik ACME). `*.home` is plain HTTP (LAN only, acceptable). |
-| AdGuard DNS rewrites | `*.wsh` CNAME → `anton-services.ts.home` (MagicDNS). `*.home` A → `192.168.0.11` (LAN IP). Headscale `dns_config` pushes AdGuard's Tailscale IP as resolver for both TLDs to all tailnet members. |
+| AdGuard DNS rewrites | `*.wsh` CNAME → `anton-services.ts.home` (MagicDNS). `*.home` A → `192.168.0.31` (LAN IP). Headscale `dns_config` pushes AdGuard's Tailscale IP as resolver for both TLDs to all tailnet members. |
 | Per-service network exposure | Each service defines which domains it exposes via presence/absence of `-wsh` and `-home` Traefik router labels. Default is both. |
