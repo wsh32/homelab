@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Dynamic Ansible inventory derived from network.yml.
 
-network.yml at the repo root is the single source of truth for all host IPs
-and groupings. This script reads it and emits Ansible inventory JSON,
-eliminating the need to keep a separate hosts.yml file in sync.
+network.yml at the repo root is the single source of truth for all host IPs,
+groupings, and group vars. This script reads it and emits Ansible inventory
+JSON with no hardcoded values.
 
 Groups produced:
-  physical        → proxmox, nas, other   (driven by physical[*].type)
-  vms             → nuc_vms, anton_vms, services_vms  (driven by vms[*].node)
+  physical  → one child group per unique `type` value in physical[*].type
+  vms       → one child group per entry in nodes[*], named nodes[*].group,
+              with vars from nodes[*].vars
 
 VMs with ansible_managed: false are excluded (e.g. nuc-haos).
 """
@@ -19,12 +20,6 @@ from pathlib import Path
 
 NETWORK_FILE = Path(__file__).resolve().parents[2] / "network.yml"
 
-NODE_TO_GROUP = {
-    "nuc": "nuc_vms",
-    "anton": "anton_vms",
-    "services": "services_vms",
-}
-
 
 def load_network():
     with open(NETWORK_FILE) as f:
@@ -34,30 +29,36 @@ def load_network():
 def build_inventory(network):
     hostvars = {}
 
+    # Collect unique physical types to create child groups dynamically
+    physical_types = sorted({
+        attrs.get("type", "other")
+        for attrs in network.get("physical", {}).values()
+    })
+
+    # Build node → group mapping and VM groups from nodes section
+    nodes = network.get("nodes", {})
+    node_to_group = {name: cfg["group"] for name, cfg in nodes.items()}
+    vm_groups = {
+        cfg["group"]: {"hosts": [], "vars": cfg.get("vars", {})}
+        for cfg in nodes.values()
+    }
+
     inventory = {
         "_meta": {"hostvars": hostvars},
         "all": {
             "vars": {"ansible_python_interpreter": "/usr/bin/python3"},
             "children": ["physical", "vms"],
         },
-        "physical": {"children": ["proxmox", "nas", "other"]},
-        "proxmox": {"hosts": []},
-        "nas": {"hosts": []},
-        "other": {"hosts": []},
-        "vms": {"children": list(NODE_TO_GROUP.values())},
-        "nuc_vms": {
-            "hosts": [],
-            "vars": {"proxmox_node": "nuc", "ansible_user": "debian"},
-        },
-        "anton_vms": {
-            "hosts": [],
-            "vars": {"proxmox_node": "anton", "ansible_user": "debian"},
-        },
-        "services_vms": {
-            "hosts": [],
-            "vars": {"proxmox_node": "services", "ansible_user": "debian"},
-        },
+        "physical": {"children": physical_types},
+        "vms": {"children": list(node_to_group.values())},
     }
+
+    # Initialise one group per physical type
+    for ptype in physical_types:
+        inventory[ptype] = {"hosts": []}
+
+    # Merge VM groups into inventory
+    inventory.update(vm_groups)
 
     # Physical nodes — grouped by type field
     for hostname, attrs in network.get("physical", {}).items():
@@ -76,7 +77,7 @@ def build_inventory(network):
     for vmname, attrs in network.get("vms", {}).items():
         if not attrs.get("ansible_managed", True):
             continue
-        group = NODE_TO_GROUP.get(attrs.get("node"))
+        group = node_to_group.get(attrs.get("node"))
         if group:
             inventory[group]["hosts"].append(vmname)
             hostvars[vmname] = {"ansible_host": attrs["ip"]}

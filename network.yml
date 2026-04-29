@@ -21,11 +21,30 @@ dns:
   - 192.168.0.2   # nuc-dns (AdGuard Home) — primary
   - 8.8.8.8       # fallback if nuc-dns is down
 
+# Proxmox nodes — defines the Ansible group and group vars for each node's VMs.
+# hosts.py creates one VM group per entry here; all values come from this section.
+nodes:
+  nuc:
+    group: nuc_vms
+    vars:
+      proxmox_node: nuc
+      ansible_user: debian
+  anton:
+    group: anton_vms
+    vars:
+      proxmox_node: anton
+      ansible_user: debian
+  services:
+    group: services_vms
+    vars:
+      proxmox_node: services
+      ansible_user: debian
+
 # Physical nodes
-# type:        used by ansible/inventory/hosts.py to assign Ansible groups
-#              (proxmox | nas | other)
-# bridge_port: the NIC bridged to vmbr0 on Proxmox nodes.
-#              Verify with: ssh root@<ip> ip link show
+# type:         used by ansible/inventory/hosts.py to assign Ansible groups;
+#               any value is valid — a group is created for each unique type.
+# bridge_port:  the NIC bridged to vmbr0 on Proxmox nodes.
+#               Verify with: ssh root@<ip> ip link show
 # ansible_user: overrides the default (debian) for this host only
 physical:
   storinator:
