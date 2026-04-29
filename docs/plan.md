@@ -160,48 +160,43 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 3. **NFS datasets** — create and export:
    - `docker` — persistent Docker volumes for all services
 4. **Enable MinIO** — enable the TrueNAS Scale S3 service, create a `terraform-state`
-   bucket and an access key. Used as the Terraform state backend by both the deploy VM
-   and the operator laptop over Tailscale.
+   bucket and an access key. Used as the Terraform state backend.
 
 ### One-time manual steps (operator laptop)
 
-5. **Bootstrap deploy VM** — chicken-and-egg: run `terraform apply -target=module.deploy`
-   from the operator laptop. SSH in, clone repo, write `terraform.tfvars`.
-6. **Bootstrap Headscale** — on the deploy VM, start the Headscale container and generate
-   a reusable pre-auth key: `docker exec headscale headscale preauthkeys create --reusable --expiration 90d`.
-   Save the key; add to `terraform.tfvars`.
-7. **Create Cloudflare Tunnel** — in the Cloudflare dashboard, create a tunnel pointing at
-   `http://headscale:8080` on the deploy VM's Docker network. Copy the tunnel token to
-   Infisical (after step 10) and `terraform.tfvars`.
+5. **Configure static IPs on physical nodes** — `ansible-playbook ansible/network.yml`
+   for Anton and NUC; set static IPs on Storinator and Gringotts via TrueNAS UI.
+6. **Write `terraform.tfvars`** — populate with Proxmox API tokens, MinIO credentials,
+   SSH public key, and Cloudflare API token. This is the only manual credential entry
+   in the bootstrap.
+7. **`terraform apply -target=module.deploy`** — provisions the deploy VM from the
+   operator laptop. All subsequent steps run from inside the network.
+8. **`ansible-playbook ansible/bootstrap-deploy.yml`** — clones the repo onto the deploy
+   VM, installs Terraform and Ansible, copies `terraform.tfvars`.
 
-### Ansible (automated)
+### From the deploy VM
 
-8. **Tailscale on physical nodes** — `ansible-playbook ansible/tailscale.yml`
-   installs Tailscale on Anton, NUC, Storinator, Gringotts, Orange Pi, pointing at
-   the Headscale server (`--login-server https://headscale.<domain>`).
+9. **`terraform apply -target=module.dns`** — provisions the DNS VM. Terraform creates
+   the Cloudflare Tunnel via the Cloudflare provider; the tunnel token flows automatically
+   into the DNS VM cloud-init. AdGuard, Headscale, and cloudflared all start on first boot.
+10. **`ansible-playbook ansible/bootstrap-headscale.yml`** — waits for Headscale to be
+    healthy, generates a reusable pre-auth key, writes it to `terraform.tfvars` on the
+    deploy VM.
+11. **`terraform apply`** — provisions all remaining VMs. Cloud-init handles Docker
+    install and NFS mounts. VMs do not yet have Infisical credentials.
+12. **`ansible-playbook ansible/bootstrap-infisical.yml`** — bootstraps Infisical (admin
+    user, org, workspace), creates a scoped machine identity per VM, writes credentials
+    to `/etc/infisical.env` (root-owned, mode 0600) on each VM that needs secrets.
+13. **`ansible-playbook ansible/site.yml`** — brings up all services. Each service role
+    generates its own secrets, seeds them to Infisical, writes config, and starts the
+    container. Vaultwarden account creation attempted via the Bitwarden CLI (`bw register`);
+    falls back to one manual browser registration if the CLI doesn't support it.
+14. **Add external API keys to Infisical** — the only remaining manual step. Add secrets
+    that cannot be generated locally: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+    `GITHUB_TOKEN`, etc. via the Infisical UI.
 
-### Terraform (from deploy VM or operator laptop)
-
-9. **Write `terraform.tfvars`** — populate with Proxmox API token, Headscale pre-auth
-   key, MinIO credentials, Cloudflare tunnel token, SSH public key.
-10. **`terraform apply`** — run from the deploy VM via `./scripts/deploy.sh`. Provisions
-    all VMs; cloud-init handles Tailscale auth (pointing at Headscale), Docker install,
-    and Docker Compose startup.
-11. **Bootstrap Infisical** — run `scripts/infisical-bootstrap.sh` against the newly
-    provisioned Infisical VM. Creates admin user, organization, workspace, and machine
-    identity. Outputs `workspace_id`, `client_id`, `client_secret`.
-12. **Update `terraform.tfvars`** — add Infisical credentials from step 11.
-13. **Create Vaultwarden account** — open `https://vault.home` in a browser and register.
-    Vaultwarden starts with `SIGNUPS_ALLOWED=true`; after the first account is created
-    it locks automatically. One-time manual step; account persists on Storinator NFS
-    across all future VM rebuilds.
-14. **Seed Infisical via UI** — add all service API keys, inter-service tokens, and
-    developer API keys (Claude, Codex, GitHub, Cloudflare tunnel token, etc.). One-time manual step.
-15. **Re-run cloud-init / reboot VMs** — services fetch secrets from Infisical via
-    `infisical export` and write ephemeral `.env` files. Services start up.
-
-After step 15, all further infrastructure changes are applied manually from the deploy VM
-via `./scripts/deploy.sh`. No webhook or automation; operator triggers deploys explicitly.
+After step 13, all services are running. Step 14 can be done at any time and only affects
+services that depend on those external keys.
 
 ---
 
@@ -377,9 +372,9 @@ a valid config on startup and skips the wizard entirely.
 
 Bootstrapped via `infisical bootstrap` CLI (requires Infisical CLI ≥ 0.28) after first start.
 
-- Script: `scripts/infisical-bootstrap.sh`
-- Creates: admin user, organization, workspace, machine identity
-- Outputs: `workspace_id`, `client_id`, `client_secret` → add to `terraform.tfvars`
+- Playbook: `ansible/bootstrap-infisical.yml`
+- Creates: admin user, organization, workspace, one scoped machine identity per VM
+- Distributes credentials to each VM at `/etc/infisical.env` (root-owned, mode 0600)
 - Idempotent via `--ignore-if-bootstrapped` flag
 
 ### Jellyfin
@@ -394,11 +389,11 @@ No env var skips the setup wizard. The wizard is driven headlessly via the `/Sta
 ### Radarr / Sonarr / Prowlarr
 
 Pre-seeded `config.xml` placed in each app's `/config` directory before first container start.
-API keys are generated by Terraform (`random_id`) and written into the config files — not
-randomly generated at first boot — making cross-app linking deterministic.
+API keys are generated by the Ansible service role, seeded to Infisical, and written into
+the config files — making cross-app linking deterministic without Terraform involvement.
 
 - Config files: `services/anton/config/radarr.xml`, `sonarr.xml`, `prowlarr.xml`
-- API key values sourced from `terraform.tfvars` (generated, not manually set)
+- API keys generated by Ansible role (random hex), seeded to Infisical, written to config
 - `AuthenticationRequired=DisabledForLocalAddresses` — LAN-only, behind Traefik
 - Prowlarr → Radarr/Sonarr linked via `scripts/servarr-init.sh` (`POST /api/v1/applications`)
 
@@ -496,15 +491,14 @@ certs for private TLDs. `*.home` is HTTP only (LAN fallback for guests; no TLS n
 
 Three separate stores with distinct roles, split by **consumer**:
 
-**`terraform.tfvars`** — operator laptop, gitignored
+**`terraform.tfvars`** — deploy VM, gitignored
 
 The provisioning source of truth. Manually supplied values only:
 - Proxmox API token + endpoint + username (one set per node)
-- Tailscale API key
+- MinIO access key + secret key
 - SSH public key
-- ACME email (Let's Encrypt via Traefik)
-- Infisical `workspace_id`, `client_id`, `client_secret` (added after bootstrap step 9)
-- Vaultwarden master password (added after bootstrap step 10)
+- Cloudflare API token (used by Terraform to create the tunnel and manage DNS)
+- Headscale pre-auth key (written automatically by `ansible/bootstrap-headscale.yml`)
 
 No service secrets are generated or stored in Terraform. Backed up as an encrypted
 note in Vaultwarden. Never committed to Git.
@@ -516,10 +510,18 @@ Stores all secrets that services or processes read programmatically:
 - Developer API keys accessed via `infisical run -- <command>` on the operator laptop:
   `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GITHUB_TOKEN`, etc.
 
-At VM boot, an init script runs `infisical export --format dotenv` to write an
-ephemeral `.env` file. Services read `.env` at startup. The `.env` is not committed
-and is regenerated on each boot from Infisical. Seeded manually via the Infisical UI
-after the bootstrap script runs.
+At VM boot, a systemd unit runs `infisical export --format dotenv > /etc/homelab.env`
+before Docker Compose starts. Services read `/etc/homelab.env` via `env_file:`. The file
+is ephemeral and regenerated on each boot.
+
+Infisical credentials (`client_id`, `client_secret`, `workspace_id`) are distributed to
+each VM by `ansible/bootstrap-infisical.yml`, written to `/etc/infisical.env` (root-owned,
+mode 0600). This file is the only persistent secret on each VM and is the key that unlocks
+all others.
+
+Service secrets are seeded to Infisical by each service's Ansible role at bring-up time —
+not via a central seed script. External API keys that cannot be generated locally are added
+manually via the Infisical UI.
 
 **Vaultwarden** — NUC Infisical VM, human-consumed secrets
 
@@ -529,9 +531,11 @@ Stores every password a human types into a browser or UI:
 - Infisical admin credentials
 - Any other personal account credentials
 
-Populated manually when setting up each service — no Terraform automation.
-Account creation is a one-time manual bootstrap step; account persists on Storinator NFS
-across all VM rebuilds so it never needs to be repeated.
+Service admin passwords are stored by each service's Ansible role immediately after the
+service is configured. Account creation is attempted automatically via the Bitwarden CLI
+(`bw register`) during `ansible/site.yml`; if the CLI doesn't support registration against
+Vaultwarden, one manual browser registration is the accepted fallback. Account persists on
+Storinator NFS across all VM rebuilds so it never needs to be repeated.
 
 ---
 
@@ -661,17 +665,17 @@ NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
 | HAOS provisioning | Terraform provisions VM via qcow2 image download; config restored from Proxmox vzdump backup |
 | Reverse proxy for NUC services | Single Traefik on Anton; NUC services as external backends by local IP |
 | Vaultwarden/Infisical DB location | Local VM disk; Vaultwarden via Litestream (continuous), Infisical via mongodump every 6h |
-| Infisical bootstrap | Single-pass terraform apply; `scripts/infisical-bootstrap.sh` runs after first apply, credentials added to `terraform.tfvars` |
-| Infisical role | Single source of truth for all machine-consumed secrets: service API keys, inter-service tokens, developer API keys. VMs fetch via `infisical export` at boot to generate ephemeral `.env` files. |
-| Vaultwarden role | Human-consumed secrets only (web UI admin passwords). Populated manually when setting up each service. No Terraform automation. |
-| Vaultwarden account creation | Cannot be headlessly pre-seeded (client-side key derivation); one manual browser registration accepted as bootstrap exception alongside HAOS. Account persists on NFS — never repeated. |
+| Infisical bootstrap | `ansible/bootstrap-infisical.yml` runs after VMs are provisioned. Creates admin, org, workspace, and per-VM machine identities. Credentials written to `/etc/infisical.env` on each VM by Ansible — not via Terraform/cloud-init. |
+| Infisical role | Single source of truth for all machine-consumed secrets. VMs fetch via `infisical export` at boot using credentials in `/etc/infisical.env`. Service secrets seeded by each service's Ansible role at bring-up time; external API keys added manually. |
+| Vaultwarden role | Human-consumed secrets only (web UI admin passwords). Populated by each service's Ansible role after the service is configured. |
+| Vaultwarden account creation | Attempted automatically via `bw register` (Bitwarden CLI) during `ansible/site.yml`. One manual browser registration accepted as fallback if CLI doesn't support it. Account persists on NFS — never repeated. |
 | NUC RAM headroom | Accept the risk; monitor closely |
 | Tailscale exit node coupling | Accept DNS+exit node coupling on NUC; Anton is backup exit node |
 | Monitoring stack | Prometheus + Grafana + Loki only; Mimir/Tempo removed |
 | OpenClaw placement | Permanent on Anton; not in services node migration list |
 | AdGuard headless config | Pre-seeded `AdGuardHome.yaml`; setup wizard bypassed entirely |
 | Jellyfin headless setup | `/Startup/*` API scripted in `jellyfin-init.sh` |
-| Servarr headless setup | Pre-seeded `config.xml` with predetermined API keys; cross-app linking via `servarr-init.sh` |
+| Servarr headless setup | API keys generated by Ansible role, seeded to Infisical, written to pre-seeded `config.xml`; cross-app linking via `servarr-init.sh` |
 | Calibre-Web headless setup | Post-start `cps.py -s` CLI; library at `/books` mount |
 | n8n headless setup | `POST /api/v1/owner/setup` scripted in `n8n-init.sh` |
 | CouchDB headless setup | Env vars for credentials; init container handles `/_cluster_setup` and CORS |
