@@ -320,7 +320,7 @@ cd ~/homelab && git pull
 
 **Add a new VM:**
 1. Add a `module "<name>"` block in `terraform/<node>/main.tf`
-2. Add IP and VM ID to `network.yml` and `ansible/inventory/hosts.yml`
+2. Add IP and VM ID to `network.yml` under `vms` (inventory updates automatically)
 3. From deploy VM: `./scripts/deploy.sh <node>`
 
 **Rebuild a VM from scratch:**
@@ -332,7 +332,7 @@ cd ~/homelab && ./scripts/deploy.sh <node>
 ```
 
 **Add a new physical device:**
-1. Add to `network.yml` and `ansible/inventory/hosts.yml`
+1. Add to `network.yml` under `physical` with the correct `type` (inventory updates automatically)
 2. Bootstrap the device (one SSH session):
 ```bash
 ssh root@<device-ip> \

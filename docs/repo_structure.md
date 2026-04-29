@@ -164,13 +164,11 @@ Day-2 configuration management. Runs after Terraform provisions VMs and cloud-in
 
 **`ansible.cfg`** — Project-level config: points at the inventory, sets `debian` as remote user, disables host key checking (freshly provisioned VMs), enables SSH pipelining.
 
-**`inventory/hosts.yml`** — All hosts: `physical` (Anton, NUC, Storinator, Orange Pi), `vps`, `nuc_vms` (dns, infisical, deploy), `anton_vms` (ollama, services, openclaw, debian), and a parent `vms` group. Note: `nuc-haos` is excluded — HAOS has no SSH access for Ansible.
+**`inventory/hosts.py`** — Dynamic inventory script. Reads `network.yml` at the repo root and emits Ansible inventory JSON. Groups: `proxmox`, `nas`, `other` (physical nodes, driven by `type` field); `nuc_vms`, `anton_vms`, `services_vms`, and parent `vms` (driven by `node` field). VMs with `ansible_managed: false` are excluded (e.g. nuc-haos).
 
 **`base.yml`** — Applies the `base` role to all VMs.
 
 **`physical.yml`** — Applies the `base` role to all physical devices (targets `physical` inventory group).
-
-**`vps.yml`** — Syncs the repo to `/opt/homelab/` on the VPS, then applies `base`, `docker`, and `headscale` roles. Run from the operator laptop after first Terraform provision; re-run any time to push config changes.
 
 **`tailscale.yml`** — Bootstrap-only playbook for physical nodes: installs Tailscale and joins the Headscale network. Run once before Terraform.
 

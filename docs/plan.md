@@ -578,7 +578,7 @@ patching it. Ansible is the escape hatch when recreation is disruptive.
 ```
 ansible/
   inventory/
-    hosts.yml         # all physical nodes and VMs
+    hosts.py          # dynamic inventory generated from network.yml at repo root
   tailscale.yml       # installs Tailscale on physical nodes, pointing at Headscale
   base.yml            # day-2 config for all VMs (push)
   physical.yml        # day-2 config for physical devices (push, targets physical group)
@@ -621,8 +621,8 @@ ansible-playbook ansible/physical.yml --limit <hostname>
 **Ongoing**: run `ansible-playbook ansible/physical.yml --limit <hostname>` from the
 deploy VM when needed.
 
-**Registration**: add the device to `network.yml` and `ansible/inventory/hosts.yml`
-(under the appropriate `physical` subgroup).
+**Registration**: add the device to `network.yml` (under `physical`, with the correct
+`type`). The dynamic inventory picks it up automatically.
 
 ---
 
