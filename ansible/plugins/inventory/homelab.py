@@ -93,6 +93,13 @@ class InventoryModule(BaseInventoryPlugin):
             node_cfg = node_configs.get(hostname, {})
             vm_group = node_cfg.get('group')
 
+            # <hostname>_all spans the physical host and all its VMs
+            if vm_group:
+                all_group = f"{hostname}_all"
+                self.inventory.add_group(all_group)
+                self.inventory.add_child(all_group, hostname)
+                self.inventory.add_child(all_group, vm_group)
+
             for vmname, vmattrs in attrs.get('vms', {}).items():
                 if not vmattrs.get('ansible_managed', True):
                     continue
