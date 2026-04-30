@@ -1,20 +1,20 @@
 # network.yml — single source of truth for all static IP assignments.
 #
 # Terraform reads this file directly via yamldecode().
-# Ansible inventory is generated dynamically from this file by
-# ansible/inventory/hosts.py — no separate hosts file to keep in sync.
+# Ansible inventory is generated from this file and ansible/group_config.yml
+# by the homelab inventory plugin (ansible/plugins/inventory/homelab.py).
 #
 # IP layout:
 #   .1       gateway (Eero)
-#   .2       nuc-dns VM (AdGuard Home — also primary DNS for all VMs)
+#   .2       nuc-dns VM (AdGuard Home — primary DNS for all VMs)
 #   .3       reserved (future backup DNS)
 #   .4–.19   physical nodes
-#   .20–.29  NUC VMs       (10 slots, VM IDs 200–299)
-#   .30–.49  Anton VMs     (20 slots, VM IDs 100–199)
-#   .50–.69  Services node VMs (20 slots, VM IDs 300–399)
-#   .100+    DHCP (Eero managed, not used for static hosts)
+#   .20–.29  NUC VMs   (10 slots, VM IDs 200–299)
+#   .30–.49  Anton VMs (20 slots, VM IDs 100–199)
+#   .100+    DHCP (Eero managed)
 
 gateway: 192.168.0.1
+subnet_prefix: 24
 
 # DNS servers injected into all VMs via cloud-init
 dns:
@@ -30,8 +30,6 @@ dns:
 #
 # Additional fields for Proxmox nodes:
 #   bridge_port:     NIC bridged to vmbr0. Verify: ssh root@<ip> ip link show
-#   ansible_group:   Ansible group name for this node's VMs
-#   ansible_group_vars: Group vars applied to all VMs on this node
 #   vms:             VMs provisioned on this node
 #
 # VM fields:
@@ -57,10 +55,6 @@ nodes:
     ip: 192.168.0.6
     type: proxmox
     bridge_port: eno1  # TODO: verify with `ip link show`
-    ansible_group: nuc_vms
-    ansible_group_vars:
-      proxmox_node: nuc
-      ansible_user: debian
     vms:
       nuc-dns:
         ip: 192.168.0.2
@@ -80,10 +74,6 @@ nodes:
     ip: 192.168.0.5
     type: proxmox
     bridge_port: eno1  # TODO: verify with `ip link show`
-    ansible_group: anton_vms
-    ansible_group_vars:
-      proxmox_node: anton
-      ansible_user: debian
     vms:
       anton-ollama:
         ip: 192.168.0.30
@@ -97,16 +87,3 @@ nodes:
       anton-debian:
         ip: 192.168.0.33
         vm_id: 101
-
-  services:
-    ip: 192.168.0.9
-    type: proxmox
-    bridge_port: eno1  # TODO: verify with `ip link show`
-    ansible_group: services_vms
-    ansible_group_vars:
-      proxmox_node: services
-      ansible_user: debian
-    vms:
-      services-node:
-        ip: 192.168.0.50
-        vm_id: 300

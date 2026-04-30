@@ -164,7 +164,11 @@ Day-2 configuration management. Runs after Terraform provisions VMs and cloud-in
 
 **`ansible.cfg`** — Project-level config: points at the inventory, sets `debian` as remote user, disables host key checking (freshly provisioned VMs), enables SSH pipelining.
 
-**`inventory/hosts.py`** — Dynamic inventory script. Reads `network.yml` at the repo root and emits Ansible inventory JSON. Groups: `proxmox`, `nas`, `other` (physical nodes, driven by `type` field); `nuc_vms`, `anton_vms`, `services_vms`, and parent `vms` (driven by `node` field). VMs with `ansible_managed: false` are excluded (e.g. nuc-haos).
+**`inventory/homelab.yml`** — Inventory source file; tells Ansible to use the `homelab` plugin.
+
+**`plugins/inventory/homelab.py`** — Ansible inventory plugin. Reads `network.yml` (infrastructure facts) and `group_config.yml` (Ansible group config). Physical nodes are grouped by their `type` field; VMs are grouped per their parent node's entry in `group_config.yml`. VMs with `ansible_managed: false` are excluded (e.g. nuc-haos).
+
+**`group_config.yml`** — Ansible-specific inventory config: maps each Proxmox node name to its VM group name and group vars (`proxmox_node`, `ansible_user`). Kept separate from `network.yml` so infrastructure facts and Ansible config don't mix.
 
 **`base.yml`** — Applies the `base` role to all VMs.
 

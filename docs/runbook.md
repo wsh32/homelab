@@ -191,7 +191,7 @@ it to `terraform.tfvars` automatically.
 # Or node by node:
 ./scripts/deploy.sh nuc
 ./scripts/deploy.sh anton
-./scripts/deploy.sh services   # when services node is built
+./scripts/deploy.sh anton    # Anton VMs
 ```
 
 VMs provision, cloud-init handles Docker install and NFS mounts. Tailscale auth runs
@@ -320,7 +320,7 @@ cd ~/homelab && git pull
 
 **Add a new VM:**
 1. Add a `module "<name>"` block in `terraform/<node>/main.tf`
-2. Add IP and VM ID to `network.yml` under `vms` (inventory updates automatically)
+2. Add IP and VM ID to `network.yml` under `nodes.<node>.vms` (inventory updates automatically)
 3. From deploy VM: `./scripts/deploy.sh <node>`
 
 **Rebuild a VM from scratch:**

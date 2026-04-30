@@ -1,0 +1,20 @@
+# ansible/group_config.yml — Ansible-specific inventory configuration.
+#
+# Maps Proxmox node names to Ansible group names and group vars for their VMs.
+# This file is read alongside network.yml by the homelab inventory plugin.
+#
+# Keep infrastructure facts (IPs, VM IDs, topology) in network.yml.
+# Keep Ansible group definitions and vars here.
+
+nodes:
+  nuc:
+    group: nuc_vms
+    vars:
+      proxmox_node: nuc
+      ansible_user: debian
+
+  anton:
+    group: anton_vms
+    vars:
+      proxmox_node: anton
+      ansible_user: debian

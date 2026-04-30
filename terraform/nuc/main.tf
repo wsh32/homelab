@@ -133,7 +133,7 @@ module "deploy" {
   node_name     = local.node
   vm_id         = local.vms["nuc-deploy"].vm_id
   name          = "nuc-deploy"
-  description   = "Terraform + Ansible + internal webhook listener (Tailscale only)"
+  description   = "Terraform + Ansible deploy tooling (Tailscale only)"
   tags          = ["nuc", "infra", "deploy"]
   image_file_id = proxmox_virtual_environment_download_file.debian_12.id
 

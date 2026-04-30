@@ -38,7 +38,7 @@ DHCP: `192.168.0.100 – 192.168.0.254` (Eero managed)
 
 Physical nodes get DHCP reservations in the Eero app. VMs get static IPs configured via cloud-init, outside the DHCP range.
 
-IP ranges: physical nodes `.2–.19`, NUC VMs `.20–.29`, Anton VMs `.30–.49`, services node VMs `.50–.69`.
+IP ranges: physical nodes `.2–.19`, NUC VMs `.20–.29`, Anton VMs `.30–.49`.
 
 | Device | Hostname | IP | Notes |
 |--------|----------|----|-------|
@@ -49,7 +49,6 @@ IP ranges: physical nodes `.2–.19`, NUC VMs `.20–.29`, Anton VMs `.30–.49`
 | NUC | nuc | 192.168.0.6 | Static (Ansible — `/etc/network/interfaces`) |
 | Orange Pi | orangepi | 192.168.0.7 | Static (TBD — depends on OS choice) |
 | Gringotts | gringotts | 192.168.0.8 | Offsite — only reachable via Tailscale |
-| Services node | services | 192.168.0.9 | Static (Ansible — `/etc/network/interfaces`) — planned |
 | nuc-infisical VM | nuc-infisical | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
 | nuc-haos VM | nuc-haos | 192.168.0.22 | Static (Terraform) — Home Assistant OS |
 | nuc-deploy VM | nuc-deploy | 192.168.0.23 | Static (Terraform) — Terraform + Ansible |
@@ -57,7 +56,6 @@ IP ranges: physical nodes `.2–.19`, NUC VMs `.20–.29`, Anton VMs `.30–.49`
 | anton-services VM | anton-services | 192.168.0.31 | Static (Terraform) |
 | anton-openclaw VM | anton-openclaw | 192.168.0.32 | Static (Terraform) |
 | anton-debian VM | anton-debian | 192.168.0.33 | Static (Terraform) |
-| services-node VM | services-node | 192.168.0.50 | Static (Terraform) — planned |
 
 Note: Gringotts is offsite and not on the local network.
 
@@ -140,9 +138,8 @@ Each service defaults to being exposed on both domains. To restrict:
 
 | Node | Role | Status |
 |------|------|--------|
-| Anton | Compute — GPU workloads, permanent Ollama host | Active |
+| Anton | Compute — GPU workloads, all Docker Compose services | Active |
 | NUC | Always-on infrastructure | Active |
-| Services node (tbd) | Services host — takes over from Anton when built | Planned |
 
 Full Proxmox cluster for single-pane management only. No HA or live migration.
 
@@ -282,7 +279,7 @@ On rebuild, restore from the latest vzdump backup via the HAOS UI or `ha` CLI.
 
 | Service | Notes |
 |---------|-------|
-| Terraform | Manages NUC, Anton, and services node VMs; `terraform.tfvars` lives here |
+| Terraform | Manages NUC and Anton VMs; `terraform.tfvars` lives here |
 | Ansible | Runs `base.yml` after Terraform apply; reaches all VMs over Tailscale SSH |
 
 Infisical stores all machine-read secrets — both service API keys (fetched at VM boot via
@@ -311,7 +308,7 @@ Vaultwarden stores all passwords a human types into a browser. The two stores ne
 |---------|-------|
 | Debian Server | Development workstation |
 
-**Services VM** (`192.168.0.31`) — temporary, migrates to services node when built:
+**Services VM** (`192.168.0.31`):
 
 | Service | Notes |
 |---------|-------|
@@ -634,8 +631,7 @@ Deploys are triggered manually from the deploy VM. No webhook or CI automation.
 # SSH to deploy VM, then:
 ./scripts/deploy.sh nuc      # terraform apply + ansible for NUC VMs
 ./scripts/deploy.sh anton    # terraform apply + ansible for Anton VMs
-./scripts/deploy.sh services # terraform apply + ansible for services node VMs
-./scripts/deploy.sh both     # all nodes
+./scripts/deploy.sh          # all nodes
 ./scripts/deploy-services.sh # redeploy Docker Compose stacks only (no Terraform)
 ```
 
