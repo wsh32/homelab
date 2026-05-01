@@ -5,36 +5,33 @@ Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Te
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         Headscale tailnet                               │
-│                                                                         │
-│  ┌───────────────┐   ┌───────────────┐   ┌─────────────┐   ┌─────────┐ │
-│  │     Anton     │   │  Services     │   │    NUC      │   │Storinator│ │
-│  │  (compute)    │   │   (node)      │   │  (infra)    │   │  (NAS)  │ │
-│  │               │   │               │   │             │   │         │ │
-│  │ • Ollama      │   │ • Traefik     │   │ • AdGuard   │   │• TrueNAS│ │
-│  │ • OpenClaw    │   │ • Jellyfin    │   │ • Headscale │   │• NFS    │ │
-│  │ • Dev workst. │   │ • Servarr     │   │ • cloudflrd │   │• MinIO  │ │
-│  └───────────────┘   │ • PhotoPrism  │   │ • Infisical │   └─────────┘ │
-│                      │ • n8n         │   │ • Vaultwdn  │   ┌─────────┐ │
-│                      │ • Monitoring  │   │ • Deploy VM │   │Gringotts│ │
-│                      │ • Obsidian    │   └─────────────┘   │(offsite)│ │
-│                      │ • Quartz      │                     └─────────┘ │
-│                      └───────────────┘                                  │
-└─────────────────────────────────────────────────────────────────────────┘
-                              ▲
-                    Cloudflare Tunnel
-                    (public Headscale endpoint,
-                     no open ports / public IP)
+┌─────────────────────────────────────────────────────────────────┐
+│                       Headscale tailnet                         │
+│                                                                 │
+│  ┌──────────────────┐            ┌──────────────────┐           │
+│  │      Anton       │            │       NUC        │           │
+│  │                  │            │                  │           │
+│  │  GPU compute +   │            │  Always-on       │           │
+│  │  all services    │            │  infrastructure  │           │
+│  └──────────────────┘            └────────┬─────────┘           │
+│                                           │ Cloudflare Tunnel   │
+│  ┌──────────────────┐            ┌────────▼─────────┐           │
+│  │   Gringotts      │            │    Storinator     │           │
+│  │  (offsite NAS)   │◄──replicate│  TrueNAS NAS      │           │
+│  └──────────────────┘            │  NFS + MinIO S3   │           │
+│                                  └──────────────────┘           │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**NUC** runs all infrastructure: AdGuard Home (DNS + LAN resolver), Headscale (self-hosted Tailscale coordination) behind a Cloudflare Tunnel, Infisical (machine secrets), Vaultwarden (human secrets), and the deploy VM (Terraform + Ansible).
+| Node | Role |
+|------|------|
+| **Anton** | Proxmox compute node. Hosts all VMs: GPU inference (Ollama, RTX 3060), personal tooling (OpenClaw, Debian workstation), and all Docker Compose services (Traefik, Jellyfin, Servarr, etc.) |
+| **NUC** | Always-on Proxmox infrastructure node. Hosts DNS (AdGuard Home), Tailscale coordination (Headscale behind Cloudflare Tunnel), secrets (Infisical + Vaultwarden), and the deploy VM |
+| **Storinator** | TrueNAS NAS. Provides NFS mounts for all persistent Docker volumes and MinIO S3 for Terraform state |
+| **Gringotts** | Offsite TrueNAS NAS. Receives daily/weekly ZFS replication from Storinator; only reachable over Tailscale |
+| **Orange Pi** | Miscellaneous device (role TBD) |
 
-**Anton** and the **services node** split compute workloads: GPU inference, personal tooling, and all Docker Compose services.
-
-**Two-domain DNS**: services are exposed on `*.wsh` (Tailscale/HTTPS via step-ca local CA) and `*.home` (LAN/HTTP). AdGuard resolves `*.wsh` as a CNAME to the services VM's Tailscale MagicDNS name and `*.home` as an A record to its LAN IP. See [DNS Architecture in docs/plan.md](docs/plan.md) for details.
-
-See [`docs/plan.md`](docs/plan.md) for full architecture, VM layout, and all decisions.
+See [`docs/services.md`](docs/services.md) for the full per-VM service list.
 
 ## Repo structure
 
