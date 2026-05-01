@@ -164,13 +164,15 @@ Day-2 configuration management. Runs after Terraform provisions VMs and cloud-in
 
 **`ansible.cfg`** — Project-level config: points at the inventory, sets `debian` as remote user, disables host key checking (freshly provisioned VMs), enables SSH pipelining.
 
-**`inventory/hosts.yml`** — All hosts: `physical` (Anton, NUC, Storinator, Orange Pi), `vps`, `nuc_vms` (dns, infisical, deploy), `anton_vms` (ollama, services, openclaw, debian), and a parent `vms` group. Note: `nuc-haos` is excluded — HAOS has no SSH access for Ansible.
+**`inventory/homelab.yml`** — Inventory source file; tells Ansible to use the `homelab` plugin.
+
+**`plugins/inventory/homelab.py`** — Ansible inventory plugin. Reads `network.yml` (infrastructure facts) and `group_config.yml` (Ansible group config). Physical nodes are grouped by their `type` field; VMs are grouped per their parent node's entry in `group_config.yml`. VMs with `ansible_managed: false` are excluded (e.g. nuc-haos).
+
+**`group_config.yml`** — Ansible-specific inventory config: maps each Proxmox node name to its VM group name and group vars (`proxmox_node`, `ansible_user`). Kept separate from `network.yml` so infrastructure facts and Ansible config don't mix.
 
 **`base.yml`** — Applies the `base` role to all VMs.
 
 **`physical.yml`** — Applies the `base` role to all physical devices (targets `physical` inventory group).
-
-**`vps.yml`** — Syncs the repo to `/opt/homelab/` on the VPS, then applies `base`, `docker`, and `headscale` roles. Run from the operator laptop after first Terraform provision; re-run any time to push config changes.
 
 **`tailscale.yml`** — Bootstrap-only playbook for physical nodes: installs Tailscale and joins the Headscale network. Run once before Terraform.
 

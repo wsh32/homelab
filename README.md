@@ -1,38 +1,37 @@
 # homelab
 
-Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Terraform, reproducible from this repo, and deployed automatically on push to `main`.
+Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Terraform and reproducible from this repo.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         Headscale tailnet                               │
-│                                                                         │
-│  ┌──────────┐   ┌───────────────┐   ┌────────────────┐   ┌───────────┐  │
-│  │   VPS    │   │     Anton     │   │      NUC       │   │Storinator │  │
-│  │   (DO)   │   │   (compute)   │   │    (infra)     │   │  (NAS)    │  │
-│  │          │   │               │   │                │   │           │  │
-│  │Headscale │   │ • Ollama      │   │ • AdGuard DNS  │   │ • TrueNAS │  │
-│  │Terraform │   │ • OpenClaw    │   │ • Home Asst.   │   │ • NFS     │  │
-│  │Webhook   │   │ • Traefik *   │   │ • Infisical    │   │ • MinIO   │  │
-│  └──────────┘   │ • Jellyfin *  │   │ • Vaultwarden  │   └───────────┘  │
-│                 │ • Servarr *   │   │                │   ┌───────────┐  │
-│                 │ • PhotoPrism *│   └────────────────┘   │Gringotts  │  │
-│                 │ • n8n *       │                        │ (offsite) │  │
-│                 │ • Monitoring *│                        └───────────┘  │
-│                 │ • Obsidian *  │                                       │
-│                 │ • Quartz *    │                                       │
-│                 └───────────────┘                                       │
-│                                                                         │
-│  * migrates to services node when built                                 │
-└─────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                       Headscale tailnet                         │
+│                                                                 │
+│  ┌──────────────────┐            ┌──────────────────┐           │
+│  │      Anton       │            │       NUC        │           │
+│  │                  │            │                  │           │
+│  │  GPU compute +   │            │  Always-on       │           │
+│  │  all services    │            │  infrastructure  │           │
+│  └──────────────────┘            └────────┬─────────┘           │
+│                                           │ Cloudflare Tunnel   │
+│  ┌──────────────────┐            ┌────────▼─────────┐           │
+│  │   Gringotts      │            │    Storinator     │           │
+│  │  (offsite NAS)   │◄──replicate│  TrueNAS NAS      │           │
+│  └──────────────────┘            │  NFS + MinIO S3   │           │
+│                                  └──────────────────┘           │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**VPS** (DigitalOcean Droplet, ~$6/month) is the control plane: runs Headscale (self-hosted Tailscale coordination), executes Terraform for Proxmox VMs, and listens for GitHub webhooks to trigger automated deploys.
+| Node | Role |
+|------|------|
+| **Anton** | Proxmox compute node. Hosts all VMs: GPU inference (Ollama, RTX 3060), personal tooling (OpenClaw, Debian workstation), and all Docker Compose services (Traefik, Jellyfin, Servarr, etc.) |
+| **NUC** | Always-on Proxmox infrastructure node. Hosts DNS (AdGuard Home), Tailscale coordination (Headscale behind Cloudflare Tunnel), secrets (Infisical + Vaultwarden), and the deploy VM |
+| **Storinator** | TrueNAS NAS. Provides NFS mounts for all persistent Docker volumes and MinIO S3 for Terraform state |
+| **Gringotts** | Offsite TrueNAS NAS. Receives daily/weekly ZFS replication from Storinator; only reachable over Tailscale |
+| **Orange Pi** | Miscellaneous device (role TBD) |
 
-**Two-domain DNS**: services are exposed on `*.wsh` (Tailscale/HTTPS via step-ca local CA, personal devices) and `*.home` (LAN/HTTP, guests). AdGuard resolves `*.wsh` as a CNAME to Tailscale MagicDNS and `*.home` as an A record to the services VM LAN IP. See [DNS Architecture in docs/plan.md](docs/plan.md) for details.
-
-See [`docs/plan.md`](docs/plan.md) for full architecture, VM layout, and all decisions.
+See [`docs/services.md`](docs/services.md) for the full per-VM service list.
 
 ## Repo structure
 
@@ -41,35 +40,32 @@ terraform/
   modules/proxmox-vm/     # shared VM module (bpg/proxmox provider)
   nuc/                    # NUC root module — state in MinIO on Storinator
   anton/                  # Anton root module — state in MinIO on Storinator
-  vps/                    # VPS root module — state is local file on operator laptop
+  services/               # services node root module — state in MinIO on Storinator
 ansible/
+  inventory/
+    hosts.py              # dynamic inventory script — reads network.yml
   roles/
-    base/                 # all Debian VMs
+    base/                 # all Debian VMs and physical devices
     docker/               # Docker Compose VMs
-    physical/             # physical devices (ansible-pull)
-    headscale/            # VPS — Headscale + webhook listener
-    network/              # Proxmox bridge config
-  base.yml                # day-2 config for VMs (push)
-  vps.yml                 # VPS bootstrap and config
-  physical.yml            # physical device config (pull mode, targets localhost)
-  tailscale.yml           # Tailscale install on physical nodes (points at Headscale)
+    network/              # Proxmox bridge config on physical nodes
+  base.yml                # day-2 config for all VMs (push)
+  physical.yml            # physical device config (push)
+  tailscale.yml           # one-time Tailscale install on physical nodes
+  network.yml             # static IP config for Proxmox nodes
 services/
-  dns/                    # AdGuard config (pre-seeded, no setup wizard)
-  nuc-infra/              # Docker Compose — NUC infra VM
-  anton/                  # Docker Compose — Anton services VM
+  dns/                    # AdGuard + Headscale + cloudflared (pre-seeded, no wizards)
+  nuc-infra/              # Infisical + Vaultwarden + Litestream
+  nuc-deploy/             # webhook listener for internal deploy triggers
+  anton/                  # Docker Compose — all Anton/services workloads
+network.yml               # single source of truth for all IPs and VM IDs
 scripts/
-  deploy.sh               # terraform apply + ansible-playbook (called by webhook)
+  deploy.sh               # terraform apply + ansible-playbook
   deploy-services.sh      # docker compose pull + up -d on services VMs
-  webhook-deploy.sh       # runs on VPS — detects changed paths, runs right commands
   bootstrap-physical.sh   # one-time bootstrap for a new physical device
-  infisical-bootstrap.sh  # bootstraps Infisical after first apply
   jellyfin-init.sh        # headless Jellyfin setup via API
   servarr-init.sh         # links Prowlarr to Radarr/Sonarr
   calibre-init.sh         # sets Calibre-Web admin password
   n8n-init.sh             # creates n8n owner account
-cloud-init/
-  base.yaml               # base cloud-init for all VMs
-  docker-host.yaml        # extended cloud-init for Docker Compose VMs
 docs/
   plan.md                 # architecture plan and all decisions
   runbook.md              # step-by-step bootstrap guide
@@ -79,56 +75,68 @@ docs/
 
 ## How deploys work
 
-Push to `main` → GitHub webhook → VPS detects changed paths → runs:
+All deploys are manual, initiated from the deploy VM (`nuc-deploy`, `192.168.0.23`):
 
-| Changed path | Action |
-|---|---|
-| `terraform/nuc/` or `terraform/anton/` | `./scripts/deploy.sh` (Terraform + Ansible) |
-| `ansible/` | `ansible-playbook base.yml` |
-| `services/` | `./scripts/deploy-services.sh` |
-| `ansible/physical.yml` or `ansible/roles/physical/` | Nothing — ansible-pull on each device picks it up within 30 min |
-| `terraform/vps/` | Blocked — run `terraform apply` manually from operator laptop |
+```bash
+ssh debian@192.168.0.23
+cd ~/homelab && git pull
+
+./scripts/deploy.sh           # terraform apply + ansible for all nodes
+./scripts/deploy.sh nuc       # single node
+./scripts/deploy-services.sh  # docker compose only, no terraform
+```
+
+`network.yml` is the single source of truth for all IPs and VM IDs. The dynamic inventory script (`ansible/inventory/hosts.py`) reads it directly — no separate hosts file to maintain.
 
 ## Bootstrap
 
 Full step-by-step guide in [`docs/runbook.md`](docs/runbook.md). High-level summary:
 
-**Manual (one-time):**
-1. Join Anton and NUC into a Proxmox cluster via UI
+**Phase 1 — Physical setup (one-time, manual):**
+1. Join Anton, NUC, and services node into a Proxmox cluster via UI
 2. Create Proxmox API tokens on each node
 3. Create NFS datasets + enable MinIO on Storinator (S3 state backend)
-4. Provision VPS: `cd terraform/vps && terraform apply` from laptop
-5. Bootstrap Headscale on VPS: `ansible-playbook ansible/vps.yml`
+4. Configure static IPs on physical nodes via Ansible
 
-**Automated (from VPS thereafter):**
+**Phase 2 — Bootstrap the deploy VM (from operator laptop):**
 ```bash
-# Install Tailscale on physical nodes (points at Headscale)
-ansible-playbook ansible/tailscale.yml
-
-# Fill in terraform.tfvars, provision all VMs
-./scripts/deploy.sh
-
-# Bootstrap Infisical, add credentials to tfvars, re-deploy
-./scripts/infisical-bootstrap.sh
-./scripts/deploy.sh
-
-# Create Vaultwarden account at https://vault.home (one manual step, ever)
-
-# Seed secrets into Infisical UI, reboot VMs
-
-# Configure GitHub webhook → all future changes deploy automatically
+cp terraform/nuc/terraform.tfvars.example terraform/nuc/terraform.tfvars
+# fill in Proxmox tokens, MinIO creds, SSH key, Cloudflare API token
+cd terraform/nuc && terraform apply -target=module.deploy
+ansible-playbook ansible/bootstrap-deploy.yml
 ```
+
+**Phase 3 — Full deployment (from the deploy VM):**
+```bash
+ssh debian@192.168.0.23 && cd ~/homelab
+
+# DNS VM first (Headscale must exist before other VMs get Tailscale keys)
+cd terraform/nuc && terraform apply -target=module.dns
+ansible-playbook ansible/bootstrap-headscale.yml  # generates + writes pre-auth key
+
+# All remaining VMs
+./scripts/deploy.sh
+
+# Bootstrap Infisical, distribute credentials, bring up all services
+ansible-playbook ansible/bootstrap-infisical.yml
+ansible-playbook ansible/site.yml
+```
+
+**Phase 4 — Post-bootstrap:**
+- Trust the step-ca root CA on personal devices
+- Add external API keys (Anthropic, OpenAI, GitHub) to Infisical via UI
+- Back up `terraform.tfvars` to Vaultwarden
 
 ## Secrets
 
 | Store | What | How populated |
 |---|---|---|
-| **`terraform.tfvars`** | Infrastructure credentials (Proxmox, Headscale key, MinIO, Infisical) | Manually, backed up in Vaultwarden |
-| **Infisical** | Machine-consumed secrets: service API keys, inter-service tokens, developer API keys | Manually via Infisical UI |
-| **Vaultwarden** | Human-consumed secrets: web UI admin passwords, personal credentials | Manually when setting up each service |
+| **`terraform.tfvars`** | Infrastructure credentials (Proxmox tokens, MinIO, SSH key, Cloudflare API token, Headscale pre-auth key) | Manually; `bootstrap-headscale.yml` writes the pre-auth key automatically |
+| **Infisical** | Machine-consumed secrets: service API keys, inter-service tokens, developer API keys | Auto-seeded per service by `ansible/site.yml`; external keys added via UI |
+| **Vaultwarden** | Human-consumed secrets: web UI admin passwords, personal credentials | Written by each service's Ansible role after configuration |
 
-VMs fetch secrets from Infisical at boot via `infisical export` → ephemeral `.env` file.
-Physical devices fetch their deploy key from Infisical during bootstrap.
+VMs fetch machine secrets from Infisical at boot via `infisical export` → ephemeral `.env` file.
+Infisical machine identity credentials live at `/etc/infisical.env` on each VM (root-owned, mode 0600), written by `ansible/bootstrap-infisical.yml`.
 
 Never commit `.env`, `terraform.tfvars`, or `*.tfstate`.
 
