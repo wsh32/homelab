@@ -1,10 +1,10 @@
 locals {
-  node = "nuc"
+  node = "redstone"
   net  = yamldecode(file("${path.module}/../../network.yml"))
   vms  = local.net.nodes[local.node].vms
 }
 
-# Download Debian 12 (Bookworm) cloud image to NUC once.
+# Download Debian 12 (Bookworm) cloud image to Redstone once.
 resource "proxmox_virtual_environment_download_file" "debian_12" {
   node_name    = local.node
   content_type = "iso"
@@ -33,17 +33,17 @@ module "dns" {
   source = "../modules/proxmox-vm"
 
   node_name     = local.node
-  vm_id         = local.vms["nuc-dns"].vm_id
-  name          = "nuc-dns"
+  vm_id         = local.vms["redstone-dns"].vm_id
+  name          = "redstone-dns"
   description   = "AdGuard Home DNS + Tailscale exit node (primary)"
-  tags          = ["nuc", "infra", "dns"]
+  tags          = ["redstone", "infra", "dns"]
   image_file_id = proxmox_virtual_environment_download_file.debian_12.id
 
   cores        = 2
   memory_mb    = 2048
   disk_size_gb = 10
 
-  ip_address         = "${local.vms["nuc-dns"].ip}/24"
+  ip_address         = "${local.vms["redstone-dns"].ip}/24"
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key
@@ -62,17 +62,17 @@ module "infisical" {
   source = "../modules/proxmox-vm"
 
   node_name     = local.node
-  vm_id         = local.vms["nuc-infisical"].vm_id
-  name          = "nuc-infisical"
+  vm_id         = local.vms["redstone-infisical"].vm_id
+  name          = "redstone-infisical"
   description   = "Infisical (secrets manager) + Vaultwarden (password manager)"
-  tags          = ["nuc", "infra", "infisical"]
+  tags          = ["redstone", "infra", "infisical"]
   image_file_id = proxmox_virtual_environment_download_file.debian_12.id
 
   cores        = 2
   memory_mb    = 6144
   disk_size_gb = 20
 
-  ip_address         = "${local.vms["nuc-infisical"].ip}/24"
+  ip_address         = "${local.vms["redstone-infisical"].ip}/24"
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key
@@ -88,10 +88,10 @@ module "infisical" {
 # HAOS uses a dedicated VM resource — no cloud-init, restored from vzdump backup.
 resource "proxmox_virtual_environment_vm" "haos" {
   node_name   = local.node
-  vm_id       = local.vms["nuc-haos"].vm_id
-  name        = "nuc-haos"
+  vm_id       = local.vms["redstone-haos"].vm_id
+  name        = "redstone-haos"
   description = "Home Assistant OS — restore config from vzdump backup after first boot"
-  tags        = ["nuc", "haos"]
+  tags        = ["redstone", "haos"]
 
   on_boot = true
 
@@ -131,17 +131,17 @@ module "deploy" {
   source = "../modules/proxmox-vm"
 
   node_name     = local.node
-  vm_id         = local.vms["nuc-deploy"].vm_id
-  name          = "nuc-deploy"
+  vm_id         = local.vms["redstone-deploy"].vm_id
+  name          = "redstone-deploy"
   description   = "Terraform + Ansible deploy tooling (Tailscale only)"
-  tags          = ["nuc", "infra", "deploy"]
+  tags          = ["redstone", "infra", "deploy"]
   image_file_id = proxmox_virtual_environment_download_file.debian_12.id
 
   cores        = 1
   memory_mb    = 1024
   disk_size_gb = 20
 
-  ip_address         = "${local.vms["nuc-deploy"].ip}/24"
+  ip_address         = "${local.vms["redstone-deploy"].ip}/24"
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key

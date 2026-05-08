@@ -13,8 +13,8 @@ What hardware do I own that is part of my homelab?
     * Boot drive: 500GB SATA SSD
     * NVMe storage: 2x 2TB NVMe SSD
 
-* NUC
-    * Nickname: tbd
+* NUC (Redstone)
+    * Nickname: redstone
     * Role: Always on infra node
     * OS: Proxmox
     * CPU: i3-8109U

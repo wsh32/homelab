@@ -3,12 +3,12 @@
 #
 # Usage:
 #   ./scripts/deploy.sh           # deploy both nodes
-#   ./scripts/deploy.sh nuc       # deploy NUC only
+#   ./scripts/deploy.sh redstone  # deploy Redstone only
 #   ./scripts/deploy.sh anton     # deploy Anton only
 #
 # Prerequisites:
 #   - Storinator NFS mounted at /mnt/terraform-state
-#   - terraform.tfvars present in terraform/nuc/ and terraform/anton/
+#   - terraform.tfvars present in terraform/redstone/ and terraform/anton/
 #   - ansible dependencies installed (pip install ansible)
 
 set -euo pipefail
@@ -17,8 +17,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NODE="${1:-both}"
 
 # Validate argument
-if [[ "$NODE" != "nuc" && "$NODE" != "anton" && "$NODE" != "both" ]]; then
-  echo "Usage: $0 [nuc|anton|both]"
+if [[ "$NODE" != "redstone" && "$NODE" != "anton" && "$NODE" != "both" ]]; then
+  echo "Usage: $0 [redstone|anton|both]"
   exit 1
 fi
 
@@ -34,8 +34,8 @@ terraform_apply() {
   cd "$REPO_ROOT"
 }
 
-if [[ "$NODE" == "nuc" || "$NODE" == "both" ]]; then
-  terraform_apply nuc
+if [[ "$NODE" == "redstone" || "$NODE" == "both" ]]; then
+  terraform_apply redstone
 fi
 
 if [[ "$NODE" == "anton" || "$NODE" == "both" ]]; then
@@ -47,7 +47,7 @@ fi
 # Map node argument to Ansible inventory group
 ansible_limit() {
   case "$1" in
-    nuc)   echo "nuc_vms" ;;
+    redstone) echo "redstone_vms" ;;
     anton) echo "anton_vms" ;;
     both)  echo "vms" ;;
   esac

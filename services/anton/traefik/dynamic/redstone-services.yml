@@ -1,5 +1,5 @@
-# External backends for NUC-hosted services routed through Anton's Traefik.
-# Traefik on Anton reaches NUC services directly via LAN.
+# External backends for Redstone-hosted services routed through Anton's Traefik.
+# Traefik on Anton reaches Redstone services directly via LAN.
 
 http:
   routers:

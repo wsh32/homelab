@@ -5,9 +5,9 @@ Storinator NFS — VMs are stateless and can be rebuilt without data loss.
 
 ---
 
-## NUC VMs
+## Redstone VMs
 
-### nuc-dns (`192.168.0.2`)
+### redstone-dns (`192.168.0.2`)
 
 | Service | Notes |
 |---------|-------|
@@ -16,7 +16,7 @@ Storinator NFS — VMs are stateless and can be rebuilt without data loss.
 | cloudflared | Cloudflare Tunnel — exposes Headscale publicly without open ports or a static IP |
 | Tailscale exit node | Primary exit node for the tailnet |
 
-### nuc-infisical (`192.168.0.21`)
+### redstone-infisical (`192.168.0.21`)
 
 | Service | Notes |
 |---------|-------|
@@ -24,14 +24,14 @@ Storinator NFS — VMs are stateless and can be rebuilt without data loss.
 | Vaultwarden | Human-consumed secrets (web UI admin passwords). One manual browser registration at bootstrap; persists on NFS forever |
 | Litestream | Continuously streams the Vaultwarden SQLite WAL to Storinator NFS |
 
-### nuc-deploy (`192.168.0.23`)
+### redstone-deploy (`192.168.0.23`)
 
 | Service | Notes |
 |---------|-------|
-| Terraform | Provisions NUC and Anton VMs. State stored in MinIO on Storinator |
+| Terraform | Provisions Redstone and Anton VMs. State stored in MinIO on Storinator |
 | Ansible | Push-only config management for all VMs and physical nodes |
 
-### nuc-haos (`192.168.0.22`)
+### redstone-haos (`192.168.0.22`)
 
 | Service | Notes |
 |---------|-------|
