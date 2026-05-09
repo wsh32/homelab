@@ -51,7 +51,7 @@ IP ranges: physical nodes `.2–.19`, Diglett VMs `.20–.29`, Machamp VMs `.30�
 | Ditto | ditto | 192.168.0.8 | Offsite — only reachable via Tailscale |
 | diglett-infisical VM | diglett-infisical | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
 | diglett-haos VM | diglett-haos | 192.168.0.22 | Static (Terraform) — Home Assistant OS |
-| diglett-deploy VM | diglett-deploy | 192.168.0.23 | Static (Terraform) — Terraform + Ansible |
+| alakazam-deploy VM | alakazam-deploy | 192.168.0.20 | Static (TrueNAS UI) — out-of-band deploy host |
 | machamp-ollama VM | machamp-ollama | 192.168.0.30 | Static (Terraform) |
 | machamp-services VM | machamp-services | 192.168.0.31 | Static (Terraform) |
 | machamp-openclaw VM | machamp-openclaw | 192.168.0.32 | Static (Terraform) |
@@ -166,12 +166,19 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 6. **Write `terraform.tfvars`** — populate with Proxmox API tokens, MinIO credentials,
    SSH public key, and Cloudflare API token. This is the only manual credential entry
    in the bootstrap.
-7. **`terraform apply -target=module.deploy`** — provisions the deploy VM from the
-   operator laptop. All subsequent steps run from inside the network.
-8. **`ansible-playbook ansible/bootstrap-deploy.yml`** — clones the repo onto the deploy
-   VM, installs Terraform and Ansible, copies `terraform.tfvars`.
+7. **Create `alakazam-deploy` VM in TrueNAS SCALE UI** — create a 1-core/1GB Ubuntu 24.04
+   KVM VM, assign static IP `192.168.0.20` inside the VM. All subsequent steps run from
+   inside the network.
+8. **Bootstrap the deploy VM** — run the bootstrap script from the operator laptop:
+   ```
+   ssh ubuntu@192.168.0.20 \
+     TAILSCALE_AUTH_KEY=<headscale-preauth-key> \
+     bash -s < scripts/bootstrap-alakazam-deploy.sh
+   ```
+   Then copy `terraform.tfvars` to `~/homelab/terraform/diglett/` and
+   `~/homelab/terraform/machamp/` on the deploy VM.
 
-### From the deploy VM
+### From the alakazam-deploy VM
 
 9. **`terraform apply -target=module.dns`** — provisions the DNS VM. Terraform creates
    the Cloudflare Tunnel via the Cloudflare provider; the tunnel token flows automatically
@@ -207,7 +214,7 @@ services that depend on those external keys.
 | DNS VM | 2GB | 2 | AdGuard + Tailscale exit node + Headscale + cloudflared |
 | Home Assistant VM | 4GB | 2 | HAOS |
 | Infisical VM | 6GB | 2 | Infisical + Vaultwarden |
-| Deploy VM | 1GB | 1 | Terraform + Ansible |
+| alakazam-deploy VM | 1GB | 1 | Terraform + Ansible (TrueNAS KVM, out-of-band) |
 | Headroom | 1GB | — | Buffer / future |
 
 ### Machamp (128GB ECC RAM, Threadripper 3975WX 32c/64t)
@@ -275,10 +282,10 @@ On rebuild, restore from the latest vzdump backup via the HAOS UI or `ha` CLI.
 | Infisical | Machine-consumed secrets: service API keys, inter-service tokens, developer API keys |
 | Vaultwarden | Human-consumed secrets: web UI admin passwords, personal credentials |
 
-**Deploy VM** (`192.168.0.23`):
+**alakazam-deploy VM** (`192.168.0.20` — TrueNAS SCALE KVM, out-of-band):
 
-| Service | Notes |
-|---------|-------|
+| Tool | Notes |
+|------|-------|
 | Terraform | Manages Diglett and Machamp VMs; `terraform.tfvars` lives here |
 | Ansible | Runs `base.yml` after Terraform apply; reaches all VMs over Tailscale SSH |
 
@@ -488,7 +495,7 @@ certs for private TLDs. `*.home` is HTTP only (LAN fallback for guests; no TLS n
 
 Three separate stores with distinct roles, split by **consumer**:
 
-**`terraform.tfvars`** — deploy VM, gitignored
+**`terraform.tfvars`** — alakazam-deploy VM, gitignored
 
 The provisioning source of truth. Manually supplied values only:
 - Proxmox API token + endpoint + username (one set per node)
@@ -587,8 +594,8 @@ ansible/
 ```
 
 Headscale pre-auth keys for physical nodes are generated via the Headscale CLI on the
-deploy VM and stored in Infisical. The `tailscale.yml` playbook reads the key from
-Infisical at run time.
+alakazam-deploy VM and stored in Infisical. The `tailscale.yml` playbook reads the key
+from Infisical at run time.
 
 ---
 
@@ -609,14 +616,14 @@ ssh root@<device-ip> \
 The bootstrap script installs Tailscale and joins the Headscale tailnet. That's all —
 once the device is on Tailscale, Ansible can reach it.
 
-Then from the operator laptop (or deploy VM):
+Then from the operator laptop (or alakazam-deploy VM):
 
 ```bash
 ansible-playbook ansible/physical.yml --limit <hostname>
 ```
 
 **Ongoing**: run `ansible-playbook ansible/physical.yml --limit <hostname>` from the
-deploy VM when needed.
+alakazam-deploy VM when needed.
 
 **Registration**: add the device to `network.yml` (under `physical`, with the correct
 `type`). The dynamic inventory picks it up automatically.
@@ -625,18 +632,20 @@ deploy VM when needed.
 
 ## Deployment Automation
 
-Deploys are triggered manually from the deploy VM. No webhook or CI automation.
+Deploys are triggered manually from the alakazam-deploy VM. No webhook or CI automation.
 
 ```
-# SSH to deploy VM, then:
-./scripts/deploy.sh diglett # terraform apply + ansible for Diglett VMs
-./scripts/deploy.sh machamp    # terraform apply + ansible for Machamp VMs
+# SSH to alakazam-deploy, then:
+./scripts/deploy.sh diglett  # terraform apply + ansible for Diglett VMs
+./scripts/deploy.sh machamp  # terraform apply + ansible for Machamp VMs
 ./scripts/deploy.sh          # all nodes
 ./scripts/deploy-services.sh # redeploy Docker Compose stacks only (no Terraform)
 ```
 
-The deploy VM holds `terraform.tfvars` and all deploy credentials. It is not
-internet-facing — only reachable over Tailscale or the local LAN.
+The alakazam-deploy VM holds `terraform.tfvars` and all deploy credentials. It is not
+internet-facing — only reachable over Tailscale or the local LAN. It is a TrueNAS SCALE
+KVM VM and is intentionally outside Terraform management — bootstrapped once via
+`scripts/bootstrap-alakazam-deploy.sh`, then self-sufficient.
 
 **Concurrency**: the deploy script holds a lock (`/var/lock/homelab-deploy.lock`)
 so concurrent runs are prevented rather than running in parallel.
@@ -676,10 +685,10 @@ NUT clients: Machamp, Diglett, Alakazam (shut down gracefully on power loss)
 | n8n headless setup | `POST /api/v1/owner/setup` scripted in `n8n-init.sh` |
 | CouchDB headless setup | Env vars for credentials; init container handles `/_cluster_setup` and CORS |
 | Tailscale coordination server | Self-hosted Headscale on the Diglett DNS VM (`192.168.0.2`), co-located with AdGuard. Public HTTPS endpoint provided by a Cloudflare Tunnel (cloudflared container). No public IP or open port required. Uses Tailscale's public DERP relays. Managed by Ansible (`roles/headscale`). |
-| Terraform execution host | Deploy VM (`diglett-deploy`) runs all Terraform workspaces. Operator laptop is break-glass fallback. No VPS. |
+| Terraform execution host | `alakazam-deploy` (TrueNAS SCALE KVM VM, out-of-band) runs all Terraform workspaces. Intentionally outside Terraform management — bootstrapped once via script. Operator laptop is break-glass fallback. |
 | Terraform state backend | MinIO S3 on Alakazam (`http://alakazam:9000`) for all workspaces (`diglett/`, `machamp/`, `services/`). S3 lockfile replaces NFS file locking. Both deploy VM and operator laptop reach MinIO over Tailscale. |
-| Physical device management | Ansible push, same model as VMs. One-time bootstrap via `scripts/bootstrap-physical.sh` (installs Tailscale only). All further config pushed via `ansible-playbook ansible/physical.yml` from the deploy VM. |
-| Deployment automation | Manual. Operator SSHes to deploy VM and runs `./scripts/deploy.sh`. No webhook, no CI. Simpler and sufficient for a personal homelab. |
+| Physical device management | Ansible push, same model as VMs. One-time bootstrap via `scripts/bootstrap-physical.sh` (installs Tailscale only). All further config pushed via `ansible-playbook ansible/physical.yml` from alakazam-deploy. |
+| Deployment automation | Manual. Operator SSHes to alakazam-deploy and runs `./scripts/deploy.sh`. No webhook, no CI. Simpler and sufficient for a personal homelab. |
 | DNS domain strategy | Two domains: `*.wsh` (Tailscale/HTTPS, personal devices) and `*.home` (LAN/HTTP, guests). Avoids subnet routing; guests can reach services without Tailscale. Single Traefik instance handles both. |
 | TLS for private TLDs | Let's Encrypt does not issue certs for `.wsh` or `.home`. `*.wsh` uses step-ca (local CA, wildcard cert, Traefik ACME). `*.home` is plain HTTP (LAN only, acceptable). |
 | AdGuard DNS rewrites | `*.wsh` CNAME → `machamp-services.ts.home` (MagicDNS). `*.home` A → `192.168.0.31` (LAN IP). Headscale `dns_config` pushes AdGuard's Tailscale IP as resolver for both TLDs to all tailnet members. |

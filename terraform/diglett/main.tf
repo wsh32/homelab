@@ -126,38 +126,3 @@ resource "proxmox_virtual_environment_vm" "haos" {
     ignore_changes = [disk[0].file_id]
   }
 }
-
-module "deploy" {
-  source = "../modules/proxmox-vm"
-
-  node_name     = local.node
-  vm_id         = local.vms["diglett-deploy"].vm_id
-  name          = "diglett-deploy"
-  description   = "Terraform + Ansible deploy tooling (Tailscale only)"
-  tags          = ["diglett", "infra", "deploy"]
-  image_file_id = proxmox_virtual_environment_download_file.ubuntu_2404.id
-
-  cores        = 1
-  memory_mb    = 1024
-  disk_size_gb = 20
-
-  ip_address         = "${local.vms["diglett-deploy"].ip}/24"
-  gateway            = local.net.gateway
-  dns_servers        = local.net.dns
-  ssh_public_key     = var.ssh_public_key
-  tailscale_auth_key = var.tailscale_auth_key
-
-  user_data_extra = <<-EOF
-    # Install Terraform
-    - apt-get install -y gnupg software-properties-common
-    - wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-    - echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" > /etc/apt/sources.list.d/hashicorp.list
-    - apt-get update && apt-get install -y terraform
-    # Install Ansible
-    - apt-get install -y python3-pip
-    - pip3 install ansible
-    # Install Docker (for webhook container)
-    - apt-get install -y docker.io docker-compose-plugin
-    - systemctl enable --now docker
-  EOF
-}
