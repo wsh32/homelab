@@ -38,7 +38,7 @@ dns:
 #   ansible_managed: Set false to exclude from Ansible inventory (default: true)
 
 nodes:
-  snorlax:
+  alakazam:
     ip: 192.168.0.4
     type: nas
 

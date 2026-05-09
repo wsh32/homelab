@@ -23,7 +23,7 @@ What hardware do I own that is part of my homelab?
     * SSD: 1TB SATA SSD
 
 * AOOSTAR WTR Pro
-    * Nickname: snorlax
+    * Nickname: alakazam
     * Role: Onsite NAS
     * OS: TrueNAS
     * CPU: Ryzen 7 5825u
@@ -64,5 +64,5 @@ What hardware do I own that is part of my homelab?
 * 2.5g unmanaged switch
 
 ## Power
-* UPS covers: machamp, snorlax, orange pi (orange pi must be on UPS to act as NUT server)
+* UPS covers: machamp, alakazam, orange pi (orange pi must be on UPS to act as NUT server)
 

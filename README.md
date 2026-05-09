@@ -16,7 +16,7 @@ Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Te
 │  └──────────────────┘            └────────┬─────────┘           │
 │                                           │ Cloudflare Tunnel   │
 │  ┌──────────────────┐            ┌────────▼─────────┐           │
-│  │   Ditto      │            │    Snorlax     │           │
+│  │   Ditto      │            │    Alakazam     │           │
 │  │  (offsite NAS)   │◄──replicate│  TrueNAS NAS      │           │
 │  └──────────────────┘            │  NFS + MinIO S3   │           │
 │                                  └──────────────────┘           │
@@ -27,8 +27,8 @@ Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Te
 |------|------|
 | **Machamp** | Proxmox compute node. Hosts all VMs: GPU inference (Ollama, RTX 3060), personal tooling (OpenClaw, development workstation), and all Docker Compose services (Traefik, Jellyfin, Servarr, etc.) |
 | **Diglett** | Always-on Proxmox infrastructure node. Hosts DNS (AdGuard Home), Tailscale coordination (Headscale behind Cloudflare Tunnel), secrets (Infisical + Vaultwarden), and the deploy VM |
-| **Snorlax** | TrueNAS NAS. Provides NFS mounts for all persistent Docker volumes and MinIO S3 for Terraform state |
-| **Ditto** | Offsite TrueNAS NAS. Receives daily/weekly ZFS replication from Snorlax; only reachable over Tailscale |
+| **Alakazam** | TrueNAS NAS. Provides NFS mounts for all persistent Docker volumes and MinIO S3 for Terraform state |
+| **Ditto** | Offsite TrueNAS NAS. Receives daily/weekly ZFS replication from Alakazam; only reachable over Tailscale |
 | **Orange Pi** | Miscellaneous device (role TBD) |
 
 See [`docs/services.md`](docs/services.md) for the full per-VM service list.
@@ -38,9 +38,9 @@ See [`docs/services.md`](docs/services.md) for the full per-VM service list.
 ```
 terraform/
   modules/proxmox-vm/     # shared VM module (bpg/proxmox provider)
-  diglett/               # Diglett root module — state in MinIO on Snorlax
-  machamp/                  # Machamp root module — state in MinIO on Snorlax
-  services/               # services node root module — state in MinIO on Snorlax
+  diglett/               # Diglett root module — state in MinIO on Alakazam
+  machamp/                  # Machamp root module — state in MinIO on Alakazam
+  services/               # services node root module — state in MinIO on Alakazam
 ansible/
   inventory/
     hosts.py              # dynamic inventory script — reads network.yml
@@ -95,7 +95,7 @@ Full step-by-step guide in [`docs/runbook.md`](docs/runbook.md). High-level summ
 **Phase 1 — Physical setup (one-time, manual):**
 1. Join Machamp, Diglett, and services node into a Proxmox cluster via UI
 2. Create Proxmox API tokens on each node
-3. Create NFS datasets + enable MinIO on Snorlax (S3 state backend)
+3. Create NFS datasets + enable MinIO on Alakazam (S3 state backend)
 4. Configure static IPs on physical nodes via Ansible
 
 **Phase 2 — Bootstrap the deploy VM (from operator laptop):**

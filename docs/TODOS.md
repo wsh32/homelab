@@ -2,14 +2,14 @@
 
 ## NFS Export Strategy
 
-**What:** Define which Snorlax datasets get NFS-exported, to what
+**What:** Define which Alakazam datasets get NFS-exported, to what
 clients, and with what permissions.
 
-**Why:** All VMs mount Snorlax over NFS for persistent data. Without a
+**Why:** All VMs mount Alakazam over NFS for persistent data. Without a
 consistent strategy, NFS config will be improvised per-service and become
 a mess.
 
-**Context:** Snorlax datasets: `backups`, `media`, `docker`,
+**Context:** Alakazam datasets: `backups`, `media`, `docker`,
 `terraform-state`, `photos`, `lightroom`. Each needs a defined NFS export
 policy (which VMs, read-only vs read-write). All mounts use
 `soft,timeo=30` options.
@@ -58,7 +58,7 @@ including Ditto (offsite backup) and Proxmox management interfaces.
 
 **Minimum policy:**
 - Tag nodes by role (infra, compute, storage, backup)
-- Restrict Ditto to replication traffic from Snorlax only
+- Restrict Ditto to replication traffic from Alakazam only
 - Restrict Proxmox API ports to operator machine
 
 **Depends on:** Terraform module structure.
@@ -68,10 +68,10 @@ including Ditto (offsite backup) and Proxmox management interfaces.
 ## External Uptime Monitor
 
 **What:** Deploy Uptime Kuma on the Orange Pi or use a cloud ping service
-to monitor Snorlax and critical services externally.
+to monitor Alakazam and critical services externally.
 
-**Why:** When Snorlax NFS hangs, the monitoring stack (Prometheus +
-Grafana on Machamp) also goes down because it depends on Snorlax NFS.
+**Why:** When Alakazam NFS hangs, the monitoring stack (Prometheus +
+Grafana on Machamp) also goes down because it depends on Alakazam NFS.
 An external monitor outside the NFS blast radius can detect and alert on
 this.
 

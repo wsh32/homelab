@@ -17,7 +17,7 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
   - Developer API keys (Claude, Codex, GitHub) → Infisical, entered manually via UI, accessed via `infisical run --` on the operator laptop.
 - **VM IDs**: Diglett VMs use 200–299, Machamp VMs use 100–199.
 - **IP addresses**: physical nodes use 192.168.0.2–19, Diglett VMs use 192.168.0.20–29, Machamp VMs use 192.168.0.30–49.
-- **Docker Compose**: persistent data always mounts to `/mnt/nas/<dataset>/<service>` (Snorlax NFS). Never use named volumes for stateful data — it must survive VM recreation.
+- **Docker Compose**: persistent data always mounts to `/mnt/nas/<dataset>/<service>` (Alakazam NFS). Never use named volumes for stateful data — it must survive VM recreation.
 - **Traefik routing**: each service gets two routers — `<name>-wsh` (Tailscale, HTTPS) and `<name>-home` (LAN, HTTP). Omit a router to restrict exposure on that network. Default is both. See DNS Architecture in `docs/plan.md` for the full two-domain design.
   ```yaml
   - "traefik.http.routers.<name>-wsh.rule=Host(`<name>.wsh`)"

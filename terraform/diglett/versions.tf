@@ -8,8 +8,8 @@ terraform {
     }
   }
 
-  # State stored on Snorlax NFS — mount before running Terraform.
-  # Mount: sudo mount -t nfs snorlax:/mnt/pool/terraform-state /mnt/terraform-state
+  # State stored on Alakazam NFS — mount before running Terraform.
+  # Mount: sudo mount -t nfs alakazam:/mnt/pool/terraform-state /mnt/terraform-state
   backend "local" {
     path = "/mnt/terraform-state/diglett/terraform.tfstate"
   }

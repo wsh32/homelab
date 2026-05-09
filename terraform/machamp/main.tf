@@ -123,7 +123,7 @@ module "services" {
     - systemctl enable --now docker
     # Mount NAS NFS volumes
     - mkdir -p /mnt/nas
-    - echo "snorlax:/mnt/pool/docker /mnt/nas/docker nfs soft,timeo=30,nfsvers=4 0 0" >> /etc/fstab
+    - echo "alakazam:/mnt/pool/docker /mnt/nas/docker nfs soft,timeo=30,nfsvers=4 0 0" >> /etc/fstab
     - mount -a
   EOF
 

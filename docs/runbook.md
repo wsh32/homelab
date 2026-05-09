@@ -67,7 +67,7 @@ Repeat on **both** Machamp (`192.168.0.5:8006`) and Diglett (`192.168.0.6:8006`)
    - **Uncheck** Privilege Separation
 4. Copy the token secret — it is only shown once. Format: `terraform@pam!terraform=<uuid>`
 
-### 3. Create NFS datasets and enable MinIO on Snorlax
+### 3. Create NFS datasets and enable MinIO on Alakazam
 
 Log into TrueNAS at `https://192.168.0.4`:
 
@@ -98,7 +98,7 @@ Update `bridge_port` in `network.yml` if needed, then:
 ansible-playbook ansible/network.yml
 ```
 
-For Snorlax and Ditto: Network → Interfaces in TrueNAS UI → set static IPs
+For Alakazam and Ditto: Network → Interfaces in TrueNAS UI → set static IPs
 (`192.168.0.4` and `192.168.0.8`).
 
 ---

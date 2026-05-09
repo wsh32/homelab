@@ -1,7 +1,7 @@
 # Services
 
 Per-VM service inventory. All persistent data mounts to `/mnt/nas/docker/<service>` on
-Snorlax NFS — VMs are stateless and can be rebuilt without data loss.
+Alakazam NFS — VMs are stateless and can be rebuilt without data loss.
 
 ---
 
@@ -22,13 +22,13 @@ Snorlax NFS — VMs are stateless and can be rebuilt without data loss.
 |---------|-------|
 | Infisical | Machine-consumed secrets (service API keys, inter-service tokens). Each VM fetches secrets at boot via `infisical export` |
 | Vaultwarden | Human-consumed secrets (web UI admin passwords). One manual browser registration at bootstrap; persists on NFS forever |
-| Litestream | Continuously streams the Vaultwarden SQLite WAL to Snorlax NFS |
+| Litestream | Continuously streams the Vaultwarden SQLite WAL to Alakazam NFS |
 
 ### diglett-deploy (`192.168.0.23`)
 
 | Service | Notes |
 |---------|-------|
-| Terraform | Provisions Diglett and Machamp VMs. State stored in MinIO on Snorlax |
+| Terraform | Provisions Diglett and Machamp VMs. State stored in MinIO on Alakazam |
 | Ansible | Push-only config management for all VMs and physical nodes |
 
 ### diglett-haos (`192.168.0.22`)

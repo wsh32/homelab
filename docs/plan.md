@@ -44,7 +44,7 @@ IP ranges: physical nodes `.2–.19`, Diglett VMs `.20–.29`, Machamp VMs `.30�
 |--------|----------|----|-------|
 | diglett-dns VM | dns | 192.168.0.2 | Static (Terraform) — AdGuard Home |
 | (future) | dns2 | 192.168.0.3 | Reserved for backup DNS VM |
-| Snorlax | snorlax | 192.168.0.4 | Static (TrueNAS UI) |
+| Alakazam | alakazam | 192.168.0.4 | Static (TrueNAS UI) |
 | Machamp | machamp | 192.168.0.5 | Static (Ansible — `/etc/network/interfaces`) |
 | Diglett | diglett | 192.168.0.6 | Static (Ansible — `/etc/network/interfaces`) |
 | Orange Pi | orangepi | 192.168.0.7 | Static (TBD — depends on OS choice) |
@@ -108,7 +108,7 @@ Each service defaults to being exposed on both domains. To restrict:
 
 # 4. Storage Architecture
 
-**Snorlax** is NAS-only. The only additional software is Tailscale and the TrueNAS Scale built-in MinIO S3 API (used as the Terraform state backend). No Docker, no services beyond TrueNAS.
+**Alakazam** is NAS-only. The only additional software is Tailscale and the TrueNAS Scale built-in MinIO S3 API (used as the Terraform state backend). No Docker, no services beyond TrueNAS.
 
 | Dataset | Purpose |
 |---------|---------|
@@ -119,7 +119,7 @@ Each service defaults to being exposed on both domains. To restrict:
 | photos | Photo archive |
 | lightroom | Photo raws, Lightroom library backup |
 
-**Replication:** Snorlax → Ditto
+**Replication:** Alakazam → Ditto
 
 | Dataset | Frequency |
 |---------|-----------|
@@ -152,7 +152,7 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 1. **Proxmox cluster** — join Machamp and Diglett into a single Proxmox cluster
 2. **Proxmox API token** — create a Terraform service account and API token on each node
 
-### One-time manual steps (Snorlax TrueNAS UI)
+### One-time manual steps (Alakazam TrueNAS UI)
 
 3. **NFS datasets** — create and export:
    - `docker` — persistent Docker volumes for all services
@@ -162,7 +162,7 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 ### One-time manual steps (operator laptop)
 
 5. **Configure static IPs on physical nodes** — `ansible-playbook ansible/network.yml`
-   for Machamp and Diglett; set static IPs on Snorlax and Ditto via TrueNAS UI.
+   for Machamp and Diglett; set static IPs on Alakazam and Ditto via TrueNAS UI.
 6. **Write `terraform.tfvars`** — populate with Proxmox API tokens, MinIO credentials,
    SSH public key, and Cloudflare API token. This is the only manual credential entry
    in the bootstrap.
@@ -235,8 +235,8 @@ services that depend on those external keys.
 
 - **Provisioning:** Terraform + cloud-init templates
 - **Base OS:** Ubuntu 24.04 (Noble)
-- **NFS mounts:** All use `soft,timeo=30` to prevent indefinite hangs during Snorlax maintenance or ZFS scrubs. Hangs become errors that services can retry.
-- **Backups:** Proxmox vzdump to Snorlax `backups` dataset
+- **NFS mounts:** All use `soft,timeo=30` to prevent indefinite hangs during Alakazam maintenance or ZFS scrubs. Hangs become errors that services can retry.
+- **Backups:** Proxmox vzdump to Alakazam `backups` dataset
 
 | VM | Frequency | Rationale |
 |----|-----------|-----------|
@@ -319,15 +319,15 @@ Vaultwarden stores all passwords a human types into a browser. The two stores ne
 | PhotoPrism | Photo archive and browsing |
 | Calibre-Web | Ebook server |
 | n8n | Automation workflows |
-| Obsidian LiveSync | CouchDB sync; data on Snorlax NFS |
-| Quartz | Read-only Obsidian vault web publishing; reads vault from Snorlax NFS |
+| Obsidian LiveSync | CouchDB sync; data on Alakazam NFS |
+| Quartz | Read-only Obsidian vault web publishing; reads vault from Alakazam NFS |
 | Homepage | Service dashboard |
 | Prometheus + Grafana + Loki | Metrics, logs, dashboards |
 
 ### Services node (planned)
 
 Takes over all non-permanent services from Machamp when built. Migration is trivial — all
-persistent data lives on Snorlax NFS, so services redeploy by retargeting Terraform.
+persistent data lives on Alakazam NFS, so services redeploy by retargeting Terraform.
 
 | Service | Notes |
 |---------|-------|
@@ -401,7 +401,7 @@ Admin password set via the `cps.py -s` CLI after first start. Library path defau
 
 - Script: `scripts/calibre-init.sh`
 - Runs: `docker exec calibre-web python3 /app/calibre-web/cps.py -p /config/app.db -s admin:$CALIBRE_ADMIN_PASSWORD`
-- Calibre library must already exist at `/mnt/nas/media/books` on Snorlax
+- Calibre library must already exist at `/mnt/nas/media/books` on Alakazam
 
 ### n8n
 
@@ -419,7 +419,7 @@ implementing Bitwarden's full crypto client. Accepted as a one-time manual boots
 - Start Vaultwarden with `SIGNUPS_ALLOWED=true` (default on first boot)
 - Register at `https://vault.home` in a browser
 - Signups lock automatically after first account; `SIGNUPS_ALLOWED=false` enforced by env var on restart
-- Account persists on Snorlax NFS — survives all VM rebuilds, never repeated
+- Account persists on Alakazam NFS — survives all VM rebuilds, never repeated
 
 ### CouchDB (Obsidian LiveSync)
 
@@ -436,9 +436,9 @@ done via an init container.
 
 ## Terraform State Backend
 
-All workspaces use MinIO S3 on Snorlax, accessed over Tailscale.
+All workspaces use MinIO S3 on Alakazam, accessed over Tailscale.
 
-- Endpoint: `http://snorlax:9000` (Tailscale MagicDNS)
+- Endpoint: `http://alakazam:9000` (Tailscale MagicDNS)
 - Bucket: `terraform-state`, keys `diglett/terraform.tfstate`, `machamp/terraform.tfstate`, `services/terraform.tfstate`
 - Locking via S3 lockfile (`use_lockfile = true`, Terraform ≥ 1.10) — no DynamoDB needed
 - Accessible from deploy VM (normal execution) and operator laptop (break-glass)
@@ -532,14 +532,14 @@ Service admin passwords are stored by each service's Ansible role immediately af
 service is configured. Account creation is attempted automatically via the Bitwarden CLI
 (`bw register`) during `ansible/site.yml`; if the CLI doesn't support registration against
 Vaultwarden, one manual browser registration is the accepted fallback. Account persists on
-Snorlax NFS across all VM rebuilds so it never needs to be repeated.
+Alakazam NFS across all VM rebuilds so it never needs to be repeated.
 
 ---
 
 ## Database Backup Strategy
 
 Vaultwarden and Infisical databases are stored on **local VM disk** (not NFS) to avoid
-corruption from soft-mount interruptions. Backups go to Snorlax NFS.
+corruption from soft-mount interruptions. Backups go to Alakazam NFS.
 
 | Service | DB | Backup method | Frequency |
 |---------|----|---------------|-----------|
@@ -645,11 +645,11 @@ so concurrent runs are prevented rather than running in parallel.
 
 ## UPS / NUT Integration
 
-UPS covers: Machamp, Snorlax, Orange Pi Zero 3
+UPS covers: Machamp, Alakazam, Orange Pi Zero 3
 
 NUT server: Orange Pi Zero 3 (must be on UPS circuit to send shutdown signals before power loss)
 
-NUT clients: Machamp, Diglett, Snorlax (shut down gracefully on power loss)
+NUT clients: Machamp, Diglett, Alakazam (shut down gracefully on power loss)
 
 ---
 
@@ -677,7 +677,7 @@ NUT clients: Machamp, Diglett, Snorlax (shut down gracefully on power loss)
 | CouchDB headless setup | Env vars for credentials; init container handles `/_cluster_setup` and CORS |
 | Tailscale coordination server | Self-hosted Headscale on the Diglett DNS VM (`192.168.0.2`), co-located with AdGuard. Public HTTPS endpoint provided by a Cloudflare Tunnel (cloudflared container). No public IP or open port required. Uses Tailscale's public DERP relays. Managed by Ansible (`roles/headscale`). |
 | Terraform execution host | Deploy VM (`diglett-deploy`) runs all Terraform workspaces. Operator laptop is break-glass fallback. No VPS. |
-| Terraform state backend | MinIO S3 on Snorlax (`http://snorlax:9000`) for all workspaces (`diglett/`, `machamp/`, `services/`). S3 lockfile replaces NFS file locking. Both deploy VM and operator laptop reach MinIO over Tailscale. |
+| Terraform state backend | MinIO S3 on Alakazam (`http://alakazam:9000`) for all workspaces (`diglett/`, `machamp/`, `services/`). S3 lockfile replaces NFS file locking. Both deploy VM and operator laptop reach MinIO over Tailscale. |
 | Physical device management | Ansible push, same model as VMs. One-time bootstrap via `scripts/bootstrap-physical.sh` (installs Tailscale only). All further config pushed via `ansible-playbook ansible/physical.yml` from the deploy VM. |
 | Deployment automation | Manual. Operator SSHes to deploy VM and runs `./scripts/deploy.sh`. No webhook, no CI. Simpler and sufficient for a personal homelab. |
 | DNS domain strategy | Two domains: `*.wsh` (Tailscale/HTTPS, personal devices) and `*.home` (LAN/HTTP, guests). Avoids subnet routing; guests can reach services without Tailscale. Single Traefik instance handles both. |

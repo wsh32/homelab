@@ -22,7 +22,7 @@ A walkthrough of every file in this repo and what it does.
 
 **`TODOS.md`** — Deferred work items with full context. Each item has what/why/context/dependencies so they're actionable later.
 
-**`hardware_inventory.md`** — Physical hardware reference: specs for Machamp, Diglett, Snorlax, Ditto, Orange Pi.
+**`hardware_inventory.md`** — Physical hardware reference: specs for Machamp, Diglett, Alakazam, Ditto, Orange Pi.
 
 **`repo_structure.md`** — This file.
 
@@ -93,7 +93,7 @@ Docker Compose stack for the `diglett-dns` VM.
 
 Docker Compose stack for the `diglett-infisical` VM.
 
-**`docker-compose.yml`** — Infisical (+ MongoDB + Redis), Vaultwarden, and a Litestream sidecar that continuously streams the Vaultwarden SQLite WAL to Snorlax NFS. Infisical's MongoDB data lives on local VM disk (not NFS) to avoid soft-mount corruption; backed up every 6 hours via a mongodump container to Snorlax.
+**`docker-compose.yml`** — Infisical (+ MongoDB + Redis), Vaultwarden, and a Litestream sidecar that continuously streams the Vaultwarden SQLite WAL to Alakazam NFS. Infisical's MongoDB data lives on local VM disk (not NFS) to avoid soft-mount corruption; backed up every 6 hours via a mongodump container to Alakazam.
 
 **`litestream.yml`** — Litestream replica config: streams `/var/lib/vaultwarden/db.sqlite3` to `/mnt/nas/docker/vaultwarden-backup/`.
 

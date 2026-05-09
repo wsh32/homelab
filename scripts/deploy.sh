@@ -7,7 +7,7 @@
 #   ./scripts/deploy.sh machamp     # deploy Machamp only
 #
 # Prerequisites:
-#   - Snorlax NFS mounted at /mnt/terraform-state
+#   - Alakazam NFS mounted at /mnt/terraform-state
 #   - terraform.tfvars present in terraform/diglett/ and terraform/machamp/
 #   - ansible dependencies installed (pip install ansible)
 
