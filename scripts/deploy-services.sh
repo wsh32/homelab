@@ -15,8 +15,8 @@ CHANGED="${1:-}"
 deploy_service() {
   local vm="$1" service_dir="$2"
   echo "  ==> Deploying ${service_dir} on ${vm}..."
-  ssh -o StrictHostKeyChecking=no "debian@${vm}.ts.home" \
-    "cd /home/debian/homelab/${service_dir} && docker compose pull && docker compose up -d"
+  ssh -o StrictHostKeyChecking=no "ubuntu@${vm}.ts.home" \
+    "cd /home/ubuntu/homelab/${service_dir} && docker compose pull && docker compose up -d"
 }
 
 if echo "$CHANGED" | grep -q "^services/dns/"; then

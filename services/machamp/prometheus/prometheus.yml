@@ -17,4 +17,4 @@ scrape_configs:
           - machamp-services:9100
           - machamp-ollama:9100
           - machamp-openclaw:9100
-          - machamp-debian:9100
+          - machamp-dev:9100

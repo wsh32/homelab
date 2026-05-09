@@ -8,7 +8,7 @@
 set -euo pipefail
 
 LOCK_FILE="/var/lock/homelab-deploy.lock"
-REPO_ROOT="/home/debian/homelab"
+REPO_ROOT="/home/ubuntu/homelab"
 LOG_FILE="/var/log/homelab-deploy.log"
 
 exec >> "$LOG_FILE" 2>&1

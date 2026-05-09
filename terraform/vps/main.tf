@@ -7,7 +7,7 @@ resource "digitalocean_droplet" "vps" {
   name   = "homelab-vps"
   region = var.do_region
   size   = var.do_size
-  image  = "debian-12-x64"
+  image  = "ubuntu-24-04-x64"
 
   ssh_keys = [digitalocean_ssh_key.homelab.fingerprint]
 

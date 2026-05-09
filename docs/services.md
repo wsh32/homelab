@@ -75,8 +75,8 @@ Snorlax NFS — VMs are stateless and can be rebuilt without data loss.
 |---------|-------|
 | OpenClaw | Personal AI assistant gateway. Permanent on Machamp |
 
-### machamp-debian (`192.168.0.33`)
+### machamp-dev (`192.168.0.33`)
 
 | Service | Notes |
 |---------|-------|
-| Debian workstation | Personal development environment |
+| development workstation | Personal development environment |

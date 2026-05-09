@@ -26,7 +26,7 @@ dns:
 # Fields on every node:
 #   ip:              LAN IP address
 #   type:            Ansible physical group (proxmox | nas | other)
-#   ansible_user:    SSH user override (default: debian)
+#   ansible_user:    SSH user override (default: ubuntu)
 #
 # Additional fields for Proxmox nodes:
 #   bridge_port:     NIC bridged to vmbr0. Verify: ssh root@<ip> ip link show
@@ -84,6 +84,6 @@ nodes:
       machamp-openclaw:
         ip: 192.168.0.32
         vm_id: 102
-      machamp-debian:
+      machamp-dev:
         ip: 192.168.0.33
         vm_id: 101

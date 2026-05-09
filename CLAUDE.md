@@ -35,7 +35,7 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
 ```
 terraform/modules/proxmox-vm/  — shared VM module, edit here for VM-level changes
 terraform/diglett/            — Diglett VMs (DNS, HAOS, Infisical, Deploy)
-terraform/machamp/               — Machamp VMs (Ollama, OpenClaw, Debian, Services)
+terraform/machamp/               — Machamp VMs (Ollama, OpenClaw, Dev, Services)
 services/dns/                  — AdGuard Home + Headscale + cloudflared
 services/diglett-infra/       — Infisical + Vaultwarden + Litestream
 services/diglett-deploy/      — Terraform + Ansible (deploy tooling only)

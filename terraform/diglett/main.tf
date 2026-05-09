@@ -4,14 +4,14 @@ locals {
   vms  = local.net.nodes[local.node].vms
 }
 
-# Download Debian 12 (Bookworm) cloud image to Diglett once.
-resource "proxmox_virtual_environment_download_file" "debian_12" {
+# Download Ubuntu 24.04 (Noble) cloud image to Diglett once.
+resource "proxmox_virtual_environment_download_file" "ubuntu_2404" {
   node_name    = local.node
   content_type = "iso"
   datastore_id = "local"
 
-  url       = "https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2"
-  file_name = "debian-12-genericcloud-amd64.qcow2"
+  url       = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+  file_name = "noble-server-cloudimg-amd64.img"
 
   overwrite = false
 }
@@ -37,7 +37,7 @@ module "dns" {
   name          = "diglett-dns"
   description   = "AdGuard Home DNS + Tailscale exit node (primary)"
   tags          = ["diglett", "infra", "dns"]
-  image_file_id = proxmox_virtual_environment_download_file.debian_12.id
+  image_file_id = proxmox_virtual_environment_download_file.ubuntu_2404.id
 
   cores        = 2
   memory_mb    = 2048
@@ -66,7 +66,7 @@ module "infisical" {
   name          = "diglett-infisical"
   description   = "Infisical (secrets manager) + Vaultwarden (password manager)"
   tags          = ["diglett", "infra", "infisical"]
-  image_file_id = proxmox_virtual_environment_download_file.debian_12.id
+  image_file_id = proxmox_virtual_environment_download_file.ubuntu_2404.id
 
   cores        = 2
   memory_mb    = 6144
@@ -135,7 +135,7 @@ module "deploy" {
   name          = "diglett-deploy"
   description   = "Terraform + Ansible deploy tooling (Tailscale only)"
   tags          = ["diglett", "infra", "deploy"]
-  image_file_id = proxmox_virtual_environment_download_file.debian_12.id
+  image_file_id = proxmox_virtual_environment_download_file.ubuntu_2404.id
 
   cores        = 1
   memory_mb    = 1024

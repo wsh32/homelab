@@ -155,7 +155,7 @@ This clones the repo, installs Terraform and Ansible on the deploy VM, and copie
 
 SSH to the deploy VM:
 ```bash
-ssh debian@192.168.0.23
+ssh ubuntu@192.168.0.23
 cd ~/homelab
 ```
 
@@ -171,7 +171,7 @@ the DNS VM via cloud-init. AdGuard, Headscale, and cloudflared all start on firs
 
 Verify:
 ```bash
-ssh debian@192.168.0.2 "docker ps --format 'table {{.Names}}\t{{.Status}}'"
+ssh ubuntu@192.168.0.2 "docker ps --format 'table {{.Names}}\t{{.Status}}'"
 # Should show adguard, headscale, cloudflared all Up
 ```
 
@@ -241,13 +241,13 @@ step-ca is initialized by the `site.yml` Ansible role. Copy the root CA cert to 
 operator laptop and trust it:
 
 ```bash
-scp debian@192.168.0.31:/tmp/homelab-root-ca.crt ~/homelab-root-ca.crt
+scp ubuntu@192.168.0.31:/tmp/homelab-root-ca.crt ~/homelab-root-ca.crt
 
 # macOS
 sudo security add-trusted-cert -d -r trustRoot \
   -k /Library/Keychains/System.keychain ~/homelab-root-ca.crt
 
-# Linux (Debian/Ubuntu)
+# Linux (Ubuntu)
 sudo cp ~/homelab-root-ca.crt /usr/local/share/ca-certificates/homelab-root-ca.crt
 sudo update-ca-certificates
 ```
@@ -311,7 +311,7 @@ At this point:
 
 **Deploy a change:**
 ```bash
-ssh debian@192.168.0.23
+ssh ubuntu@192.168.0.23
 cd ~/homelab && git pull
 ./scripts/deploy.sh           # terraform + ansible for all nodes
 ./scripts/deploy-services.sh  # docker compose only, no terraform
@@ -324,7 +324,7 @@ cd ~/homelab && git pull
 
 **Rebuild a VM from scratch:**
 ```bash
-ssh debian@192.168.0.23
+ssh ubuntu@192.168.0.23
 cd ~/homelab/terraform/<node>
 terraform destroy -target=module.<vm-name>
 cd ~/homelab && ./scripts/deploy.sh <node>
@@ -343,18 +343,18 @@ ssh root@<device-ip> \
 **Update secrets:**
 Update in Infisical UI, then on the affected VM:
 ```bash
-ssh debian@<vm-ip> "sudo systemctl restart infisical-export && docker compose up -d"
+ssh ubuntu@<vm-ip> "sudo systemctl restart infisical-export && docker compose up -d"
 ```
 
 **Rotate Headscale pre-auth key:**
 ```bash
-ssh debian@192.168.0.2 \
+ssh ubuntu@192.168.0.2 \
   "docker exec headscale headscale preauthkeys create --reusable --expiration 365d"
 # Update headscale_preauth_key in terraform.tfvars on the deploy VM
 ```
 
 **Run Ansible only (no Terraform):**
 ```bash
-ssh debian@192.168.0.23
+ssh ubuntu@192.168.0.23
 cd ~/homelab && ansible-playbook ansible/base.yml
 ```

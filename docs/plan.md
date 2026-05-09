@@ -55,7 +55,7 @@ IP ranges: physical nodes `.2–.19`, Diglett VMs `.20–.29`, Machamp VMs `.30�
 | machamp-ollama VM | machamp-ollama | 192.168.0.30 | Static (Terraform) |
 | machamp-services VM | machamp-services | 192.168.0.31 | Static (Terraform) |
 | machamp-openclaw VM | machamp-openclaw | 192.168.0.32 | Static (Terraform) |
-| machamp-debian VM | machamp-debian | 192.168.0.33 | Static (Terraform) |
+| machamp-dev VM | machamp-dev | 192.168.0.33 | Static (Terraform) |
 
 Note: Ditto is offsite and not on the local network.
 
@@ -217,7 +217,7 @@ services that depend on those external keys.
 | Proxmox host | 4GB | — | OS overhead |
 | Ollama VM | 32GB | 4 | GPU passthrough (RTX 3060) |
 | OpenClaw VM | 8GB | 2 | AI assistant gateway |
-| Personal Debian VM | 16GB | 6 | Development workstation |
+| Personal dev VM | 16GB | 6 | Development workstation |
 | Services VM | 32GB | 8 | All temporary services; GPU passthrough (Quadro P2000) for Jellyfin |
 | Headroom | 40GB | — | Future VMs / workloads |
 
@@ -234,7 +234,7 @@ services that depend on those external keys.
 ## VM Strategy
 
 - **Provisioning:** Terraform + cloud-init templates
-- **Base OS:** Debian 12 (Bookworm)
+- **Base OS:** Ubuntu 24.04 (Noble)
 - **NFS mounts:** All use `soft,timeo=30` to prevent indefinite hangs during Snorlax maintenance or ZFS scrubs. Hangs become errors that services can retry.
 - **Backups:** Proxmox vzdump to Snorlax `backups` dataset
 
@@ -302,11 +302,11 @@ Vaultwarden stores all passwords a human types into a browser. The two stores ne
 |---------|-------|
 | OpenClaw | Personal AI assistant gateway; permanent on Machamp |
 
-**Personal Debian VM** (`192.168.0.33`):
+**Personal dev VM** (`192.168.0.33`):
 
 | Service | Notes |
 |---------|-------|
-| Debian Server | Development workstation |
+| Ubuntu Server | Development workstation |
 
 **Services VM** (`192.168.0.31`):
 
@@ -580,7 +580,7 @@ ansible/
   base.yml            # day-2 config for all VMs (push)
   physical.yml        # day-2 config for physical devices (push, targets physical group)
   roles/
-    base/             # applied to all Debian VMs and physical devices
+    base/             # applied to all Ubuntu VMs and physical devices
     docker/           # applied to VMs running Docker Compose services
     headscale/        # applied to DNS VM — Headscale + cloudflared Docker Compose + config
     network/          # Proxmox bridge config for physical nodes

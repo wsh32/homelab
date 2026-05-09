@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./hooks.json:/etc/webhook/hooks.json:ro
-      - /home/debian/homelab:/homelab:ro   # repo checkout; deploy scripts read from here
+      - /home/ubuntu/homelab:/homelab:ro   # repo checkout; deploy scripts read from here
       - /var/lock:/var/lock
     ports:
       - "9001:9000"   # Tailscale-only; firewall blocks LAN access

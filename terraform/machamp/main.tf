@@ -4,15 +4,15 @@ locals {
   vms  = local.net.nodes[local.node].vms
 }
 
-# Download Debian 12 (Bookworm) cloud image to Machamp once.
+# Download Ubuntu 24.04 (Noble) cloud image to Machamp once.
 # Re-applying after first download is a no-op (overwrite = false).
-resource "proxmox_virtual_environment_download_file" "debian_12" {
+resource "proxmox_virtual_environment_download_file" "ubuntu_2404" {
   node_name    = local.node
   content_type = "iso"
   datastore_id = "local"
 
-  url       = "https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2"
-  file_name = "debian-12-genericcloud-amd64.qcow2"
+  url       = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+  file_name = "noble-server-cloudimg-amd64.img"
 
   overwrite = false
 }
@@ -25,7 +25,7 @@ module "ollama" {
   name          = "machamp-ollama"
   description   = "Ollama GPU inference (RTX 3060 passthrough) + Tailscale exit node (backup)"
   tags          = ["machamp", "gpu", "ollama"]
-  image_file_id = proxmox_virtual_environment_download_file.debian_12.id
+  image_file_id = proxmox_virtual_environment_download_file.ubuntu_2404.id
 
   cores        = 4
   memory_mb    = 32768
@@ -57,7 +57,7 @@ module "openclaw" {
   name          = "machamp-openclaw"
   description   = "OpenClaw — personal AI assistant gateway (permanent on Machamp)"
   tags          = ["machamp", "ai", "openclaw"]
-  image_file_id = proxmox_virtual_environment_download_file.debian_12.id
+  image_file_id = proxmox_virtual_environment_download_file.ubuntu_2404.id
 
   cores        = 2
   memory_mb    = 8192
@@ -76,21 +76,21 @@ module "openclaw" {
   EOF
 }
 
-module "debian" {
+module "dev" {
   source = "../modules/proxmox-vm"
 
   node_name     = local.node
-  vm_id         = local.vms["machamp-debian"].vm_id
-  name          = "machamp-debian"
-  description   = "Personal Debian development workstation"
-  tags          = ["machamp", "debian"]
-  image_file_id = proxmox_virtual_environment_download_file.debian_12.id
+  vm_id         = local.vms["machamp-dev"].vm_id
+  name          = "machamp-dev"
+  description   = "Personal development workstation"
+  tags          = ["machamp", "dev"]
+  image_file_id = proxmox_virtual_environment_download_file.ubuntu_2404.id
 
   cores        = 6
   memory_mb    = 16384
   disk_size_gb = 60
 
-  ip_address         = "${local.vms["machamp-debian"].ip}/24"
+  ip_address         = "${local.vms["machamp-dev"].ip}/24"
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key
@@ -105,7 +105,7 @@ module "services" {
   name          = "machamp-services"
   description   = "Services VM — Traefik, Jellyfin, Servarr, Monitoring, etc. (Quadro P2000 passthrough)"
   tags          = ["machamp", "gpu", "services"]
-  image_file_id = proxmox_virtual_environment_download_file.debian_12.id
+  image_file_id = proxmox_virtual_environment_download_file.ubuntu_2404.id
 
   cores        = 8
   memory_mb    = 32768

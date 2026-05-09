@@ -30,7 +30,7 @@ A walkthrough of every file in this repo and what it does.
 
 ## `terraform/modules/proxmox-vm/`
 
-The shared VM module. Every standard (Debian, cloud-init) VM is an instance of this module. HAOS uses a dedicated `proxmox_virtual_environment_vm` resource in `terraform/diglett/main.tf` instead.
+The shared VM module. Every standard (Ubuntu, cloud-init) VM is an instance of this module. HAOS uses a dedicated `proxmox_virtual_environment_vm` resource in `terraform/diglett/main.tf` instead.
 
 **`variables.tf`** — All inputs: `node_name`, `vm_id`, `name`, `cores`, `memory_mb`, `disk_size_gb`, `datastore`, `image_file_id` (the already-downloaded cloud image), `ip_address`, `gateway`, `dns_servers`, `ssh_public_key`, `tailscale_auth_key`, `user_data_extra`, `tags`.
 
@@ -47,7 +47,7 @@ The shared VM module. Every standard (Debian, cloud-init) VM is an instance of t
 Root module for the Diglett node. VM ID range 200–299, IP range `192.168.0.20–29`.
 
 **`main.tf`** — Defines:
-- `proxmox_virtual_environment_download_file.debian_12` — downloads the Debian 12 cloud image once; re-applying is a no-op.
+- `proxmox_virtual_environment_download_file.ubuntu_2404` — downloads the Ubuntu 24.04 cloud image once; re-applying is a no-op.
 - `proxmox_virtual_environment_download_file.haos` — downloads the HAOS qcow2 image for the Home Assistant VM.
 - `module.dns` — `diglett-dns` VM (VM 200, `192.168.0.2`, 2 cores, 2GB): AdGuard Home + primary Tailscale exit node.
 - `module.infisical` — `diglett-infisical` VM (VM 201, `192.168.0.21`, 2 cores, 6GB): Infisical + Vaultwarden.
@@ -61,11 +61,11 @@ Root module for the Diglett node. VM ID range 200–299, IP range `192.168.0.20�
 Root module for Machamp. VM ID range 100–199, IP range `192.168.0.10–19`.
 
 **`main.tf`** — Defines:
-- `proxmox_virtual_environment_download_file.debian_12` — downloads the Debian 12 cloud image once.
+- `proxmox_virtual_environment_download_file.ubuntu_2404` — downloads the Ubuntu 24.04 cloud image once.
 - `module.ollama` — `machamp-ollama` VM (VM 100, `192.168.0.10`, 4 cores, 32GB): Ollama GPU inference + backup Tailscale exit node. RTX 3060 hostpci block pending (see TODOS.md).
 - `module.services` — `machamp-services` VM (VM 103, `192.168.0.11`, 8 cores, 32GB): all Docker Compose services, Traefik reverse proxy, Quadro P2000 for Jellyfin transcoding. hostpci block pending.
 - `module.openclaw` — `machamp-openclaw` VM (VM 102, `192.168.0.12`, 2 cores, 8GB): OpenClaw AI assistant gateway.
-- `module.debian` — `machamp-debian` VM (VM 101, `192.168.0.13`, 6 cores, 16GB): personal development workstation.
+- `module.dev` — `machamp-dev` VM (VM 101, `192.168.0.13`, 6 cores, 16GB): personal development workstation.
 
 ---
 
@@ -162,7 +162,7 @@ Docker Compose stack for the DigitalOcean VPS. Deployed by `ansible/roles/headsc
 
 Day-2 configuration management. Runs after Terraform provisions VMs and cloud-init finishes. All Ansible is push — no pull mode, no crons on target machines.
 
-**`ansible.cfg`** — Project-level config: points at the inventory, sets `debian` as remote user, disables host key checking (freshly provisioned VMs), enables SSH pipelining.
+**`ansible.cfg`** — Project-level config: points at the inventory, sets `ubuntu` as remote user, disables host key checking (freshly provisioned VMs), enables SSH pipelining.
 
 **`inventory/homelab.yml`** — Inventory source file; tells Ansible to use the `homelab` plugin.
 
@@ -178,9 +178,9 @@ Day-2 configuration management. Runs after Terraform provisions VMs and cloud-in
 
 **`network.yml`** — Configures static IP on Proxmox physical nodes by templating `/etc/network/interfaces` and running `ifreload -a`.
 
-**`roles/base/`** — Applied to every Debian host (VMs and physical). Installs fail2ban, UFW, sets timezone, disables password SSH auth, keeps Tailscale up to date, creates `/mnt/nas`.
+**`roles/base/`** — Applied to every Ubuntu host (VMs and physical). Installs fail2ban, UFW, sets timezone, disables password SSH auth, keeps Tailscale up to date, creates `/mnt/nas`.
 
-**`roles/docker/`** — Applied to VMs running Docker Compose. Adds the official Docker apt repo, installs Docker CE + compose plugin, configures log rotation, adds `debian` user to the `docker` group.
+**`roles/docker/`** — Applied to VMs running Docker Compose. Adds the official Docker apt repo, installs Docker CE + compose plugin, configures log rotation, adds `ubuntu` user to the `docker` group.
 
 **`roles/headscale/`** — Applied to the VPS. Ensures `/var/lib/headscale/` exists and deploys `services/vps/` via `docker compose up`.
 

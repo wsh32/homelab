@@ -11,10 +11,10 @@ nodes:
     group: diglett_vms
     vars:
       proxmox_node: diglett
-      ansible_user: debian
+      ansible_user: ubuntu
 
   machamp:
     group: machamp_vms
     vars:
       proxmox_node: machamp
-      ansible_user: debian
+      ansible_user: ubuntu

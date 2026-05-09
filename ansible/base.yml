@@ -1,5 +1,5 @@
 ---
-# Apply base hardening and configuration to all Debian VMs.
+# Apply base hardening and configuration to all Ubuntu VMs.
 # Run after Terraform provisions VMs and cloud-init completes.
 #
 # Usage: ansible-playbook ansible/base.yml

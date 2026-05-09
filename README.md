@@ -25,7 +25,7 @@ Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Te
 
 | Node | Role |
 |------|------|
-| **Machamp** | Proxmox compute node. Hosts all VMs: GPU inference (Ollama, RTX 3060), personal tooling (OpenClaw, Debian workstation), and all Docker Compose services (Traefik, Jellyfin, Servarr, etc.) |
+| **Machamp** | Proxmox compute node. Hosts all VMs: GPU inference (Ollama, RTX 3060), personal tooling (OpenClaw, development workstation), and all Docker Compose services (Traefik, Jellyfin, Servarr, etc.) |
 | **Diglett** | Always-on Proxmox infrastructure node. Hosts DNS (AdGuard Home), Tailscale coordination (Headscale behind Cloudflare Tunnel), secrets (Infisical + Vaultwarden), and the deploy VM |
 | **Snorlax** | TrueNAS NAS. Provides NFS mounts for all persistent Docker volumes and MinIO S3 for Terraform state |
 | **Ditto** | Offsite TrueNAS NAS. Receives daily/weekly ZFS replication from Snorlax; only reachable over Tailscale |
@@ -45,7 +45,7 @@ ansible/
   inventory/
     hosts.py              # dynamic inventory script — reads network.yml
   roles/
-    base/                 # all Debian VMs and physical devices
+    base/                 # all Ubuntu VMs and physical devices
     docker/               # Docker Compose VMs
     network/              # Proxmox bridge config on physical nodes
   base.yml                # day-2 config for all VMs (push)
@@ -78,7 +78,7 @@ docs/
 All deploys are manual, initiated from the deploy VM (`diglett-deploy`, `192.168.0.23`):
 
 ```bash
-ssh debian@192.168.0.23
+ssh ubuntu@192.168.0.23
 cd ~/homelab && git pull
 
 ./scripts/deploy.sh           # terraform apply + ansible for all nodes
@@ -108,7 +108,7 @@ ansible-playbook ansible/bootstrap-deploy.yml
 
 **Phase 3 — Full deployment (from the deploy VM):**
 ```bash
-ssh debian@192.168.0.23 && cd ~/homelab
+ssh ubuntu@192.168.0.23 && cd ~/homelab
 
 # DNS VM first (Headscale must exist before other VMs get Tailscale keys)
 cd terraform/diglett && terraform apply -target=module.dns
