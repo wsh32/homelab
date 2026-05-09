@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Triggered by adnanh/webhook on the deploy VM (redstone-deploy).
+# Triggered by adnanh/webhook on the deploy VM (diglett-deploy).
 # Detects which paths changed and runs the appropriate deploy commands.
 # Holds a lock so concurrent webhook firings are dropped.
 #
@@ -8,7 +8,7 @@
 set -euo pipefail
 
 LOCK_FILE="/var/lock/homelab-deploy.lock"
-REPO_ROOT="/home/debian/homelab"
+REPO_ROOT="/home/ubuntu/homelab"
 LOG_FILE="/var/log/homelab-deploy.log"
 
 exec >> "$LOG_FILE" 2>&1
@@ -42,14 +42,14 @@ if echo "$CHANGED" | grep -q "^terraform/vps/"; then
   exit 1
 fi
 
-# Terraform apply if Redstone or Anton definitions changed.
-if echo "$CHANGED" | grep -qE "^terraform/(redstone|anton|modules)/"; then
+# Terraform apply if Diglett or Machamp definitions changed.
+if echo "$CHANGED" | grep -qE "^terraform/(diglett|machamp|modules)/"; then
   echo "==> Running Terraform + Ansible deploy..."
   bash "$REPO_ROOT/scripts/deploy.sh"
 fi
 
 # Ansible — run all affected playbooks if ansible/ changed and Terraform didn't trigger already.
-if echo "$CHANGED" | grep -q "^ansible/" && ! echo "$CHANGED" | grep -qE "^terraform/(redstone|anton|modules)/"; then
+if echo "$CHANGED" | grep -q "^ansible/" && ! echo "$CHANGED" | grep -qE "^terraform/(diglett|machamp|modules)/"; then
   cd "$REPO_ROOT/ansible"
   echo "==> Running Ansible: VMs (base.yml)..."
   ansible-playbook base.yml

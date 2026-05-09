@@ -5,7 +5,7 @@
 #
 # Usage:
 #   ansible-playbook ansible/network.yml
-#   ansible-playbook ansible/network.yml --limit anton
+#   ansible-playbook ansible/network.yml --limit machamp
 #
 # IPs and bridge ports are read from network.yml at the repo root.
 

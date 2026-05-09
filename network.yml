@@ -6,11 +6,11 @@
 #
 # IP layout:
 #   .1       gateway (Eero)
-#   .2       redstone-dns VM (AdGuard Home — primary DNS for all VMs)
+#   .2       diglett-dns VM (AdGuard Home — primary DNS for all VMs)
 #   .3       reserved (future backup DNS)
 #   .4–.19   physical nodes
-#   .20–.29  Redstone VMs (10 slots, VM IDs 200–299)
-#   .30–.49  Anton VMs    (20 slots, VM IDs 100–199)
+#   .20–.29  Diglett VMs (10 slots, VM IDs 200–299)
+#   .30–.49  Machamp VMs    (20 slots, VM IDs 100–199)
 #   .100+    DHCP (Eero managed)
 
 gateway: 192.168.0.1
@@ -18,15 +18,15 @@ subnet_prefix: 24
 
 # DNS servers injected into all VMs via cloud-init
 dns:
-  - 192.168.0.2   # redstone-dns (AdGuard Home) — primary
-  - 8.8.8.8       # fallback if redstone-dns is down
+  - 192.168.0.2   # diglett-dns (AdGuard Home) — primary
+  - 8.8.8.8       # fallback if diglett-dns is down
 
 # All nodes — physical and compute.
 #
 # Fields on every node:
 #   ip:              LAN IP address
 #   type:            Ansible physical group (proxmox | nas | other)
-#   ansible_user:    SSH user override (default: debian)
+#   ansible_user:    SSH user override (default: ubuntu)
 #
 # Additional fields for Proxmox nodes:
 #   bridge_port:     NIC bridged to vmbr0. Verify: ssh root@<ip> ip link show
@@ -38,11 +38,11 @@ dns:
 #   ansible_managed: Set false to exclude from Ansible inventory (default: true)
 
 nodes:
-  storinator:
+  alakazam:
     ip: 192.168.0.4
     type: nas
 
-  gringotts:
+  ditto:
     ip: 192.168.0.8
     type: nas  # offsite; only reachable via Tailscale
 
@@ -51,39 +51,39 @@ nodes:
     type: other
     ansible_user: root
 
-  redstone:
+  diglett:
     ip: 192.168.0.6
     type: proxmox
     bridge_port: eno1  # TODO: verify with `ip link show`
     vms:
-      redstone-dns:
+      diglett-dns:
         ip: 192.168.0.2
         vm_id: 200
-      redstone-infisical:
+      diglett-infisical:
         ip: 192.168.0.21
         vm_id: 201
-      redstone-haos:
+      diglett-haos:
         ip: 192.168.0.22
         vm_id: 202
         ansible_managed: false  # HAOS — no SSH access via Ansible
-      redstone-deploy:
+      diglett-deploy:
         ip: 192.168.0.23
         vm_id: 203
 
-  anton:
+  machamp:
     ip: 192.168.0.5
     type: proxmox
     bridge_port: eno1  # TODO: verify with `ip link show`
     vms:
-      anton-ollama:
+      machamp-ollama:
         ip: 192.168.0.30
         vm_id: 100
-      anton-services:
+      machamp-services:
         ip: 192.168.0.31
         vm_id: 103
-      anton-openclaw:
+      machamp-openclaw:
         ip: 192.168.0.32
         vm_id: 102
-      anton-debian:
+      machamp-dev:
         ip: 192.168.0.33
         vm_id: 101

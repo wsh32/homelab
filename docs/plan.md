@@ -38,26 +38,26 @@ DHCP: `192.168.0.100 – 192.168.0.254` (Eero managed)
 
 Physical nodes get DHCP reservations in the Eero app. VMs get static IPs configured via cloud-init, outside the DHCP range.
 
-IP ranges: physical nodes `.2–.19`, Redstone VMs `.20–.29`, Anton VMs `.30–.49`.
+IP ranges: physical nodes `.2–.19`, Diglett VMs `.20–.29`, Machamp VMs `.30–.49`.
 
 | Device | Hostname | IP | Notes |
 |--------|----------|----|-------|
-| redstone-dns VM | dns | 192.168.0.2 | Static (Terraform) — AdGuard Home |
+| diglett-dns VM | dns | 192.168.0.2 | Static (Terraform) — AdGuard Home |
 | (future) | dns2 | 192.168.0.3 | Reserved for backup DNS VM |
-| Storinator | storinator | 192.168.0.4 | Static (TrueNAS UI) |
-| Anton | anton | 192.168.0.5 | Static (Ansible — `/etc/network/interfaces`) |
-| Redstone | redstone | 192.168.0.6 | Static (Ansible — `/etc/network/interfaces`) |
+| Alakazam | alakazam | 192.168.0.4 | Static (TrueNAS UI) |
+| Machamp | machamp | 192.168.0.5 | Static (Ansible — `/etc/network/interfaces`) |
+| Diglett | diglett | 192.168.0.6 | Static (Ansible — `/etc/network/interfaces`) |
 | Orange Pi | orangepi | 192.168.0.7 | Static (TBD — depends on OS choice) |
-| Gringotts | gringotts | 192.168.0.8 | Offsite — only reachable via Tailscale |
-| redstone-infisical VM | redstone-infisical | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
-| redstone-haos VM | redstone-haos | 192.168.0.22 | Static (Terraform) — Home Assistant OS |
-| redstone-deploy VM | redstone-deploy | 192.168.0.23 | Static (Terraform) — Terraform + Ansible |
-| anton-ollama VM | anton-ollama | 192.168.0.30 | Static (Terraform) |
-| anton-services VM | anton-services | 192.168.0.31 | Static (Terraform) |
-| anton-openclaw VM | anton-openclaw | 192.168.0.32 | Static (Terraform) |
-| anton-debian VM | anton-debian | 192.168.0.33 | Static (Terraform) |
+| Ditto | ditto | 192.168.0.8 | Offsite — only reachable via Tailscale |
+| diglett-infisical VM | diglett-infisical | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
+| diglett-haos VM | diglett-haos | 192.168.0.22 | Static (Terraform) — Home Assistant OS |
+| diglett-deploy VM | diglett-deploy | 192.168.0.23 | Static (Terraform) — Terraform + Ansible |
+| machamp-ollama VM | machamp-ollama | 192.168.0.30 | Static (Terraform) |
+| machamp-services VM | machamp-services | 192.168.0.31 | Static (Terraform) |
+| machamp-openclaw VM | machamp-openclaw | 192.168.0.32 | Static (Terraform) |
+| machamp-dev VM | machamp-dev | 192.168.0.33 | Static (Terraform) |
 
-Note: Gringotts is offsite and not on the local network.
+Note: Ditto is offsite and not on the local network.
 
 ---
 
@@ -73,7 +73,7 @@ Two domains serve different audiences without subnet routing or internet exposur
 
 | Domain | Path | DNS resolution | Protocol | Audience |
 |--------|------|----------------|----------|----------|
-| `*.wsh` | Tailscale | AdGuard CNAME → `anton-services.ts.home` | HTTPS (step-ca TLS) | Personal devices on Tailscale |
+| `*.wsh` | Tailscale | AdGuard CNAME → `machamp-services.ts.home` | HTTPS (step-ca TLS) | Personal devices on Tailscale |
 | `*.home` | LAN | AdGuard A → `192.168.0.31` | HTTP | Any LAN device (including guests) |
 
 **How resolution works:**
@@ -81,7 +81,7 @@ Two domains serve different audiences without subnet routing or internet exposur
 - Headscale pushes AdGuard's Tailscale IP as the authoritative resolver for both `.wsh` and
   `.home` to all tailnet members via `dns_config` → `nameservers`.
 - On-tailnet devices query AdGuard over Tailscale. `*.wsh` resolves to
-  `anton-services.ts.home` (Tailscale MagicDNS), which each node resolves locally from its
+  `machamp-services.ts.home` (Tailscale MagicDNS), which each node resolves locally from its
   peer map to the services VM's Tailscale IP. Traefik answers on port 443 with a valid
   step-ca TLS cert.
 - LAN-only devices (guests, IoT) use AdGuard via the LAN IP `192.168.0.2`. `*.home` resolves
@@ -108,7 +108,7 @@ Each service defaults to being exposed on both domains. To restrict:
 
 # 4. Storage Architecture
 
-**Storinator** is NAS-only. The only additional software is Tailscale and the TrueNAS Scale built-in MinIO S3 API (used as the Terraform state backend). No Docker, no services beyond TrueNAS.
+**Alakazam** is NAS-only. The only additional software is Tailscale and the TrueNAS Scale built-in MinIO S3 API (used as the Terraform state backend). No Docker, no services beyond TrueNAS.
 
 | Dataset | Purpose |
 |---------|---------|
@@ -119,7 +119,7 @@ Each service defaults to being exposed on both domains. To restrict:
 | photos | Photo archive |
 | lightroom | Photo raws, Lightroom library backup |
 
-**Replication:** Storinator → Gringotts
+**Replication:** Alakazam → Ditto
 
 | Dataset | Frequency |
 |---------|-----------|
@@ -138,8 +138,8 @@ Each service defaults to being exposed on both domains. To restrict:
 
 | Node | Role | Status |
 |------|------|--------|
-| Anton | Compute — GPU workloads, all Docker Compose services | Active |
-| Redstone | Always-on infrastructure | Active |
+| Machamp | Compute — GPU workloads, all Docker Compose services | Active |
+| Diglett | Always-on infrastructure | Active |
 
 Full Proxmox cluster for single-pane management only. No HA or live migration.
 
@@ -149,10 +149,10 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 
 ### One-time manual steps (Proxmox UI)
 
-1. **Proxmox cluster** — join Anton and Redstone into a single Proxmox cluster
+1. **Proxmox cluster** — join Machamp and Diglett into a single Proxmox cluster
 2. **Proxmox API token** — create a Terraform service account and API token on each node
 
-### One-time manual steps (Storinator TrueNAS UI)
+### One-time manual steps (Alakazam TrueNAS UI)
 
 3. **NFS datasets** — create and export:
    - `docker` — persistent Docker volumes for all services
@@ -162,7 +162,7 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 ### One-time manual steps (operator laptop)
 
 5. **Configure static IPs on physical nodes** — `ansible-playbook ansible/network.yml`
-   for Anton and Redstone; set static IPs on Storinator and Gringotts via TrueNAS UI.
+   for Machamp and Diglett; set static IPs on Alakazam and Ditto via TrueNAS UI.
 6. **Write `terraform.tfvars`** — populate with Proxmox API tokens, MinIO credentials,
    SSH public key, and Cloudflare API token. This is the only manual credential entry
    in the bootstrap.
@@ -199,7 +199,7 @@ services that depend on those external keys.
 
 ## VM Resource Budget
 
-### Redstone (16GB RAM, i3-8109U 4c/4t)
+### Diglett (16GB RAM, i3-8109U 4c/4t)
 
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
@@ -210,14 +210,14 @@ services that depend on those external keys.
 | Deploy VM | 1GB | 1 | Terraform + Ansible |
 | Headroom | 1GB | — | Buffer / future |
 
-### Anton (128GB ECC RAM, Threadripper 3975WX 32c/64t)
+### Machamp (128GB ECC RAM, Threadripper 3975WX 32c/64t)
 
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
 | Proxmox host | 4GB | — | OS overhead |
 | Ollama VM | 32GB | 4 | GPU passthrough (RTX 3060) |
 | OpenClaw VM | 8GB | 2 | AI assistant gateway |
-| Personal Debian VM | 16GB | 6 | Development workstation |
+| Personal dev VM | 16GB | 6 | Development workstation |
 | Services VM | 32GB | 8 | All temporary services; GPU passthrough (Quadro P2000) for Jellyfin |
 | Headroom | 40GB | — | Future VMs / workloads |
 
@@ -226,7 +226,7 @@ services that depend on those external keys.
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
 | Proxmox host | 4GB | — | OS overhead |
-| Services VM | 32GB | 8 | All migrated services from Anton |
+| Services VM | 32GB | 8 | All migrated services from Machamp |
 | Headroom | 92GB | — | Future VMs / workloads |
 
 ---
@@ -234,9 +234,9 @@ services that depend on those external keys.
 ## VM Strategy
 
 - **Provisioning:** Terraform + cloud-init templates
-- **Base OS:** Debian 12 (Bookworm)
-- **NFS mounts:** All use `soft,timeo=30` to prevent indefinite hangs during Storinator maintenance or ZFS scrubs. Hangs become errors that services can retry.
-- **Backups:** Proxmox vzdump to Storinator `backups` dataset
+- **Base OS:** Ubuntu 24.04 (Noble)
+- **NFS mounts:** All use `soft,timeo=30` to prevent indefinite hangs during Alakazam maintenance or ZFS scrubs. Hangs become errors that services can retry.
+- **Backups:** Proxmox vzdump to Alakazam `backups` dataset
 
 | VM | Frequency | Rationale |
 |----|-----------|-----------|
@@ -247,7 +247,7 @@ services that depend on those external keys.
 
 ## VM Layout
 
-### Redstone (always-on infrastructure)
+### Diglett (always-on infrastructure)
 
 **DNS VM** (`192.168.0.2`):
 
@@ -279,7 +279,7 @@ On rebuild, restore from the latest vzdump backup via the HAOS UI or `ha` CLI.
 
 | Service | Notes |
 |---------|-------|
-| Terraform | Manages Redstone and Anton VMs; `terraform.tfvars` lives here |
+| Terraform | Manages Diglett and Machamp VMs; `terraform.tfvars` lives here |
 | Ansible | Runs `base.yml` after Terraform apply; reaches all VMs over Tailscale SSH |
 
 Infisical stores all machine-read secrets — both service API keys (fetched at VM boot via
@@ -287,7 +287,7 @@ Infisical stores all machine-read secrets — both service API keys (fetched at 
 operator laptop (Claude, Codex, GitHub tokens, etc.).
 Vaultwarden stores all passwords a human types into a browser. The two stores never overlap.
 
-### Anton (compute — GPU workloads)
+### Machamp (compute — GPU workloads)
 
 **Ollama VM** (`192.168.0.30`):
 
@@ -300,13 +300,13 @@ Vaultwarden stores all passwords a human types into a browser. The two stores ne
 
 | Service | Notes |
 |---------|-------|
-| OpenClaw | Personal AI assistant gateway; permanent on Anton |
+| OpenClaw | Personal AI assistant gateway; permanent on Machamp |
 
-**Personal Debian VM** (`192.168.0.33`):
+**Personal dev VM** (`192.168.0.33`):
 
 | Service | Notes |
 |---------|-------|
-| Debian Server | Development workstation |
+| Ubuntu Server | Development workstation |
 
 **Services VM** (`192.168.0.31`):
 
@@ -319,15 +319,15 @@ Vaultwarden stores all passwords a human types into a browser. The two stores ne
 | PhotoPrism | Photo archive and browsing |
 | Calibre-Web | Ebook server |
 | n8n | Automation workflows |
-| Obsidian LiveSync | CouchDB sync; data on Storinator NFS |
-| Quartz | Read-only Obsidian vault web publishing; reads vault from Storinator NFS |
+| Obsidian LiveSync | CouchDB sync; data on Alakazam NFS |
+| Quartz | Read-only Obsidian vault web publishing; reads vault from Alakazam NFS |
 | Homepage | Service dashboard |
 | Prometheus + Grafana + Loki | Metrics, logs, dashboards |
 
 ### Services node (planned)
 
-Takes over all non-permanent services from Anton when built. Migration is trivial — all
-persistent data lives on Storinator NFS, so services redeploy by retargeting Terraform.
+Takes over all non-permanent services from Machamp when built. Migration is trivial — all
+persistent data lives on Alakazam NFS, so services redeploy by retargeting Terraform.
 
 | Service | Notes |
 |---------|-------|
@@ -360,7 +360,7 @@ a valid config on startup and skips the wizard entirely.
 - Admin password stored as bcrypt hash in the config file; plaintext in Vaultwarden
 - Upstream DNS: `8.8.8.8`, `8.8.4.4`
 - DNS rewrites (committed in `AdGuardHome.yaml`):
-  - `*.wsh` → CNAME `anton-services.ts.home` (Tailscale MagicDNS hostname for the services VM)
+  - `*.wsh` → CNAME `machamp-services.ts.home` (Tailscale MagicDNS hostname for the services VM)
   - `*.home` → A record `192.168.0.31` (services VM LAN IP)
 - Headscale pushes the AdGuard VM's Tailscale IP as the DNS resolver for `.wsh` and `.home`
   to all tailnet members via `dns_config` → `nameservers`
@@ -389,7 +389,7 @@ Pre-seeded `config.xml` placed in each app's `/config` directory before first co
 API keys are generated by the Ansible service role, seeded to Infisical, and written into
 the config files — making cross-app linking deterministic without Terraform involvement.
 
-- Config files: `services/anton/config/radarr.xml`, `sonarr.xml`, `prowlarr.xml`
+- Config files: `services/machamp/config/radarr.xml`, `sonarr.xml`, `prowlarr.xml`
 - API keys generated by Ansible role (random hex), seeded to Infisical, written to config
 - `AuthenticationRequired=DisabledForLocalAddresses` — LAN-only, behind Traefik
 - Prowlarr → Radarr/Sonarr linked via `scripts/servarr-init.sh` (`POST /api/v1/applications`)
@@ -401,7 +401,7 @@ Admin password set via the `cps.py -s` CLI after first start. Library path defau
 
 - Script: `scripts/calibre-init.sh`
 - Runs: `docker exec calibre-web python3 /app/calibre-web/cps.py -p /config/app.db -s admin:$CALIBRE_ADMIN_PASSWORD`
-- Calibre library must already exist at `/mnt/nas/media/books` on Storinator
+- Calibre library must already exist at `/mnt/nas/media/books` on Alakazam
 
 ### n8n
 
@@ -419,7 +419,7 @@ implementing Bitwarden's full crypto client. Accepted as a one-time manual boots
 - Start Vaultwarden with `SIGNUPS_ALLOWED=true` (default on first boot)
 - Register at `https://vault.home` in a browser
 - Signups lock automatically after first account; `SIGNUPS_ALLOWED=false` enforced by env var on restart
-- Account persists on Storinator NFS — survives all VM rebuilds, never repeated
+- Account persists on Alakazam NFS — survives all VM rebuilds, never repeated
 
 ### CouchDB (Obsidian LiveSync)
 
@@ -427,7 +427,7 @@ Admin credentials set via env vars. Single-node initialization and CORS configur
 done via an init container.
 
 - Init container: `couchdb-init` (curlimages/curl)
-- Script: `services/anton/couchdb-init.sh`
+- Script: `services/machamp/couchdb-init.sh`
 - Sequence: wait for healthy → `/_cluster_setup` → create `obsidian` DB → set CORS headers
 - CORS origins: `app://obsidian.md,capacitor://localhost,http://localhost`
 - Idempotent: `PUT /obsidian` 409 on existing DB is ignored
@@ -436,22 +436,22 @@ done via an init container.
 
 ## Terraform State Backend
 
-All workspaces use MinIO S3 on Storinator, accessed over Tailscale.
+All workspaces use MinIO S3 on Alakazam, accessed over Tailscale.
 
-- Endpoint: `http://storinator:9000` (Tailscale MagicDNS)
-- Bucket: `terraform-state`, keys `redstone/terraform.tfstate`, `anton/terraform.tfstate`, `services/terraform.tfstate`
+- Endpoint: `http://alakazam:9000` (Tailscale MagicDNS)
+- Bucket: `terraform-state`, keys `diglett/terraform.tfstate`, `machamp/terraform.tfstate`, `services/terraform.tfstate`
 - Locking via S3 lockfile (`use_lockfile = true`, Terraform ≥ 1.10) — no DynamoDB needed
 - Accessible from deploy VM (normal execution) and operator laptop (break-glass)
-- Replicated to Gringotts daily; ZFS snapshots provide version history
+- Replicated to Ditto daily; ZFS snapshots provide version history
 
 ---
 
 ## Reverse Proxy
 
-Single Traefik instance on Anton (services VM at `192.168.0.31`) serves all services across
-all nodes. Redstone-hosted services (Infisical, Vaultwarden) are configured as external backends
+Single Traefik instance on Machamp (services VM at `192.168.0.31`) serves all services across
+all nodes. Diglett-hosted services (Infisical, Vaultwarden) are configured as external backends
 pointing at their local IPs (e.g. `192.168.0.21`). All nodes are on the same LAN so Traefik
-on Anton reaches them directly.
+on Machamp reaches them directly.
 
 Traefik listens on two entrypoints:
 
@@ -500,7 +500,7 @@ The provisioning source of truth. Manually supplied values only:
 No service secrets are generated or stored in Terraform. Backed up as an encrypted
 note in Vaultwarden. Never committed to Git.
 
-**Infisical** — Redstone Infisical VM, machine-consumed secrets
+**Infisical** — Diglett Infisical VM, machine-consumed secrets
 
 Stores all secrets that services or processes read programmatically:
 - Service API keys and inter-service tokens (Prowlarr → Radarr/Sonarr API keys, etc.)
@@ -520,7 +520,7 @@ Service secrets are seeded to Infisical by each service's Ansible role at bring-
 not via a central seed script. External API keys that cannot be generated locally are added
 manually via the Infisical UI.
 
-**Vaultwarden** — Redstone Infisical VM, human-consumed secrets
+**Vaultwarden** — Diglett Infisical VM, human-consumed secrets
 
 Stores every password a human types into a browser or UI:
 - All service web UI admin passwords (Grafana, n8n, Jellyfin, Calibre-Web, PhotoPrism, etc.)
@@ -532,14 +532,14 @@ Service admin passwords are stored by each service's Ansible role immediately af
 service is configured. Account creation is attempted automatically via the Bitwarden CLI
 (`bw register`) during `ansible/site.yml`; if the CLI doesn't support registration against
 Vaultwarden, one manual browser registration is the accepted fallback. Account persists on
-Storinator NFS across all VM rebuilds so it never needs to be repeated.
+Alakazam NFS across all VM rebuilds so it never needs to be repeated.
 
 ---
 
 ## Database Backup Strategy
 
 Vaultwarden and Infisical databases are stored on **local VM disk** (not NFS) to avoid
-corruption from soft-mount interruptions. Backups go to Storinator NFS.
+corruption from soft-mount interruptions. Backups go to Alakazam NFS.
 
 | Service | DB | Backup method | Frequency |
 |---------|----|---------------|-----------|
@@ -580,7 +580,7 @@ ansible/
   base.yml            # day-2 config for all VMs (push)
   physical.yml        # day-2 config for physical devices (push, targets physical group)
   roles/
-    base/             # applied to all Debian VMs and physical devices
+    base/             # applied to all Ubuntu VMs and physical devices
     docker/           # applied to VMs running Docker Compose services
     headscale/        # applied to DNS VM — Headscale + cloudflared Docker Compose + config
     network/          # Proxmox bridge config for physical nodes
@@ -629,8 +629,8 @@ Deploys are triggered manually from the deploy VM. No webhook or CI automation.
 
 ```
 # SSH to deploy VM, then:
-./scripts/deploy.sh redstone # terraform apply + ansible for Redstone VMs
-./scripts/deploy.sh anton    # terraform apply + ansible for Anton VMs
+./scripts/deploy.sh diglett # terraform apply + ansible for Diglett VMs
+./scripts/deploy.sh machamp    # terraform apply + ansible for Machamp VMs
 ./scripts/deploy.sh          # all nodes
 ./scripts/deploy-services.sh # redeploy Docker Compose stacks only (no Terraform)
 ```
@@ -645,11 +645,11 @@ so concurrent runs are prevented rather than running in parallel.
 
 ## UPS / NUT Integration
 
-UPS covers: Anton, Storinator, Orange Pi Zero 3
+UPS covers: Machamp, Alakazam, Orange Pi Zero 3
 
 NUT server: Orange Pi Zero 3 (must be on UPS circuit to send shutdown signals before power loss)
 
-NUT clients: Anton, Redstone, Storinator (shut down gracefully on power loss)
+NUT clients: Machamp, Diglett, Alakazam (shut down gracefully on power loss)
 
 ---
 
@@ -659,28 +659,28 @@ NUT clients: Anton, Redstone, Storinator (shut down gracefully on power loss)
 |----------|------------|
 | Terraform code drift | Acknowledged — code update deferred, plan is source of truth |
 | HAOS provisioning | Terraform provisions VM via qcow2 image download; config restored from Proxmox vzdump backup |
-| Reverse proxy for Redstone services | Single Traefik on Anton; Redstone services as external backends by local IP |
+| Reverse proxy for Diglett services | Single Traefik on Machamp; Diglett services as external backends by local IP |
 | Vaultwarden/Infisical DB location | Local VM disk; Vaultwarden via Litestream (continuous), Infisical via mongodump every 6h |
 | Infisical bootstrap | `ansible/bootstrap-infisical.yml` runs after VMs are provisioned. Creates admin, org, workspace, and per-VM machine identities. Credentials written to `/etc/infisical.env` on each VM by Ansible — not via Terraform/cloud-init. |
 | Infisical role | Single source of truth for all machine-consumed secrets. VMs fetch via `infisical export` at boot using credentials in `/etc/infisical.env`. Service secrets seeded by each service's Ansible role at bring-up time; external API keys added manually. |
 | Vaultwarden role | Human-consumed secrets only (web UI admin passwords). Populated by each service's Ansible role after the service is configured. |
 | Vaultwarden account creation | Attempted automatically via `bw register` (Bitwarden CLI) during `ansible/site.yml`. One manual browser registration accepted as fallback if CLI doesn't support it. Account persists on NFS — never repeated. |
-| Redstone RAM headroom | Accept the risk; monitor closely |
-| Tailscale exit node coupling | Accept DNS+exit node coupling on Redstone; Anton is backup exit node |
+| Diglett RAM headroom | Accept the risk; monitor closely |
+| Tailscale exit node coupling | Accept DNS+exit node coupling on Diglett; Machamp is backup exit node |
 | Monitoring stack | Prometheus + Grafana + Loki only; Mimir/Tempo removed |
-| OpenClaw placement | Permanent on Anton; not in services node migration list |
+| OpenClaw placement | Permanent on Machamp; not in services node migration list |
 | AdGuard headless config | Pre-seeded `AdGuardHome.yaml`; setup wizard bypassed entirely |
 | Jellyfin headless setup | `/Startup/*` API scripted in `jellyfin-init.sh` |
 | Servarr headless setup | API keys generated by Ansible role, seeded to Infisical, written to pre-seeded `config.xml`; cross-app linking via `servarr-init.sh` |
 | Calibre-Web headless setup | Post-start `cps.py -s` CLI; library at `/books` mount |
 | n8n headless setup | `POST /api/v1/owner/setup` scripted in `n8n-init.sh` |
 | CouchDB headless setup | Env vars for credentials; init container handles `/_cluster_setup` and CORS |
-| Tailscale coordination server | Self-hosted Headscale on the Redstone DNS VM (`192.168.0.2`), co-located with AdGuard. Public HTTPS endpoint provided by a Cloudflare Tunnel (cloudflared container). No public IP or open port required. Uses Tailscale's public DERP relays. Managed by Ansible (`roles/headscale`). |
-| Terraform execution host | Deploy VM (`redstone-deploy`) runs all Terraform workspaces. Operator laptop is break-glass fallback. No VPS. |
-| Terraform state backend | MinIO S3 on Storinator (`http://storinator:9000`) for all workspaces (`redstone/`, `anton/`, `services/`). S3 lockfile replaces NFS file locking. Both deploy VM and operator laptop reach MinIO over Tailscale. |
+| Tailscale coordination server | Self-hosted Headscale on the Diglett DNS VM (`192.168.0.2`), co-located with AdGuard. Public HTTPS endpoint provided by a Cloudflare Tunnel (cloudflared container). No public IP or open port required. Uses Tailscale's public DERP relays. Managed by Ansible (`roles/headscale`). |
+| Terraform execution host | Deploy VM (`diglett-deploy`) runs all Terraform workspaces. Operator laptop is break-glass fallback. No VPS. |
+| Terraform state backend | MinIO S3 on Alakazam (`http://alakazam:9000`) for all workspaces (`diglett/`, `machamp/`, `services/`). S3 lockfile replaces NFS file locking. Both deploy VM and operator laptop reach MinIO over Tailscale. |
 | Physical device management | Ansible push, same model as VMs. One-time bootstrap via `scripts/bootstrap-physical.sh` (installs Tailscale only). All further config pushed via `ansible-playbook ansible/physical.yml` from the deploy VM. |
 | Deployment automation | Manual. Operator SSHes to deploy VM and runs `./scripts/deploy.sh`. No webhook, no CI. Simpler and sufficient for a personal homelab. |
 | DNS domain strategy | Two domains: `*.wsh` (Tailscale/HTTPS, personal devices) and `*.home` (LAN/HTTP, guests). Avoids subnet routing; guests can reach services without Tailscale. Single Traefik instance handles both. |
 | TLS for private TLDs | Let's Encrypt does not issue certs for `.wsh` or `.home`. `*.wsh` uses step-ca (local CA, wildcard cert, Traefik ACME). `*.home` is plain HTTP (LAN only, acceptable). |
-| AdGuard DNS rewrites | `*.wsh` CNAME → `anton-services.ts.home` (MagicDNS). `*.home` A → `192.168.0.31` (LAN IP). Headscale `dns_config` pushes AdGuard's Tailscale IP as resolver for both TLDs to all tailnet members. |
+| AdGuard DNS rewrites | `*.wsh` CNAME → `machamp-services.ts.home` (MagicDNS). `*.home` A → `192.168.0.31` (LAN IP). Headscale `dns_config` pushes AdGuard's Tailscale IP as resolver for both TLDs to all tailnet members. |
 | Per-service network exposure | Each service defines which domains it exposes via presence/absence of `-wsh` and `-home` Traefik router labels. Default is both. |

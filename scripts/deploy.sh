@@ -3,12 +3,12 @@
 #
 # Usage:
 #   ./scripts/deploy.sh           # deploy both nodes
-#   ./scripts/deploy.sh redstone  # deploy Redstone only
-#   ./scripts/deploy.sh anton     # deploy Anton only
+#   ./scripts/deploy.sh diglett  # deploy Diglett only
+#   ./scripts/deploy.sh machamp     # deploy Machamp only
 #
 # Prerequisites:
-#   - Storinator NFS mounted at /mnt/terraform-state
-#   - terraform.tfvars present in terraform/redstone/ and terraform/anton/
+#   - Alakazam NFS mounted at /mnt/terraform-state
+#   - terraform.tfvars present in terraform/diglett/ and terraform/machamp/
 #   - ansible dependencies installed (pip install ansible)
 
 set -euo pipefail
@@ -17,8 +17,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NODE="${1:-both}"
 
 # Validate argument
-if [[ "$NODE" != "redstone" && "$NODE" != "anton" && "$NODE" != "both" ]]; then
-  echo "Usage: $0 [redstone|anton|both]"
+if [[ "$NODE" != "diglett" && "$NODE" != "machamp" && "$NODE" != "both" ]]; then
+  echo "Usage: $0 [diglett|machamp|both]"
   exit 1
 fi
 
@@ -34,12 +34,12 @@ terraform_apply() {
   cd "$REPO_ROOT"
 }
 
-if [[ "$NODE" == "redstone" || "$NODE" == "both" ]]; then
-  terraform_apply redstone
+if [[ "$NODE" == "diglett" || "$NODE" == "both" ]]; then
+  terraform_apply diglett
 fi
 
-if [[ "$NODE" == "anton" || "$NODE" == "both" ]]; then
-  terraform_apply anton
+if [[ "$NODE" == "machamp" || "$NODE" == "both" ]]; then
+  terraform_apply machamp
 fi
 
 # ── Wait for VMs ─────────────────────────────────────────────────────────────
@@ -47,8 +47,8 @@ fi
 # Map node argument to Ansible inventory group
 ansible_limit() {
   case "$1" in
-    redstone) echo "redstone_vms" ;;
-    anton) echo "anton_vms" ;;
+    diglett) echo "diglett_vms" ;;
+    machamp) echo "machamp_vms" ;;
     both)  echo "vms" ;;
   esac
 }

@@ -23,9 +23,9 @@ dns:
   #   *.home → LAN HTTP path (guests, IoT, no TLS)
   rewrites:
     - domain: "*.wsh"
-      answer: anton-services.ts.home   # Tailscale MagicDNS; each node resolves to services VM Tailscale IP
+      answer: machamp-services.ts.home   # Tailscale MagicDNS; each node resolves to services VM Tailscale IP
     - domain: "*.home"
-      answer: 192.168.0.31              # anton-services VM LAN IP
+      answer: 192.168.0.31              # machamp-services VM LAN IP
 
   cache_size: 4194304
   ratelimit: 20

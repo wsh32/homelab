@@ -15,24 +15,24 @@ CHANGED="${1:-}"
 deploy_service() {
   local vm="$1" service_dir="$2"
   echo "  ==> Deploying ${service_dir} on ${vm}..."
-  ssh -o StrictHostKeyChecking=no "debian@${vm}.ts.home" \
-    "cd /home/debian/homelab/${service_dir} && docker compose pull && docker compose up -d"
+  ssh -o StrictHostKeyChecking=no "ubuntu@${vm}.ts.home" \
+    "cd /home/ubuntu/homelab/${service_dir} && docker compose pull && docker compose up -d"
 }
 
 if echo "$CHANGED" | grep -q "^services/dns/"; then
-  deploy_service "redstone-dns" "services/dns"
+  deploy_service "diglett-dns" "services/dns"
 fi
 
-if echo "$CHANGED" | grep -q "^services/redstone-infra/"; then
-  deploy_service "redstone-infisical" "services/redstone-infra"
+if echo "$CHANGED" | grep -q "^services/diglett-infra/"; then
+  deploy_service "diglett-infisical" "services/diglett-infra"
 fi
 
-if echo "$CHANGED" | grep -q "^services/redstone-deploy/"; then
-  deploy_service "redstone-deploy" "services/redstone-deploy"
+if echo "$CHANGED" | grep -q "^services/diglett-deploy/"; then
+  deploy_service "diglett-deploy" "services/diglett-deploy"
 fi
 
-if echo "$CHANGED" | grep -q "^services/anton/"; then
-  deploy_service "anton-services" "services/anton"
+if echo "$CHANGED" | grep -q "^services/machamp/"; then
+  deploy_service "machamp-services" "services/machamp"
 fi
 
 if echo "$CHANGED" | grep -q "^services/vps/"; then

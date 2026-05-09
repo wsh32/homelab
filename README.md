@@ -9,14 +9,14 @@ Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Te
 │                       Headscale tailnet                         │
 │                                                                 │
 │  ┌──────────────────┐            ┌──────────────────┐           │
-│  │      Anton       │            │    Redstone      │           │
+│  │      Machamp       │            │    Diglett      │           │
 │  │                  │            │                  │           │
 │  │  GPU compute +   │            │  Always-on       │           │
 │  │  all services    │            │  infrastructure  │           │
 │  └──────────────────┘            └────────┬─────────┘           │
 │                                           │ Cloudflare Tunnel   │
 │  ┌──────────────────┐            ┌────────▼─────────┐           │
-│  │   Gringotts      │            │    Storinator     │           │
+│  │   Ditto      │            │    Alakazam     │           │
 │  │  (offsite NAS)   │◄──replicate│  TrueNAS NAS      │           │
 │  └──────────────────┘            │  NFS + MinIO S3   │           │
 │                                  └──────────────────┘           │
@@ -25,10 +25,10 @@ Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Te
 
 | Node | Role |
 |------|------|
-| **Anton** | Proxmox compute node. Hosts all VMs: GPU inference (Ollama, RTX 3060), personal tooling (OpenClaw, Debian workstation), and all Docker Compose services (Traefik, Jellyfin, Servarr, etc.) |
-| **Redstone** | Always-on Proxmox infrastructure node. Hosts DNS (AdGuard Home), Tailscale coordination (Headscale behind Cloudflare Tunnel), secrets (Infisical + Vaultwarden), and the deploy VM |
-| **Storinator** | TrueNAS NAS. Provides NFS mounts for all persistent Docker volumes and MinIO S3 for Terraform state |
-| **Gringotts** | Offsite TrueNAS NAS. Receives daily/weekly ZFS replication from Storinator; only reachable over Tailscale |
+| **Machamp** | Proxmox compute node. Hosts all VMs: GPU inference (Ollama, RTX 3060), personal tooling (OpenClaw, development workstation), and all Docker Compose services (Traefik, Jellyfin, Servarr, etc.) |
+| **Diglett** | Always-on Proxmox infrastructure node. Hosts DNS (AdGuard Home), Tailscale coordination (Headscale behind Cloudflare Tunnel), secrets (Infisical + Vaultwarden), and the deploy VM |
+| **Alakazam** | TrueNAS NAS. Provides NFS mounts for all persistent Docker volumes and MinIO S3 for Terraform state |
+| **Ditto** | Offsite TrueNAS NAS. Receives daily/weekly ZFS replication from Alakazam; only reachable over Tailscale |
 | **Orange Pi** | Miscellaneous device (role TBD) |
 
 See [`docs/services.md`](docs/services.md) for the full per-VM service list.
@@ -38,14 +38,14 @@ See [`docs/services.md`](docs/services.md) for the full per-VM service list.
 ```
 terraform/
   modules/proxmox-vm/     # shared VM module (bpg/proxmox provider)
-  redstone/               # Redstone root module — state in MinIO on Storinator
-  anton/                  # Anton root module — state in MinIO on Storinator
-  services/               # services node root module — state in MinIO on Storinator
+  diglett/               # Diglett root module — state in MinIO on Alakazam
+  machamp/                  # Machamp root module — state in MinIO on Alakazam
+  services/               # services node root module — state in MinIO on Alakazam
 ansible/
   inventory/
     hosts.py              # dynamic inventory script — reads network.yml
   roles/
-    base/                 # all Debian VMs and physical devices
+    base/                 # all Ubuntu VMs and physical devices
     docker/               # Docker Compose VMs
     network/              # Proxmox bridge config on physical nodes
   base.yml                # day-2 config for all VMs (push)
@@ -54,9 +54,9 @@ ansible/
   network.yml             # static IP config for Proxmox nodes
 services/
   dns/                    # AdGuard + Headscale + cloudflared (pre-seeded, no wizards)
-  redstone-infra/         # Infisical + Vaultwarden + Litestream
-  redstone-deploy/        # webhook listener for internal deploy triggers
-  anton/                  # Docker Compose — all Anton/services workloads
+  diglett-infra/         # Infisical + Vaultwarden + Litestream
+  diglett-deploy/        # webhook listener for internal deploy triggers
+  machamp/                  # Docker Compose — all Machamp/services workloads
 network.yml               # single source of truth for all IPs and VM IDs
 scripts/
   deploy.sh               # terraform apply + ansible-playbook
@@ -75,14 +75,14 @@ docs/
 
 ## How deploys work
 
-All deploys are manual, initiated from the deploy VM (`redstone-deploy`, `192.168.0.23`):
+All deploys are manual, initiated from the deploy VM (`diglett-deploy`, `192.168.0.23`):
 
 ```bash
-ssh debian@192.168.0.23
+ssh ubuntu@192.168.0.23
 cd ~/homelab && git pull
 
 ./scripts/deploy.sh           # terraform apply + ansible for all nodes
-./scripts/deploy.sh redstone  # single node
+./scripts/deploy.sh diglett  # single node
 ./scripts/deploy-services.sh  # docker compose only, no terraform
 ```
 
@@ -93,25 +93,25 @@ cd ~/homelab && git pull
 Full step-by-step guide in [`docs/runbook.md`](docs/runbook.md). High-level summary:
 
 **Phase 1 — Physical setup (one-time, manual):**
-1. Join Anton, Redstone, and services node into a Proxmox cluster via UI
+1. Join Machamp, Diglett, and services node into a Proxmox cluster via UI
 2. Create Proxmox API tokens on each node
-3. Create NFS datasets + enable MinIO on Storinator (S3 state backend)
+3. Create NFS datasets + enable MinIO on Alakazam (S3 state backend)
 4. Configure static IPs on physical nodes via Ansible
 
 **Phase 2 — Bootstrap the deploy VM (from operator laptop):**
 ```bash
-cp terraform/redstone/terraform.tfvars.example terraform/redstone/terraform.tfvars
+cp terraform/diglett/terraform.tfvars.example terraform/diglett/terraform.tfvars
 # fill in Proxmox tokens, MinIO creds, SSH key, Cloudflare API token
-cd terraform/redstone && terraform apply -target=module.deploy
+cd terraform/diglett && terraform apply -target=module.deploy
 ansible-playbook ansible/bootstrap-deploy.yml
 ```
 
 **Phase 3 — Full deployment (from the deploy VM):**
 ```bash
-ssh debian@192.168.0.23 && cd ~/homelab
+ssh ubuntu@192.168.0.23 && cd ~/homelab
 
 # DNS VM first (Headscale must exist before other VMs get Tailscale keys)
-cd terraform/redstone && terraform apply -target=module.dns
+cd terraform/diglett && terraform apply -target=module.dns
 ansible-playbook ansible/bootstrap-headscale.yml  # generates + writes pre-auth key
 
 # All remaining VMs

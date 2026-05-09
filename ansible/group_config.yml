@@ -7,14 +7,14 @@
 # Keep Ansible group definitions and vars here.
 
 nodes:
-  redstone:
-    group: redstone_vms
+  diglett:
+    group: diglett_vms
     vars:
-      proxmox_node: redstone
-      ansible_user: debian
+      proxmox_node: diglett
+      ansible_user: ubuntu
 
-  anton:
-    group: anton_vms
+  machamp:
+    group: machamp_vms
     vars:
-      proxmox_node: anton
-      ansible_user: debian
+      proxmox_node: machamp
+      ansible_user: ubuntu

@@ -38,12 +38,12 @@ ssh-keygen -t ed25519  # if no key exists
 
 ### 1. Form the Proxmox cluster
 
-On Redstone (primary node):
+On Diglett (primary node):
 1. Log into the Proxmox web UI at `https://192.168.0.6:8006`
 2. Datacenter → Cluster → Create Cluster → name it `homelab`
 3. Copy the join information
 
-On Anton:
+On Machamp:
 1. Log into the Proxmox web UI at `https://192.168.0.5:8006`
 2. Datacenter → Cluster → Join Cluster → paste join information
 
@@ -57,7 +57,7 @@ pvecm expected 1
 
 ### 2. Create Proxmox API tokens
 
-Repeat on **both** Anton (`192.168.0.5:8006`) and Redstone (`192.168.0.6:8006`):
+Repeat on **both** Machamp (`192.168.0.5:8006`) and Diglett (`192.168.0.6:8006`):
 
 1. Datacenter → Permissions → Users → Add: `terraform@pam`
 2. Datacenter → Permissions → Add → User Permission: path `/`, user `terraform@pam`, role `Administrator`
@@ -67,7 +67,7 @@ Repeat on **both** Anton (`192.168.0.5:8006`) and Redstone (`192.168.0.6:8006`):
    - **Uncheck** Privilege Separation
 4. Copy the token secret — it is only shown once. Format: `terraform@pam!terraform=<uuid>`
 
-### 3. Create NFS datasets and enable MinIO on Storinator
+### 3. Create NFS datasets and enable MinIO on Alakazam
 
 Log into TrueNAS at `https://192.168.0.4`:
 
@@ -87,10 +87,10 @@ Log into TrueNAS at `https://192.168.0.4`:
 
 ### 4. Configure static IPs on physical nodes
 
-Find the NIC bridged to `vmbr0` on Anton and Redstone:
+Find the NIC bridged to `vmbr0` on Machamp and Diglett:
 ```bash
-ssh root@192.168.0.5 ip link show   # anton — look for eno1 or similar
-ssh root@192.168.0.6 ip link show   # redstone
+ssh root@192.168.0.5 ip link show   # machamp — look for eno1 or similar
+ssh root@192.168.0.6 ip link show   # diglett
 ```
 
 Update `bridge_port` in `network.yml` if needed, then:
@@ -98,7 +98,7 @@ Update `bridge_port` in `network.yml` if needed, then:
 ansible-playbook ansible/network.yml
 ```
 
-For Storinator and Gringotts: Network → Interfaces in TrueNAS UI → set static IPs
+For Alakazam and Ditto: Network → Interfaces in TrueNAS UI → set static IPs
 (`192.168.0.4` and `192.168.0.8`).
 
 ---
@@ -108,16 +108,16 @@ For Storinator and Gringotts: Network → Interfaces in TrueNAS UI → set stati
 ### 5. Write terraform.tfvars
 
 ```bash
-cp terraform/redstone/terraform.tfvars.example terraform/redstone/terraform.tfvars
+cp terraform/diglett/terraform.tfvars.example terraform/diglett/terraform.tfvars
 ```
 
 Fill in:
 ```hcl
-# Proxmox — Redstone
+# Proxmox — Diglett
 proxmox_endpoint  = "https://192.168.0.6:8006"
 proxmox_api_token = "terraform@pam!terraform=<uuid-from-step-2>"
 
-# Proxmox — Anton (used by terraform/anton/)
+# Proxmox — Machamp (used by terraform/machamp/)
 # proxmox_endpoint  = "https://192.168.0.5:8006"
 # proxmox_api_token = "terraform@pam!terraform=<uuid-from-step-2>"
 
@@ -135,7 +135,7 @@ cloudflare_api_token = "<cloudflare-api-token>"
 ### 6. Provision the deploy VM
 
 ```bash
-cd terraform/redstone
+cd terraform/diglett
 terraform init
 terraform apply -target=module.deploy
 ```
@@ -155,14 +155,14 @@ This clones the repo, installs Terraform and Ansible on the deploy VM, and copie
 
 SSH to the deploy VM:
 ```bash
-ssh debian@192.168.0.23
+ssh ubuntu@192.168.0.23
 cd ~/homelab
 ```
 
 ### 8. Provision the DNS VM
 
 ```bash
-cd terraform/redstone
+cd terraform/diglett
 terraform apply -target=module.dns
 ```
 
@@ -171,7 +171,7 @@ the DNS VM via cloud-init. AdGuard, Headscale, and cloudflared all start on firs
 
 Verify:
 ```bash
-ssh debian@192.168.0.2 "docker ps --format 'table {{.Names}}\t{{.Status}}'"
+ssh ubuntu@192.168.0.2 "docker ps --format 'table {{.Names}}\t{{.Status}}'"
 # Should show adguard, headscale, cloudflared all Up
 ```
 
@@ -189,8 +189,8 @@ it to `terraform.tfvars` automatically.
 ```bash
 ./scripts/deploy.sh
 # Or node by node:
-./scripts/deploy.sh redstone
-./scripts/deploy.sh anton
+./scripts/deploy.sh diglett
+./scripts/deploy.sh machamp
 ```
 
 VMs provision, cloud-init handles Docker install and NFS mounts. Tailscale auth runs
@@ -241,13 +241,13 @@ step-ca is initialized by the `site.yml` Ansible role. Copy the root CA cert to 
 operator laptop and trust it:
 
 ```bash
-scp debian@192.168.0.31:/tmp/homelab-root-ca.crt ~/homelab-root-ca.crt
+scp ubuntu@192.168.0.31:/tmp/homelab-root-ca.crt ~/homelab-root-ca.crt
 
 # macOS
 sudo security add-trusted-cert -d -r trustRoot \
   -k /Library/Keychains/System.keychain ~/homelab-root-ca.crt
 
-# Linux (Debian/Ubuntu)
+# Linux (Ubuntu)
 sudo cp ~/homelab-root-ca.crt /usr/local/share/ca-certificates/homelab-root-ca.crt
 sudo update-ca-certificates
 ```
@@ -268,7 +268,7 @@ curl -k https://jellyfin.wsh      # should reach Jellyfin
 ```
 
 Check AdGuard DNS rewrites are active at `http://dns.home` → Filters → DNS rewrites:
-- `*.wsh` → CNAME `anton-services.ts.home`
+- `*.wsh` → CNAME `machamp-services.ts.home`
 - `*.home` → A `192.168.0.31`
 
 ### 15. Add external API keys to Infisical
@@ -311,7 +311,7 @@ At this point:
 
 **Deploy a change:**
 ```bash
-ssh debian@192.168.0.23
+ssh ubuntu@192.168.0.23
 cd ~/homelab && git pull
 ./scripts/deploy.sh           # terraform + ansible for all nodes
 ./scripts/deploy-services.sh  # docker compose only, no terraform
@@ -324,7 +324,7 @@ cd ~/homelab && git pull
 
 **Rebuild a VM from scratch:**
 ```bash
-ssh debian@192.168.0.23
+ssh ubuntu@192.168.0.23
 cd ~/homelab/terraform/<node>
 terraform destroy -target=module.<vm-name>
 cd ~/homelab && ./scripts/deploy.sh <node>
@@ -343,18 +343,18 @@ ssh root@<device-ip> \
 **Update secrets:**
 Update in Infisical UI, then on the affected VM:
 ```bash
-ssh debian@<vm-ip> "sudo systemctl restart infisical-export && docker compose up -d"
+ssh ubuntu@<vm-ip> "sudo systemctl restart infisical-export && docker compose up -d"
 ```
 
 **Rotate Headscale pre-auth key:**
 ```bash
-ssh debian@192.168.0.2 \
+ssh ubuntu@192.168.0.2 \
   "docker exec headscale headscale preauthkeys create --reusable --expiration 365d"
 # Update headscale_preauth_key in terraform.tfvars on the deploy VM
 ```
 
 **Run Ansible only (no Terraform):**
 ```bash
-ssh debian@192.168.0.23
+ssh ubuntu@192.168.0.23
 cd ~/homelab && ansible-playbook ansible/base.yml
 ```
