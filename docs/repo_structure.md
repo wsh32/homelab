@@ -22,7 +22,7 @@ A walkthrough of every file in this repo and what it does.
 
 **`TODOS.md`** — Deferred work items with full context. Each item has what/why/context/dependencies so they're actionable later.
 
-**`hardware_inventory.md`** — Physical hardware reference: specs for Anton, Redstone, Storinator, Gringotts, Orange Pi.
+**`hardware_inventory.md`** — Physical hardware reference: specs for Machamp, Diglett, Snorlax, Ditto, Orange Pi.
 
 **`repo_structure.md`** — This file.
 
@@ -30,7 +30,7 @@ A walkthrough of every file in this repo and what it does.
 
 ## `terraform/modules/proxmox-vm/`
 
-The shared VM module. Every standard (Debian, cloud-init) VM is an instance of this module. HAOS uses a dedicated `proxmox_virtual_environment_vm` resource in `terraform/redstone/main.tf` instead.
+The shared VM module. Every standard (Debian, cloud-init) VM is an instance of this module. HAOS uses a dedicated `proxmox_virtual_environment_vm` resource in `terraform/diglett/main.tf` instead.
 
 **`variables.tf`** — All inputs: `node_name`, `vm_id`, `name`, `cores`, `memory_mb`, `disk_size_gb`, `datastore`, `image_file_id` (the already-downloaded cloud image), `ip_address`, `gateway`, `dns_servers`, `ssh_public_key`, `tailscale_auth_key`, `user_data_extra`, `tags`.
 
@@ -42,30 +42,30 @@ The shared VM module. Every standard (Debian, cloud-init) VM is an instance of t
 
 ---
 
-## `terraform/redstone/`
+## `terraform/diglett/`
 
-Root module for the Redstone node. VM ID range 200–299, IP range `192.168.0.20–29`.
+Root module for the Diglett node. VM ID range 200–299, IP range `192.168.0.20–29`.
 
 **`main.tf`** — Defines:
 - `proxmox_virtual_environment_download_file.debian_12` — downloads the Debian 12 cloud image once; re-applying is a no-op.
 - `proxmox_virtual_environment_download_file.haos` — downloads the HAOS qcow2 image for the Home Assistant VM.
-- `module.dns` — `redstone-dns` VM (VM 200, `192.168.0.2`, 2 cores, 2GB): AdGuard Home + primary Tailscale exit node.
-- `module.infisical` — `redstone-infisical` VM (VM 201, `192.168.0.21`, 2 cores, 6GB): Infisical + Vaultwarden.
-- `resource.proxmox_virtual_environment_vm.haos` — `redstone-haos` VM (VM 202, `192.168.0.22`, 2 cores, 4GB): Home Assistant OS. Uses a dedicated resource (not the shared module) because HAOS boots from its own qcow2 image, not cloud-init.
-- `module.deploy` — `redstone-deploy` VM (VM 203, `192.168.0.23`, 1 core, 1GB): Terraform + Ansible + internal webhook listener.
+- `module.dns` — `diglett-dns` VM (VM 200, `192.168.0.2`, 2 cores, 2GB): AdGuard Home + primary Tailscale exit node.
+- `module.infisical` — `diglett-infisical` VM (VM 201, `192.168.0.21`, 2 cores, 6GB): Infisical + Vaultwarden.
+- `resource.proxmox_virtual_environment_vm.haos` — `diglett-haos` VM (VM 202, `192.168.0.22`, 2 cores, 4GB): Home Assistant OS. Uses a dedicated resource (not the shared module) because HAOS boots from its own qcow2 image, not cloud-init.
+- `module.deploy` — `diglett-deploy` VM (VM 203, `192.168.0.23`, 1 core, 1GB): Terraform + Ansible + internal webhook listener.
 
 ---
 
-## `terraform/anton/`
+## `terraform/machamp/`
 
-Root module for Anton. VM ID range 100–199, IP range `192.168.0.10–19`.
+Root module for Machamp. VM ID range 100–199, IP range `192.168.0.10–19`.
 
 **`main.tf`** — Defines:
 - `proxmox_virtual_environment_download_file.debian_12` — downloads the Debian 12 cloud image once.
-- `module.ollama` — `anton-ollama` VM (VM 100, `192.168.0.10`, 4 cores, 32GB): Ollama GPU inference + backup Tailscale exit node. RTX 3060 hostpci block pending (see TODOS.md).
-- `module.services` — `anton-services` VM (VM 103, `192.168.0.11`, 8 cores, 32GB): all Docker Compose services, Traefik reverse proxy, Quadro P2000 for Jellyfin transcoding. hostpci block pending.
-- `module.openclaw` — `anton-openclaw` VM (VM 102, `192.168.0.12`, 2 cores, 8GB): OpenClaw AI assistant gateway.
-- `module.debian` — `anton-debian` VM (VM 101, `192.168.0.13`, 6 cores, 16GB): personal development workstation.
+- `module.ollama` — `machamp-ollama` VM (VM 100, `192.168.0.10`, 4 cores, 32GB): Ollama GPU inference + backup Tailscale exit node. RTX 3060 hostpci block pending (see TODOS.md).
+- `module.services` — `machamp-services` VM (VM 103, `192.168.0.11`, 8 cores, 32GB): all Docker Compose services, Traefik reverse proxy, Quadro P2000 for Jellyfin transcoding. hostpci block pending.
+- `module.openclaw` — `machamp-openclaw` VM (VM 102, `192.168.0.12`, 2 cores, 8GB): OpenClaw AI assistant gateway.
+- `module.debian` — `machamp-debian` VM (VM 101, `192.168.0.13`, 6 cores, 16GB): personal development workstation.
 
 ---
 
@@ -81,19 +81,19 @@ Root module for the DigitalOcean VPS. Runs only from the operator laptop — the
 
 ## `services/dns/`
 
-Docker Compose stack for the `redstone-dns` VM.
+Docker Compose stack for the `diglett-dns` VM.
 
 **`docker-compose.yml`** — AdGuard Home, `network_mode: host` (needs port 53 on host IP).
 
-**`adguard/AdGuardHome.yaml`** — Pre-seeded config. AdGuard detects a valid config on startup and skips the setup wizard entirely. Contains: bcrypt admin password hash (plaintext in Vaultwarden), upstream DNS (8.8.8.8 / 8.8.4.4), DNS rewrites (`*.wsh` CNAME → `anton-services.ts.home`, `*.home` A → `192.168.0.11`), and default blocklists.
+**`adguard/AdGuardHome.yaml`** — Pre-seeded config. AdGuard detects a valid config on startup and skips the setup wizard entirely. Contains: bcrypt admin password hash (plaintext in Vaultwarden), upstream DNS (8.8.8.8 / 8.8.4.4), DNS rewrites (`*.wsh` CNAME → `machamp-services.ts.home`, `*.home` A → `192.168.0.11`), and default blocklists.
 
 ---
 
-## `services/redstone-infra/`
+## `services/diglett-infra/`
 
-Docker Compose stack for the `redstone-infisical` VM.
+Docker Compose stack for the `diglett-infisical` VM.
 
-**`docker-compose.yml`** — Infisical (+ MongoDB + Redis), Vaultwarden, and a Litestream sidecar that continuously streams the Vaultwarden SQLite WAL to Storinator NFS. Infisical's MongoDB data lives on local VM disk (not NFS) to avoid soft-mount corruption; backed up every 6 hours via a mongodump container to Storinator.
+**`docker-compose.yml`** — Infisical (+ MongoDB + Redis), Vaultwarden, and a Litestream sidecar that continuously streams the Vaultwarden SQLite WAL to Snorlax NFS. Infisical's MongoDB data lives on local VM disk (not NFS) to avoid soft-mount corruption; backed up every 6 hours via a mongodump container to Snorlax.
 
 **`litestream.yml`** — Litestream replica config: streams `/var/lib/vaultwarden/db.sqlite3` to `/mnt/nas/docker/vaultwarden-backup/`.
 
@@ -101,9 +101,9 @@ Docker Compose stack for the `redstone-infisical` VM.
 
 ---
 
-## `services/redstone-deploy/`
+## `services/diglett-deploy/`
 
-Docker Compose stack for the `redstone-deploy` VM.
+Docker Compose stack for the `diglett-deploy` VM.
 
 **`docker-compose.yml`** — `adnanh/webhook` listening on port 9001 (Tailscale only; not internet-facing). Receives forwarded payloads from the VPS webhook and runs `scripts/webhook-deploy.sh`.
 
@@ -111,9 +111,9 @@ Docker Compose stack for the `redstone-deploy` VM.
 
 ---
 
-## `services/anton/`
+## `services/machamp/`
 
-Docker Compose stack for the `anton-services` VM. This is the main services stack.
+Docker Compose stack for the `machamp-services` VM. This is the main services stack.
 
 **`docker-compose.yml`** — All services:
 - **Traefik** — reverse proxy; two entrypoints: `web` (80, `*.home`) and `websecure` (443, `*.wsh`)
@@ -130,7 +130,7 @@ Docker Compose stack for the `anton-services` VM. This is the main services stac
 
 **`traefik/traefik.yml`** — Static Traefik config: entrypoints, Docker provider, file provider pointing at `dynamic/`, and `step` ACME cert resolver.
 
-**`traefik/dynamic/redstone-services.yml`** — Static Traefik routes for Redstone-hosted services (Infisical, Vaultwarden). Since those containers run on `redstone-infisical` (not in Docker on `anton-services`), they're external backends pointing at `192.168.0.21`.
+**`traefik/dynamic/diglett-services.yml`** — Static Traefik routes for Diglett-hosted services (Infisical, Vaultwarden). Since those containers run on `diglett-infisical` (not in Docker on `machamp-services`), they're external backends pointing at `192.168.0.21`.
 
 **`config/radarr.xml`, `sonarr.xml`, `prowlarr.xml`** — Pre-seeded config files mounted read-only into each container. API keys use `${RADARR_API_KEY}` etc., sourced from Infisical at boot via `.env`.
 
@@ -154,7 +154,7 @@ Docker Compose stack for the DigitalOcean VPS. Deployed by `ansible/roles/headsc
 
 **`headscale/config.yml`** — Headscale config: server URL, IP prefixes, DNS config (pushes AdGuard's Tailscale IP as resolver for `.wsh` and `.home` to all tailnet members).
 
-**`webhook/hooks.json`** — Webhook hook definition: validates GitHub HMAC-SHA256, then shells out to forward the payload to `redstone-deploy.ts.home:9001`.
+**`webhook/hooks.json`** — Webhook hook definition: validates GitHub HMAC-SHA256, then shells out to forward the payload to `diglett-deploy.ts.home:9001`.
 
 ---
 
@@ -166,7 +166,7 @@ Day-2 configuration management. Runs after Terraform provisions VMs and cloud-in
 
 **`inventory/homelab.yml`** — Inventory source file; tells Ansible to use the `homelab` plugin.
 
-**`plugins/inventory/homelab.py`** — Ansible inventory plugin. Reads `network.yml` (infrastructure facts) and `group_config.yml` (Ansible group config). Physical nodes are grouped by their `type` field; VMs are grouped per their parent node's entry in `group_config.yml`. VMs with `ansible_managed: false` are excluded (e.g. redstone-haos).
+**`plugins/inventory/homelab.py`** — Ansible inventory plugin. Reads `network.yml` (infrastructure facts) and `group_config.yml` (Ansible group config). Physical nodes are grouped by their `type` field; VMs are grouped per their parent node's entry in `group_config.yml`. VMs with `ansible_managed: false` are excluded (e.g. diglett-haos).
 
 **`group_config.yml`** — Ansible-specific inventory config: maps each Proxmox node name to its VM group name and group vars (`proxmox_node`, `ansible_user`). Kept separate from `network.yml` so infrastructure facts and Ansible config don't mix.
 
@@ -190,11 +190,11 @@ Day-2 configuration management. Runs after Terraform provisions VMs and cloud-in
 
 ## `scripts/`
 
-**`deploy.sh`** — Main entry point for VM provisioning. Runs `terraform apply` for the target node(s), waits for VMs to be SSH-reachable, then runs `ansible-playbook base.yml`. Usage: `./scripts/deploy.sh [redstone|anton|both]`.
+**`deploy.sh`** — Main entry point for VM provisioning. Runs `terraform apply` for the target node(s), waits for VMs to be SSH-reachable, then runs `ansible-playbook base.yml`. Usage: `./scripts/deploy.sh [diglett|machamp|both]`.
 
 **`deploy-services.sh`** — SSHes to the relevant VM and runs `docker compose pull && docker compose up -d` for whichever `services/` subdirectory changed. Called by `webhook-deploy.sh`.
 
-**`webhook-deploy.sh`** — Runs on `redstone-deploy`, triggered by the internal webhook. Pulls latest code, detects changed paths, and dispatches: Terraform changed → `deploy.sh`; `ansible/` changed → `base.yml` + `physical.yml` + `vps.yml`; `services/` changed → `deploy-services.sh`; `terraform/vps/` changed → exit 1 (notify operator). Holds a lock to prevent concurrent runs.
+**`webhook-deploy.sh`** — Runs on `diglett-deploy`, triggered by the internal webhook. Pulls latest code, detects changed paths, and dispatches: Terraform changed → `deploy.sh`; `ansible/` changed → `base.yml` + `physical.yml` + `vps.yml`; `services/` changed → `deploy-services.sh`; `terraform/vps/` changed → exit 1 (notify operator). Holds a lock to prevent concurrent runs.
 
 **`infisical-bootstrap.sh`** — Runs `infisical bootstrap` against a fresh Infisical instance. Creates admin user, organization, workspace, and machine identity. Outputs credentials to add to `terraform.tfvars`.
 
