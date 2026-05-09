@@ -2,14 +2,14 @@
 
 ## NFS Export Strategy
 
-**What:** Define which Storinator datasets get NFS-exported, to what
+**What:** Define which Snorlax datasets get NFS-exported, to what
 clients, and with what permissions.
 
-**Why:** All VMs mount Storinator over NFS for persistent data. Without a
+**Why:** All VMs mount Snorlax over NFS for persistent data. Without a
 consistent strategy, NFS config will be improvised per-service and become
 a mess.
 
-**Context:** Storinator datasets: `backups`, `media`, `docker`,
+**Context:** Snorlax datasets: `backups`, `media`, `docker`,
 `terraform-state`, `photos`, `lightroom`. Each needs a defined NFS export
 policy (which VMs, read-only vs read-write). All mounts use
 `soft,timeo=30` options.
@@ -21,7 +21,7 @@ in VM cloud-init.
 
 ## Proxmox GPU Passthrough for Ollama
 
-**What:** Document and implement IOMMU/VFIO configuration for passing the RTX 3060 through to the Ollama VM on Anton.
+**What:** Document and implement IOMMU/VFIO configuration for passing the RTX 3060 through to the Ollama VM on Machamp.
 
 **Why:** GPU passthrough in Proxmox requires specific kernel parameters (`intel_iommu=on`, VFIO module loading) on the host, and correct PCIe device binding. Easy to misconfigure; results in either a broken VM or the GPU not being recognized by Ollama.
 
@@ -29,7 +29,7 @@ in VM cloud-init.
 
 **Cons:** VFIO config ties the GPU exclusively to one VM — the GPU can't be shared with other VMs or the host.
 
-**Context:** Anton is a Lenovo P620 ThinkStation (Threadripper 3975WX, AMD platform) with two GPUs: RTX 3060 and Quadro P2000. Both can be passed through to separate VMs — RTX 3060 → Ollama VM (inference), Quadro P2000 → Services VM (Jellyfin transcoding). After passthrough, the Proxmox host will have no display output. Plan for this: Anton likely has no monitor attached anyway. Note: AMD Threadripper uses AMD-Vi (IOMMU) rather than Intel VT-d — kernel param is `amd_iommu=on`.
+**Context:** Machamp is a Lenovo P620 ThinkStation (Threadripper 3975WX, AMD platform) with two GPUs: RTX 3060 and Quadro P2000. Both can be passed through to separate VMs — RTX 3060 → Ollama VM (inference), Quadro P2000 → Services VM (Jellyfin transcoding). After passthrough, the Proxmox host will have no display output. Plan for this: Machamp likely has no monitor attached anyway. Note: AMD Threadripper uses AMD-Vi (IOMMU) rather than Intel VT-d — kernel param is `amd_iommu=on`.
 
 **Depends on:** Terraform module structure (GPU passthrough config goes in the Ollama VM definition).
 
@@ -39,7 +39,7 @@ in VM cloud-init.
 
 **What:** Deploy a secondary AdGuard Home instance on the Orange Pi.
 
-**Why:** The primary DNS VM on the Redstone is a single point of failure.
+**Why:** The primary DNS VM on the Diglett is a single point of failure.
 Currently mitigated by 8.8.8.8 as fallback, but that bypasses ad-blocking
 and breaks `.home` domain resolution.
 
@@ -54,11 +54,11 @@ resource.
 
 **Why:** All nodes currently communicate freely over Tailscale with no
 segmentation. A compromised container has lateral movement to every node
-including Gringotts (offsite backup) and Proxmox management interfaces.
+including Ditto (offsite backup) and Proxmox management interfaces.
 
 **Minimum policy:**
 - Tag nodes by role (infra, compute, storage, backup)
-- Restrict Gringotts to replication traffic from Storinator only
+- Restrict Ditto to replication traffic from Snorlax only
 - Restrict Proxmox API ports to operator machine
 
 **Depends on:** Terraform module structure.
@@ -68,10 +68,10 @@ including Gringotts (offsite backup) and Proxmox management interfaces.
 ## External Uptime Monitor
 
 **What:** Deploy Uptime Kuma on the Orange Pi or use a cloud ping service
-to monitor Storinator and critical services externally.
+to monitor Snorlax and critical services externally.
 
-**Why:** When Storinator NFS hangs, the monitoring stack (Prometheus +
-Grafana on Anton) also goes down because it depends on Storinator NFS.
+**Why:** When Snorlax NFS hangs, the monitoring stack (Prometheus +
+Grafana on Machamp) also goes down because it depends on Snorlax NFS.
 An external monitor outside the NFS blast radius can detect and alert on
 this.
 
@@ -90,9 +90,9 @@ outside the homelab.
 - Proxmox root credentials
 - `pvecm expected 1` quorum recovery command
 
-**Why:** If the Redstone dies, running containers on Anton survive but new
+**Why:** If the Diglett dies, running containers on Machamp survive but new
 deploys are blocked until Infisical returns. An offline export allows
-recovery without waiting for Redstone hardware replacement.
+recovery without waiting for Diglett hardware replacement.
 
 **Storage:** encrypted file in a password manager on phone, or USB drive.
 

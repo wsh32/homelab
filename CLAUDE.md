@@ -15,9 +15,9 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
   - Infrastructure credentials (Proxmox API tokens, MinIO creds, SSH key, Cloudflare API token) → `var.*` from `terraform.tfvars`, gitignored. Lives on the deploy VM.
   - Infisical machine identity credentials → `/etc/infisical.env` on each VM (root-owned, 0600), written by `ansible/bootstrap-infisical.yml`.
   - Developer API keys (Claude, Codex, GitHub) → Infisical, entered manually via UI, accessed via `infisical run --` on the operator laptop.
-- **VM IDs**: Redstone VMs use 200–299, Anton VMs use 100–199.
-- **IP addresses**: physical nodes use 192.168.0.2–19, Redstone VMs use 192.168.0.20–29, Anton VMs use 192.168.0.30–49.
-- **Docker Compose**: persistent data always mounts to `/mnt/nas/<dataset>/<service>` (Storinator NFS). Never use named volumes for stateful data — it must survive VM recreation.
+- **VM IDs**: Diglett VMs use 200–299, Machamp VMs use 100–199.
+- **IP addresses**: physical nodes use 192.168.0.2–19, Diglett VMs use 192.168.0.20–29, Machamp VMs use 192.168.0.30–49.
+- **Docker Compose**: persistent data always mounts to `/mnt/nas/<dataset>/<service>` (Snorlax NFS). Never use named volumes for stateful data — it must survive VM recreation.
 - **Traefik routing**: each service gets two routers — `<name>-wsh` (Tailscale, HTTPS) and `<name>-home` (LAN, HTTP). Omit a router to restrict exposure on that network. Default is both. See DNS Architecture in `docs/plan.md` for the full two-domain design.
   ```yaml
   - "traefik.http.routers.<name>-wsh.rule=Host(`<name>.wsh`)"
@@ -34,12 +34,12 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
 
 ```
 terraform/modules/proxmox-vm/  — shared VM module, edit here for VM-level changes
-terraform/redstone/            — Redstone VMs (DNS, HAOS, Infisical, Deploy)
-terraform/anton/               — Anton VMs (Ollama, OpenClaw, Debian, Services)
+terraform/diglett/            — Diglett VMs (DNS, HAOS, Infisical, Deploy)
+terraform/machamp/               — Machamp VMs (Ollama, OpenClaw, Debian, Services)
 services/dns/                  — AdGuard Home + Headscale + cloudflared
-services/redstone-infra/       — Infisical + Vaultwarden + Litestream
-services/redstone-deploy/      — Terraform + Ansible (deploy tooling only)
-services/anton/                — all Docker Compose services (Traefik, Jellyfin, etc.)
+services/diglett-infra/       — Infisical + Vaultwarden + Litestream
+services/diglett-deploy/      — Terraform + Ansible (deploy tooling only)
+services/machamp/                — all Docker Compose services (Traefik, Jellyfin, etc.)
 scripts/                       — bootstrap and init scripts (headless service setup)
 ansible/                       — push-only config management for VMs and physical devices
 docs/                          — architecture docs, plan, TODOs

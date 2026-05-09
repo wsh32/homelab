@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bootstrap Infisical on a freshly provisioned redstone-infisical VM.
+# Bootstrap Infisical on a freshly provisioned diglett-infisical VM.
 # Creates admin user, organization, workspace, and machine identity.
 # Run once after Terraform + cloud-init completes.
 #

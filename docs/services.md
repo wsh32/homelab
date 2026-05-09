@@ -1,37 +1,37 @@
 # Services
 
 Per-VM service inventory. All persistent data mounts to `/mnt/nas/docker/<service>` on
-Storinator NFS — VMs are stateless and can be rebuilt without data loss.
+Snorlax NFS — VMs are stateless and can be rebuilt without data loss.
 
 ---
 
-## Redstone VMs
+## Diglett VMs
 
-### redstone-dns (`192.168.0.2`)
+### diglett-dns (`192.168.0.2`)
 
 | Service | Notes |
 |---------|-------|
-| AdGuard Home | LAN DNS resolver. Pre-seeded config — no setup wizard. DNS rewrites: `*.wsh` → CNAME `anton-services.ts.home`, `*.home` → A `192.168.0.31` |
+| AdGuard Home | LAN DNS resolver. Pre-seeded config — no setup wizard. DNS rewrites: `*.wsh` → CNAME `machamp-services.ts.home`, `*.home` → A `192.168.0.31` |
 | Headscale | Self-hosted Tailscale coordination server. Pushes AdGuard's Tailscale IP as the DNS resolver for `.wsh` and `.home` to all tailnet members |
 | cloudflared | Cloudflare Tunnel — exposes Headscale publicly without open ports or a static IP |
 | Tailscale exit node | Primary exit node for the tailnet |
 
-### redstone-infisical (`192.168.0.21`)
+### diglett-infisical (`192.168.0.21`)
 
 | Service | Notes |
 |---------|-------|
 | Infisical | Machine-consumed secrets (service API keys, inter-service tokens). Each VM fetches secrets at boot via `infisical export` |
 | Vaultwarden | Human-consumed secrets (web UI admin passwords). One manual browser registration at bootstrap; persists on NFS forever |
-| Litestream | Continuously streams the Vaultwarden SQLite WAL to Storinator NFS |
+| Litestream | Continuously streams the Vaultwarden SQLite WAL to Snorlax NFS |
 
-### redstone-deploy (`192.168.0.23`)
+### diglett-deploy (`192.168.0.23`)
 
 | Service | Notes |
 |---------|-------|
-| Terraform | Provisions Redstone and Anton VMs. State stored in MinIO on Storinator |
+| Terraform | Provisions Diglett and Machamp VMs. State stored in MinIO on Snorlax |
 | Ansible | Push-only config management for all VMs and physical nodes |
 
-### redstone-haos (`192.168.0.22`)
+### diglett-haos (`192.168.0.22`)
 
 | Service | Notes |
 |---------|-------|
@@ -39,9 +39,9 @@ Storinator NFS — VMs are stateless and can be rebuilt without data loss.
 
 ---
 
-## Anton VMs
+## Machamp VMs
 
-### anton-services (`192.168.0.31`)
+### machamp-services (`192.168.0.31`)
 
 | Service | Notes |
 |---------|-------|
@@ -62,20 +62,20 @@ Storinator NFS — VMs are stateless and can be rebuilt without data loss.
 | Loki | Log aggregation |
 | Promtail | Log shipping (scrapes Docker container logs) |
 
-### anton-ollama (`192.168.0.30`)
+### machamp-ollama (`192.168.0.30`)
 
 | Service | Notes |
 |---------|-------|
 | Ollama | GPU inference server. RTX 3060 passthrough (hostpci pending — see TODOS.md) |
 | Tailscale exit node | Backup exit node for the tailnet |
 
-### anton-openclaw (`192.168.0.32`)
+### machamp-openclaw (`192.168.0.32`)
 
 | Service | Notes |
 |---------|-------|
-| OpenClaw | Personal AI assistant gateway. Permanent on Anton |
+| OpenClaw | Personal AI assistant gateway. Permanent on Machamp |
 
-### anton-debian (`192.168.0.33`)
+### machamp-debian (`192.168.0.33`)
 
 | Service | Notes |
 |---------|-------|

@@ -4,7 +4,7 @@ What hardware do I own that is part of my homelab?
 
 ## Compute
 * Lenovo P620 ThinkStation
-    * Nickname: anton
+    * Nickname: machamp
     * Role: Main compute node
     * OS: Proxmox
     * CPU: AMD Threadripper 3975WX (32c/64t)
@@ -13,8 +13,8 @@ What hardware do I own that is part of my homelab?
     * Boot drive: 500GB SATA SSD
     * NVMe storage: 2x 2TB NVMe SSD
 
-* NUC (Redstone)
-    * Nickname: redstone
+* NUC (Diglett)
+    * Nickname: diglett
     * Role: Always on infra node
     * OS: Proxmox
     * CPU: i3-8109U
@@ -23,7 +23,7 @@ What hardware do I own that is part of my homelab?
     * SSD: 1TB SATA SSD
 
 * AOOSTAR WTR Pro
-    * Nickname: storinator
+    * Nickname: snorlax
     * Role: Onsite NAS
     * OS: TrueNAS
     * CPU: Ryzen 7 5825u
@@ -33,7 +33,7 @@ What hardware do I own that is part of my homelab?
     * SSD: 2x 2TB SSD
 
 * XPS 8900
-    * Nickname: gringotts
+    * Nickname: ditto
     * Role: Offsite backup
     * OS: TrueNAS
     * CPU: i7-6700K
@@ -48,7 +48,7 @@ What hardware do I own that is part of my homelab?
     * OS: Proxmox (planned)
     * CPU: Ryzen 7 3700x (8c/16t)
     * RAM: 128GB DDR4
-    * GPU: none (P2000 is on Anton; will migrate to this node with the services VM when built)
+    * GPU: none (P2000 is on Machamp; will migrate to this node with the services VM when built)
     * Boot drive: tbd (small SSD)
     * NVMe storage: 2TB NVMe SSD
     * Status: Not yet built
@@ -64,5 +64,5 @@ What hardware do I own that is part of my homelab?
 * 2.5g unmanaged switch
 
 ## Power
-* UPS covers: anton, storinator, orange pi (orange pi must be on UPS to act as NUT server)
+* UPS covers: machamp, snorlax, orange pi (orange pi must be on UPS to act as NUT server)
 

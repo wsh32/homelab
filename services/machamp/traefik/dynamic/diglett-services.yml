@@ -1,5 +1,5 @@
-# External backends for Redstone-hosted services routed through Anton's Traefik.
-# Traefik on Anton reaches Redstone services directly via LAN.
+# External backends for Diglett-hosted services routed through Machamp's Traefik.
+# Traefik on Machamp reaches Diglett services directly via LAN.
 
 http:
   routers:

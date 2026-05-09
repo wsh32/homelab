@@ -1,6 +1,6 @@
 # Copy to terraform.tfvars and fill in values. NEVER commit terraform.tfvars.
 
-# Proxmox API endpoint for Anton
+# Proxmox API endpoint for Machamp
 proxmox_endpoint = "https://192.168.0.5:8006"
 
 # Proxmox API token — create via:
