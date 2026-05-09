@@ -6,11 +6,11 @@
 #
 # IP layout:
 #   .1       gateway (Eero)
-#   .2       nuc-dns VM (AdGuard Home — primary DNS for all VMs)
+#   .2       redstone-dns VM (AdGuard Home — primary DNS for all VMs)
 #   .3       reserved (future backup DNS)
 #   .4–.19   physical nodes
-#   .20–.29  NUC VMs   (10 slots, VM IDs 200–299)
-#   .30–.49  Anton VMs (20 slots, VM IDs 100–199)
+#   .20–.29  Redstone VMs (10 slots, VM IDs 200–299)
+#   .30–.49  Anton VMs    (20 slots, VM IDs 100–199)
 #   .100+    DHCP (Eero managed)
 
 gateway: 192.168.0.1
@@ -18,8 +18,8 @@ subnet_prefix: 24
 
 # DNS servers injected into all VMs via cloud-init
 dns:
-  - 192.168.0.2   # nuc-dns (AdGuard Home) — primary
-  - 8.8.8.8       # fallback if nuc-dns is down
+  - 192.168.0.2   # redstone-dns (AdGuard Home) — primary
+  - 8.8.8.8       # fallback if redstone-dns is down
 
 # All nodes — physical and compute.
 #
@@ -51,22 +51,22 @@ nodes:
     type: other
     ansible_user: root
 
-  nuc:
+  redstone:
     ip: 192.168.0.6
     type: proxmox
     bridge_port: eno1  # TODO: verify with `ip link show`
     vms:
-      nuc-dns:
+      redstone-dns:
         ip: 192.168.0.2
         vm_id: 200
-      nuc-infisical:
+      redstone-infisical:
         ip: 192.168.0.21
         vm_id: 201
-      nuc-haos:
+      redstone-haos:
         ip: 192.168.0.22
         vm_id: 202
         ansible_managed: false  # HAOS — no SSH access via Ansible
-      nuc-deploy:
+      redstone-deploy:
         ip: 192.168.0.23
         vm_id: 203
 

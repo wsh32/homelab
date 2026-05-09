@@ -39,7 +39,7 @@ in VM cloud-init.
 
 **What:** Deploy a secondary AdGuard Home instance on the Orange Pi.
 
-**Why:** The primary DNS VM on the NUC is a single point of failure.
+**Why:** The primary DNS VM on the Redstone is a single point of failure.
 Currently mitigated by 8.8.8.8 as fallback, but that bypasses ad-blocking
 and breaks `.home` domain resolution.
 
@@ -90,9 +90,9 @@ outside the homelab.
 - Proxmox root credentials
 - `pvecm expected 1` quorum recovery command
 
-**Why:** If the NUC dies, running containers on Anton survive but new
+**Why:** If the Redstone dies, running containers on Anton survive but new
 deploys are blocked until Infisical returns. An offline export allows
-recovery without waiting for NUC hardware replacement.
+recovery without waiting for Redstone hardware replacement.
 
 **Storage:** encrypted file in a password manager on phone, or USB drive.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Triggered by adnanh/webhook on the deploy VM (nuc-deploy).
+# Triggered by adnanh/webhook on the deploy VM (redstone-deploy).
 # Detects which paths changed and runs the appropriate deploy commands.
 # Holds a lock so concurrent webhook firings are dropped.
 #
@@ -42,14 +42,14 @@ if echo "$CHANGED" | grep -q "^terraform/vps/"; then
   exit 1
 fi
 
-# Terraform apply if NUC or Anton definitions changed.
-if echo "$CHANGED" | grep -qE "^terraform/(nuc|anton|modules)/"; then
+# Terraform apply if Redstone or Anton definitions changed.
+if echo "$CHANGED" | grep -qE "^terraform/(redstone|anton|modules)/"; then
   echo "==> Running Terraform + Ansible deploy..."
   bash "$REPO_ROOT/scripts/deploy.sh"
 fi
 
 # Ansible — run all affected playbooks if ansible/ changed and Terraform didn't trigger already.
-if echo "$CHANGED" | grep -q "^ansible/" && ! echo "$CHANGED" | grep -qE "^terraform/(nuc|anton|modules)/"; then
+if echo "$CHANGED" | grep -q "^ansible/" && ! echo "$CHANGED" | grep -qE "^terraform/(redstone|anton|modules)/"; then
   cd "$REPO_ROOT/ansible"
   echo "==> Running Ansible: VMs (base.yml)..."
   ansible-playbook base.yml

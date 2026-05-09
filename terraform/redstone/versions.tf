@@ -11,6 +11,6 @@ terraform {
   # State stored on Storinator NFS — mount before running Terraform.
   # Mount: sudo mount -t nfs storinator:/mnt/pool/terraform-state /mnt/terraform-state
   backend "local" {
-    path = "/mnt/terraform-state/nuc/terraform.tfstate"
+    path = "/mnt/terraform-state/redstone/terraform.tfstate"
   }
 }

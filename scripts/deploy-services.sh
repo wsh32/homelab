@@ -20,15 +20,15 @@ deploy_service() {
 }
 
 if echo "$CHANGED" | grep -q "^services/dns/"; then
-  deploy_service "nuc-dns" "services/dns"
+  deploy_service "redstone-dns" "services/dns"
 fi
 
-if echo "$CHANGED" | grep -q "^services/nuc-infra/"; then
-  deploy_service "nuc-infisical" "services/nuc-infra"
+if echo "$CHANGED" | grep -q "^services/redstone-infra/"; then
+  deploy_service "redstone-infisical" "services/redstone-infra"
 fi
 
-if echo "$CHANGED" | grep -q "^services/nuc-deploy/"; then
-  deploy_service "nuc-deploy" "services/nuc-deploy"
+if echo "$CHANGED" | grep -q "^services/redstone-deploy/"; then
+  deploy_service "redstone-deploy" "services/redstone-deploy"
 fi
 
 if echo "$CHANGED" | grep -q "^services/anton/"; then

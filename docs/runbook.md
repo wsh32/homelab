@@ -38,7 +38,7 @@ ssh-keygen -t ed25519  # if no key exists
 
 ### 1. Form the Proxmox cluster
 
-On the NUC (primary node):
+On Redstone (primary node):
 1. Log into the Proxmox web UI at `https://192.168.0.6:8006`
 2. Datacenter → Cluster → Create Cluster → name it `homelab`
 3. Copy the join information
@@ -57,7 +57,7 @@ pvecm expected 1
 
 ### 2. Create Proxmox API tokens
 
-Repeat on **both** Anton (`192.168.0.5:8006`) and NUC (`192.168.0.6:8006`):
+Repeat on **both** Anton (`192.168.0.5:8006`) and Redstone (`192.168.0.6:8006`):
 
 1. Datacenter → Permissions → Users → Add: `terraform@pam`
 2. Datacenter → Permissions → Add → User Permission: path `/`, user `terraform@pam`, role `Administrator`
@@ -87,10 +87,10 @@ Log into TrueNAS at `https://192.168.0.4`:
 
 ### 4. Configure static IPs on physical nodes
 
-Find the NIC bridged to `vmbr0` on Anton and NUC:
+Find the NIC bridged to `vmbr0` on Anton and Redstone:
 ```bash
 ssh root@192.168.0.5 ip link show   # anton — look for eno1 or similar
-ssh root@192.168.0.6 ip link show   # nuc
+ssh root@192.168.0.6 ip link show   # redstone
 ```
 
 Update `bridge_port` in `network.yml` if needed, then:
@@ -108,12 +108,12 @@ For Storinator and Gringotts: Network → Interfaces in TrueNAS UI → set stati
 ### 5. Write terraform.tfvars
 
 ```bash
-cp terraform/nuc/terraform.tfvars.example terraform/nuc/terraform.tfvars
+cp terraform/redstone/terraform.tfvars.example terraform/redstone/terraform.tfvars
 ```
 
 Fill in:
 ```hcl
-# Proxmox — NUC
+# Proxmox — Redstone
 proxmox_endpoint  = "https://192.168.0.6:8006"
 proxmox_api_token = "terraform@pam!terraform=<uuid-from-step-2>"
 
@@ -135,7 +135,7 @@ cloudflare_api_token = "<cloudflare-api-token>"
 ### 6. Provision the deploy VM
 
 ```bash
-cd terraform/nuc
+cd terraform/redstone
 terraform init
 terraform apply -target=module.deploy
 ```
@@ -162,7 +162,7 @@ cd ~/homelab
 ### 8. Provision the DNS VM
 
 ```bash
-cd terraform/nuc
+cd terraform/redstone
 terraform apply -target=module.dns
 ```
 
@@ -189,9 +189,8 @@ it to `terraform.tfvars` automatically.
 ```bash
 ./scripts/deploy.sh
 # Or node by node:
-./scripts/deploy.sh nuc
+./scripts/deploy.sh redstone
 ./scripts/deploy.sh anton
-./scripts/deploy.sh anton    # Anton VMs
 ```
 
 VMs provision, cloud-init handles Docker install and NFS mounts. Tailscale auth runs

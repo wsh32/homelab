@@ -7,10 +7,10 @@
 # Keep Ansible group definitions and vars here.
 
 nodes:
-  nuc:
-    group: nuc_vms
+  redstone:
+    group: redstone_vms
     vars:
-      proxmox_node: nuc
+      proxmox_node: redstone
       ansible_user: debian
 
   anton:

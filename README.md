@@ -9,7 +9,7 @@ Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Te
 │                       Headscale tailnet                         │
 │                                                                 │
 │  ┌──────────────────┐            ┌──────────────────┐           │
-│  │      Anton       │            │       NUC        │           │
+│  │      Anton       │            │    Redstone      │           │
 │  │                  │            │                  │           │
 │  │  GPU compute +   │            │  Always-on       │           │
 │  │  all services    │            │  infrastructure  │           │
@@ -26,7 +26,7 @@ Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Te
 | Node | Role |
 |------|------|
 | **Anton** | Proxmox compute node. Hosts all VMs: GPU inference (Ollama, RTX 3060), personal tooling (OpenClaw, Debian workstation), and all Docker Compose services (Traefik, Jellyfin, Servarr, etc.) |
-| **NUC** | Always-on Proxmox infrastructure node. Hosts DNS (AdGuard Home), Tailscale coordination (Headscale behind Cloudflare Tunnel), secrets (Infisical + Vaultwarden), and the deploy VM |
+| **Redstone** | Always-on Proxmox infrastructure node. Hosts DNS (AdGuard Home), Tailscale coordination (Headscale behind Cloudflare Tunnel), secrets (Infisical + Vaultwarden), and the deploy VM |
 | **Storinator** | TrueNAS NAS. Provides NFS mounts for all persistent Docker volumes and MinIO S3 for Terraform state |
 | **Gringotts** | Offsite TrueNAS NAS. Receives daily/weekly ZFS replication from Storinator; only reachable over Tailscale |
 | **Orange Pi** | Miscellaneous device (role TBD) |
@@ -38,7 +38,7 @@ See [`docs/services.md`](docs/services.md) for the full per-VM service list.
 ```
 terraform/
   modules/proxmox-vm/     # shared VM module (bpg/proxmox provider)
-  nuc/                    # NUC root module — state in MinIO on Storinator
+  redstone/               # Redstone root module — state in MinIO on Storinator
   anton/                  # Anton root module — state in MinIO on Storinator
   services/               # services node root module — state in MinIO on Storinator
 ansible/
@@ -54,8 +54,8 @@ ansible/
   network.yml             # static IP config for Proxmox nodes
 services/
   dns/                    # AdGuard + Headscale + cloudflared (pre-seeded, no wizards)
-  nuc-infra/              # Infisical + Vaultwarden + Litestream
-  nuc-deploy/             # webhook listener for internal deploy triggers
+  redstone-infra/         # Infisical + Vaultwarden + Litestream
+  redstone-deploy/        # webhook listener for internal deploy triggers
   anton/                  # Docker Compose — all Anton/services workloads
 network.yml               # single source of truth for all IPs and VM IDs
 scripts/
@@ -75,14 +75,14 @@ docs/
 
 ## How deploys work
 
-All deploys are manual, initiated from the deploy VM (`nuc-deploy`, `192.168.0.23`):
+All deploys are manual, initiated from the deploy VM (`redstone-deploy`, `192.168.0.23`):
 
 ```bash
 ssh debian@192.168.0.23
 cd ~/homelab && git pull
 
 ./scripts/deploy.sh           # terraform apply + ansible for all nodes
-./scripts/deploy.sh nuc       # single node
+./scripts/deploy.sh redstone  # single node
 ./scripts/deploy-services.sh  # docker compose only, no terraform
 ```
 
@@ -93,16 +93,16 @@ cd ~/homelab && git pull
 Full step-by-step guide in [`docs/runbook.md`](docs/runbook.md). High-level summary:
 
 **Phase 1 — Physical setup (one-time, manual):**
-1. Join Anton, NUC, and services node into a Proxmox cluster via UI
+1. Join Anton, Redstone, and services node into a Proxmox cluster via UI
 2. Create Proxmox API tokens on each node
 3. Create NFS datasets + enable MinIO on Storinator (S3 state backend)
 4. Configure static IPs on physical nodes via Ansible
 
 **Phase 2 — Bootstrap the deploy VM (from operator laptop):**
 ```bash
-cp terraform/nuc/terraform.tfvars.example terraform/nuc/terraform.tfvars
+cp terraform/redstone/terraform.tfvars.example terraform/redstone/terraform.tfvars
 # fill in Proxmox tokens, MinIO creds, SSH key, Cloudflare API token
-cd terraform/nuc && terraform apply -target=module.deploy
+cd terraform/redstone && terraform apply -target=module.deploy
 ansible-playbook ansible/bootstrap-deploy.yml
 ```
 
@@ -111,7 +111,7 @@ ansible-playbook ansible/bootstrap-deploy.yml
 ssh debian@192.168.0.23 && cd ~/homelab
 
 # DNS VM first (Headscale must exist before other VMs get Tailscale keys)
-cd terraform/nuc && terraform apply -target=module.dns
+cd terraform/redstone && terraform apply -target=module.dns
 ansible-playbook ansible/bootstrap-headscale.yml  # generates + writes pre-auth key
 
 # All remaining VMs

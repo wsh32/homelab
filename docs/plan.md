@@ -38,20 +38,20 @@ DHCP: `192.168.0.100 – 192.168.0.254` (Eero managed)
 
 Physical nodes get DHCP reservations in the Eero app. VMs get static IPs configured via cloud-init, outside the DHCP range.
 
-IP ranges: physical nodes `.2–.19`, NUC VMs `.20–.29`, Anton VMs `.30–.49`.
+IP ranges: physical nodes `.2–.19`, Redstone VMs `.20–.29`, Anton VMs `.30–.49`.
 
 | Device | Hostname | IP | Notes |
 |--------|----------|----|-------|
-| nuc-dns VM | dns | 192.168.0.2 | Static (Terraform) — AdGuard Home |
+| redstone-dns VM | dns | 192.168.0.2 | Static (Terraform) — AdGuard Home |
 | (future) | dns2 | 192.168.0.3 | Reserved for backup DNS VM |
 | Storinator | storinator | 192.168.0.4 | Static (TrueNAS UI) |
 | Anton | anton | 192.168.0.5 | Static (Ansible — `/etc/network/interfaces`) |
-| NUC | nuc | 192.168.0.6 | Static (Ansible — `/etc/network/interfaces`) |
+| Redstone | redstone | 192.168.0.6 | Static (Ansible — `/etc/network/interfaces`) |
 | Orange Pi | orangepi | 192.168.0.7 | Static (TBD — depends on OS choice) |
 | Gringotts | gringotts | 192.168.0.8 | Offsite — only reachable via Tailscale |
-| nuc-infisical VM | nuc-infisical | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
-| nuc-haos VM | nuc-haos | 192.168.0.22 | Static (Terraform) — Home Assistant OS |
-| nuc-deploy VM | nuc-deploy | 192.168.0.23 | Static (Terraform) — Terraform + Ansible |
+| redstone-infisical VM | redstone-infisical | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
+| redstone-haos VM | redstone-haos | 192.168.0.22 | Static (Terraform) — Home Assistant OS |
+| redstone-deploy VM | redstone-deploy | 192.168.0.23 | Static (Terraform) — Terraform + Ansible |
 | anton-ollama VM | anton-ollama | 192.168.0.30 | Static (Terraform) |
 | anton-services VM | anton-services | 192.168.0.31 | Static (Terraform) |
 | anton-openclaw VM | anton-openclaw | 192.168.0.32 | Static (Terraform) |
@@ -139,7 +139,7 @@ Each service defaults to being exposed on both domains. To restrict:
 | Node | Role | Status |
 |------|------|--------|
 | Anton | Compute — GPU workloads, all Docker Compose services | Active |
-| NUC | Always-on infrastructure | Active |
+| Redstone | Always-on infrastructure | Active |
 
 Full Proxmox cluster for single-pane management only. No HA or live migration.
 
@@ -149,7 +149,7 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 
 ### One-time manual steps (Proxmox UI)
 
-1. **Proxmox cluster** — join Anton and NUC into a single Proxmox cluster
+1. **Proxmox cluster** — join Anton and Redstone into a single Proxmox cluster
 2. **Proxmox API token** — create a Terraform service account and API token on each node
 
 ### One-time manual steps (Storinator TrueNAS UI)
@@ -162,7 +162,7 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 ### One-time manual steps (operator laptop)
 
 5. **Configure static IPs on physical nodes** — `ansible-playbook ansible/network.yml`
-   for Anton and NUC; set static IPs on Storinator and Gringotts via TrueNAS UI.
+   for Anton and Redstone; set static IPs on Storinator and Gringotts via TrueNAS UI.
 6. **Write `terraform.tfvars`** — populate with Proxmox API tokens, MinIO credentials,
    SSH public key, and Cloudflare API token. This is the only manual credential entry
    in the bootstrap.
@@ -199,7 +199,7 @@ services that depend on those external keys.
 
 ## VM Resource Budget
 
-### NUC (16GB RAM, i3-8109U 4c/4t)
+### Redstone (16GB RAM, i3-8109U 4c/4t)
 
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
@@ -247,7 +247,7 @@ services that depend on those external keys.
 
 ## VM Layout
 
-### NUC (always-on infrastructure)
+### Redstone (always-on infrastructure)
 
 **DNS VM** (`192.168.0.2`):
 
@@ -279,7 +279,7 @@ On rebuild, restore from the latest vzdump backup via the HAOS UI or `ha` CLI.
 
 | Service | Notes |
 |---------|-------|
-| Terraform | Manages NUC and Anton VMs; `terraform.tfvars` lives here |
+| Terraform | Manages Redstone and Anton VMs; `terraform.tfvars` lives here |
 | Ansible | Runs `base.yml` after Terraform apply; reaches all VMs over Tailscale SSH |
 
 Infisical stores all machine-read secrets — both service API keys (fetched at VM boot via
@@ -439,7 +439,7 @@ done via an init container.
 All workspaces use MinIO S3 on Storinator, accessed over Tailscale.
 
 - Endpoint: `http://storinator:9000` (Tailscale MagicDNS)
-- Bucket: `terraform-state`, keys `nuc/terraform.tfstate`, `anton/terraform.tfstate`, `services/terraform.tfstate`
+- Bucket: `terraform-state`, keys `redstone/terraform.tfstate`, `anton/terraform.tfstate`, `services/terraform.tfstate`
 - Locking via S3 lockfile (`use_lockfile = true`, Terraform ≥ 1.10) — no DynamoDB needed
 - Accessible from deploy VM (normal execution) and operator laptop (break-glass)
 - Replicated to Gringotts daily; ZFS snapshots provide version history
@@ -449,7 +449,7 @@ All workspaces use MinIO S3 on Storinator, accessed over Tailscale.
 ## Reverse Proxy
 
 Single Traefik instance on Anton (services VM at `192.168.0.31`) serves all services across
-all nodes. NUC-hosted services (Infisical, Vaultwarden) are configured as external backends
+all nodes. Redstone-hosted services (Infisical, Vaultwarden) are configured as external backends
 pointing at their local IPs (e.g. `192.168.0.21`). All nodes are on the same LAN so Traefik
 on Anton reaches them directly.
 
@@ -500,7 +500,7 @@ The provisioning source of truth. Manually supplied values only:
 No service secrets are generated or stored in Terraform. Backed up as an encrypted
 note in Vaultwarden. Never committed to Git.
 
-**Infisical** — NUC Infisical VM, machine-consumed secrets
+**Infisical** — Redstone Infisical VM, machine-consumed secrets
 
 Stores all secrets that services or processes read programmatically:
 - Service API keys and inter-service tokens (Prowlarr → Radarr/Sonarr API keys, etc.)
@@ -520,7 +520,7 @@ Service secrets are seeded to Infisical by each service's Ansible role at bring-
 not via a central seed script. External API keys that cannot be generated locally are added
 manually via the Infisical UI.
 
-**Vaultwarden** — NUC Infisical VM, human-consumed secrets
+**Vaultwarden** — Redstone Infisical VM, human-consumed secrets
 
 Stores every password a human types into a browser or UI:
 - All service web UI admin passwords (Grafana, n8n, Jellyfin, Calibre-Web, PhotoPrism, etc.)
@@ -629,7 +629,7 @@ Deploys are triggered manually from the deploy VM. No webhook or CI automation.
 
 ```
 # SSH to deploy VM, then:
-./scripts/deploy.sh nuc      # terraform apply + ansible for NUC VMs
+./scripts/deploy.sh redstone # terraform apply + ansible for Redstone VMs
 ./scripts/deploy.sh anton    # terraform apply + ansible for Anton VMs
 ./scripts/deploy.sh          # all nodes
 ./scripts/deploy-services.sh # redeploy Docker Compose stacks only (no Terraform)
@@ -649,7 +649,7 @@ UPS covers: Anton, Storinator, Orange Pi Zero 3
 
 NUT server: Orange Pi Zero 3 (must be on UPS circuit to send shutdown signals before power loss)
 
-NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
+NUT clients: Anton, Redstone, Storinator (shut down gracefully on power loss)
 
 ---
 
@@ -659,14 +659,14 @@ NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
 |----------|------------|
 | Terraform code drift | Acknowledged — code update deferred, plan is source of truth |
 | HAOS provisioning | Terraform provisions VM via qcow2 image download; config restored from Proxmox vzdump backup |
-| Reverse proxy for NUC services | Single Traefik on Anton; NUC services as external backends by local IP |
+| Reverse proxy for Redstone services | Single Traefik on Anton; Redstone services as external backends by local IP |
 | Vaultwarden/Infisical DB location | Local VM disk; Vaultwarden via Litestream (continuous), Infisical via mongodump every 6h |
 | Infisical bootstrap | `ansible/bootstrap-infisical.yml` runs after VMs are provisioned. Creates admin, org, workspace, and per-VM machine identities. Credentials written to `/etc/infisical.env` on each VM by Ansible — not via Terraform/cloud-init. |
 | Infisical role | Single source of truth for all machine-consumed secrets. VMs fetch via `infisical export` at boot using credentials in `/etc/infisical.env`. Service secrets seeded by each service's Ansible role at bring-up time; external API keys added manually. |
 | Vaultwarden role | Human-consumed secrets only (web UI admin passwords). Populated by each service's Ansible role after the service is configured. |
 | Vaultwarden account creation | Attempted automatically via `bw register` (Bitwarden CLI) during `ansible/site.yml`. One manual browser registration accepted as fallback if CLI doesn't support it. Account persists on NFS — never repeated. |
-| NUC RAM headroom | Accept the risk; monitor closely |
-| Tailscale exit node coupling | Accept DNS+exit node coupling on NUC; Anton is backup exit node |
+| Redstone RAM headroom | Accept the risk; monitor closely |
+| Tailscale exit node coupling | Accept DNS+exit node coupling on Redstone; Anton is backup exit node |
 | Monitoring stack | Prometheus + Grafana + Loki only; Mimir/Tempo removed |
 | OpenClaw placement | Permanent on Anton; not in services node migration list |
 | AdGuard headless config | Pre-seeded `AdGuardHome.yaml`; setup wizard bypassed entirely |
@@ -675,9 +675,9 @@ NUT clients: Anton, NUC, Storinator (shut down gracefully on power loss)
 | Calibre-Web headless setup | Post-start `cps.py -s` CLI; library at `/books` mount |
 | n8n headless setup | `POST /api/v1/owner/setup` scripted in `n8n-init.sh` |
 | CouchDB headless setup | Env vars for credentials; init container handles `/_cluster_setup` and CORS |
-| Tailscale coordination server | Self-hosted Headscale on the NUC DNS VM (`192.168.0.2`), co-located with AdGuard. Public HTTPS endpoint provided by a Cloudflare Tunnel (cloudflared container). No public IP or open port required. Uses Tailscale's public DERP relays. Managed by Ansible (`roles/headscale`). |
-| Terraform execution host | Deploy VM (`nuc-deploy`) runs all Terraform workspaces. Operator laptop is break-glass fallback. No VPS. |
-| Terraform state backend | MinIO S3 on Storinator (`http://storinator:9000`) for all workspaces (`nuc/`, `anton/`, `services/`). S3 lockfile replaces NFS file locking. Both deploy VM and operator laptop reach MinIO over Tailscale. |
+| Tailscale coordination server | Self-hosted Headscale on the Redstone DNS VM (`192.168.0.2`), co-located with AdGuard. Public HTTPS endpoint provided by a Cloudflare Tunnel (cloudflared container). No public IP or open port required. Uses Tailscale's public DERP relays. Managed by Ansible (`roles/headscale`). |
+| Terraform execution host | Deploy VM (`redstone-deploy`) runs all Terraform workspaces. Operator laptop is break-glass fallback. No VPS. |
+| Terraform state backend | MinIO S3 on Storinator (`http://storinator:9000`) for all workspaces (`redstone/`, `anton/`, `services/`). S3 lockfile replaces NFS file locking. Both deploy VM and operator laptop reach MinIO over Tailscale. |
 | Physical device management | Ansible push, same model as VMs. One-time bootstrap via `scripts/bootstrap-physical.sh` (installs Tailscale only). All further config pushed via `ansible-playbook ansible/physical.yml` from the deploy VM. |
 | Deployment automation | Manual. Operator SSHes to deploy VM and runs `./scripts/deploy.sh`. No webhook, no CI. Simpler and sufficient for a personal homelab. |
 | DNS domain strategy | Two domains: `*.wsh` (Tailscale/HTTPS, personal devices) and `*.home` (LAN/HTTP, guests). Avoids subnet routing; guests can reach services without Tailscale. Single Traefik instance handles both. |

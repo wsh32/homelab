@@ -28,7 +28,7 @@ dns_config:
   # Push AdGuard's Tailscale IP as authoritative resolver for .wsh and .home
   # to all tailnet members. Set after AdGuard VM is provisioned and has a Tailscale IP.
   nameservers:
-    - 100.64.0.2  # TODO: replace with actual Tailscale IP of nuc-dns VM
+    - 100.64.0.2  # TODO: replace with actual Tailscale IP of redstone-dns VM
   domains:
     - wsh
     - home
