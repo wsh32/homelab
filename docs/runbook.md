@@ -109,6 +109,7 @@ For Alakazam and Ditto: Network → Interfaces in TrueNAS UI → set static IPs
 
 ```bash
 cp terraform/diglett/terraform.tfvars.example terraform/diglett/terraform.tfvars
+cp terraform/machamp/terraform.tfvars.example terraform/machamp/terraform.tfvars
 ```
 
 Fill in:
@@ -132,22 +133,42 @@ cloudflare_api_token = "<cloudflare-api-token>"
 # headscale_preauth_key = ""  # filled automatically by bootstrap-headscale.yml
 ```
 
-### 6. Provision the deploy VM
+### 6. Create the deploy VM in TrueNAS
+
+`alakazam-deploy` is an Ubuntu 24.04 KVM VM managed by TrueNAS SCALE — not Terraform.
+Create it manually:
+
+1. Log into TrueNAS at `https://192.168.0.4`
+2. Virtualization → Add → Linux VM:
+   - Name: `alakazam-deploy`
+   - CPU: 2 cores, Memory: 2 GiB, Disk: 20 GiB
+   - ISO: Ubuntu Server 24.04 minimal
+   - Network: bridge to the LAN interface
+3. Complete the Ubuntu installer. Set:
+   - Username: `ubuntu`
+   - Static IP: `192.168.0.20/24`, gateway `192.168.0.1`, DNS `8.8.8.8`
+   - Install OpenSSH server, import your SSH public key
+4. After first boot, verify SSH access: `ssh ubuntu@192.168.0.20`
+
+### 7. Bootstrap the deploy VM
+
+From the operator laptop:
 
 ```bash
-cd terraform/diglett
-terraform init
-terraform apply -target=module.deploy
+ssh ubuntu@192.168.0.20 \
+  TAILSCALE_AUTH_KEY=<headscale-preauth-key> \
+  bash -s < scripts/bootstrap-alakazam-deploy.sh
 ```
 
-### 7. Bootstrap the deploy VM via Ansible
+This installs Terraform, Ansible, Tailscale, Infisical CLI, and clones the repo.
+Then copy `terraform.tfvars` to the deploy VM:
 
 ```bash
-ansible-playbook ansible/bootstrap-deploy.yml
+scp terraform/diglett/terraform.tfvars ubuntu@192.168.0.20:~/homelab/terraform/diglett/
+scp terraform/machamp/terraform.tfvars ubuntu@192.168.0.20:~/homelab/terraform/machamp/
 ```
 
-This clones the repo, installs Terraform and Ansible on the deploy VM, and copies
-`terraform.tfvars`. All remaining steps run from the deploy VM.
+All remaining steps run from the deploy VM.
 
 ---
 
@@ -155,7 +176,7 @@ This clones the repo, installs Terraform and Ansible on the deploy VM, and copie
 
 SSH to the deploy VM:
 ```bash
-ssh ubuntu@192.168.0.23
+ssh ubuntu@192.168.0.20
 cd ~/homelab
 ```
 
@@ -311,7 +332,7 @@ At this point:
 
 **Deploy a change:**
 ```bash
-ssh ubuntu@192.168.0.23
+ssh ubuntu@192.168.0.20
 cd ~/homelab && git pull
 ./scripts/deploy.sh           # terraform + ansible for all nodes
 ./scripts/deploy-services.sh  # docker compose only, no terraform
@@ -324,7 +345,7 @@ cd ~/homelab && git pull
 
 **Rebuild a VM from scratch:**
 ```bash
-ssh ubuntu@192.168.0.23
+ssh ubuntu@192.168.0.20
 cd ~/homelab/terraform/<node>
 terraform destroy -target=module.<vm-name>
 cd ~/homelab && ./scripts/deploy.sh <node>
@@ -355,6 +376,6 @@ ssh ubuntu@192.168.0.2 \
 
 **Run Ansible only (no Terraform):**
 ```bash
-ssh ubuntu@192.168.0.23
+ssh ubuntu@192.168.0.20
 cd ~/homelab && ansible-playbook ansible/base.yml
 ```
