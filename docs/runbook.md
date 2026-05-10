@@ -67,7 +67,7 @@ Repeat on **both** Machamp (`192.168.0.5:8006`) and Diglett (`192.168.0.6:8006`)
    - **Uncheck** Privilege Separation
 4. Copy the token secret — it is only shown once. Format: `terraform@pam!terraform=<uuid>`
 
-### 3. Create NFS datasets and enable MinIO on Alakazam
+### 3. Create NFS datasets on Alakazam
 
 Log into TrueNAS at `https://192.168.0.4`:
 
@@ -78,12 +78,11 @@ Log into TrueNAS at `https://192.168.0.4`:
    - `pool/media`
    - `pool/photos`
    - `pool/lightroom`
-3. Sharing → NFS → Add for the docker dataset:
-   - Path: `/mnt/pool/docker`, Networks: `192.168.0.0/24`, Maproot User: `root`
+   - `pool/terraform-state`
+3. Sharing → NFS → Add for each dataset that needs to be exported:
+   - `pool/docker`: Networks: `192.168.0.0/24`, Maproot User: `root`
+   - `pool/terraform-state`: Networks: `192.168.0.0/24`, Maproot User: `root`
 4. Services → NFS → Start, set to start automatically
-5. Enable MinIO (System → S3 Service or Apps → MinIO depending on TrueNAS version):
-   - Create bucket: `terraform-state`
-   - Create access key + secret key — save both for `terraform.tfvars`
 
 ### 4. Configure static IPs on physical nodes
 

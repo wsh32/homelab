@@ -443,12 +443,12 @@ done via an init container.
 
 ## Terraform State Backend
 
-All workspaces use MinIO S3 on Alakazam, accessed over Tailscale.
+All workspaces use a local file backend pointing at an Alakazam NFS mount.
 
-- Endpoint: `http://alakazam:9000` (Tailscale MagicDNS)
-- Bucket: `terraform-state`, keys `diglett/terraform.tfstate`, `machamp/terraform.tfstate`, `services/terraform.tfstate`
-- Locking via S3 lockfile (`use_lockfile = true`, Terraform ≥ 1.10) — no DynamoDB needed
-- Accessible from deploy VM (normal execution) and operator laptop (break-glass)
+- NFS export: `alakazam:/mnt/pool/terraform-state` → mounted at `/mnt/terraform-state` on the deploy VM
+- State paths: `/mnt/terraform-state/diglett/terraform.tfstate`, `/mnt/terraform-state/machamp/terraform.tfstate`
+- Mount before running Terraform: `sudo mount -t nfs alakazam:/mnt/pool/terraform-state /mnt/terraform-state`
+- Accessible from deploy VM (normal execution) and operator laptop (break-glass, mount the NFS share directly)
 - Replicated to Ditto daily; ZFS snapshots provide version history
 
 ---

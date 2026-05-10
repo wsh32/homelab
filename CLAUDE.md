@@ -12,7 +12,7 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
 - **Secrets**:
   - Machine-consumed secrets (service API keys, inter-service tokens) → Infisical. Fetched at VM boot via `infisical export` to generate an ephemeral `.env` file. Seeded by each service's Ansible role at bring-up time. Never hardcoded, never in `terraform.tfvars`.
   - Human-consumed secrets (web UI admin passwords) → Vaultwarden. Stored by each service's Ansible role after configuration. Never in Infisical.
-  - Infrastructure credentials (Proxmox API tokens, MinIO creds, SSH key, Cloudflare API token) → `var.*` from `terraform.tfvars`, gitignored. Lives on the deploy VM.
+  - Infrastructure credentials (Proxmox API tokens, SSH key, Cloudflare API token) → `var.*` from `terraform.tfvars`, gitignored. Lives on the deploy VM.
   - Infisical machine identity credentials → `/etc/infisical.env` on each VM (root-owned, 0600), written by `ansible/bootstrap-infisical.yml`.
   - Developer API keys (Claude, Codex, GitHub) → Infisical, entered manually via UI, accessed via `infisical run --` on the operator laptop.
 - **VM IDs**: Diglett VMs use 200–299, Machamp VMs use 100–199.

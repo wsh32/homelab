@@ -18,7 +18,7 @@ Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Te
 │  ┌──────────────────┐            ┌────────▼─────────┐           │
 │  │   Ditto      │            │    Alakazam     │           │
 │  │  (offsite NAS)   │◄──replicate│  TrueNAS NAS      │           │
-│  └──────────────────┘            │  NFS + MinIO S3   │           │
+│  └──────────────────┘            │  NFS storage      │           │
 │                                  └──────────────────┘           │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -27,7 +27,7 @@ Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Te
 |------|------|
 | **Machamp** | Proxmox compute node. Hosts all VMs: GPU inference (Ollama, RTX 3060), personal tooling (OpenClaw, development workstation), and all Docker Compose services (Traefik, Jellyfin, Servarr, etc.) |
 | **Diglett** | Always-on Proxmox infrastructure node. Hosts DNS (AdGuard Home), Tailscale coordination (Headscale behind Cloudflare Tunnel), secrets (Infisical + Vaultwarden), and the deploy VM |
-| **Alakazam** | TrueNAS NAS. Provides NFS mounts for all persistent Docker volumes and MinIO S3 for Terraform state |
+| **Alakazam** | TrueNAS NAS. Provides NFS mounts for all persistent Docker volumes and Terraform state |
 | **Ditto** | Offsite TrueNAS NAS. Receives daily/weekly ZFS replication from Alakazam; only reachable over Tailscale |
 | **Orange Pi** | Miscellaneous device (role TBD) |
 
@@ -38,9 +38,9 @@ See [`docs/services.md`](docs/services.md) for the full per-VM service list.
 ```
 terraform/
   modules/proxmox-vm/     # shared VM module (bpg/proxmox provider)
-  diglett/               # Diglett root module — state in MinIO on Alakazam
-  machamp/                  # Machamp root module — state in MinIO on Alakazam
-  services/               # services node root module — state in MinIO on Alakazam
+  diglett/               # Diglett root module — state on Alakazam NFS
+  machamp/                  # Machamp root module — state on Alakazam NFS
+  services/               # services node root module — state on Alakazam NFS
 ansible/
   inventory/
     hosts.py              # dynamic inventory script — reads network.yml
@@ -95,13 +95,13 @@ Full step-by-step guide in [`docs/runbook.md`](docs/runbook.md). High-level summ
 **Phase 1 — Physical setup (one-time, manual):**
 1. Join Machamp, Diglett, and services node into a Proxmox cluster via UI
 2. Create Proxmox API tokens on each node
-3. Create NFS datasets + enable MinIO on Alakazam (S3 state backend)
+3. Create NFS datasets on Alakazam (including `terraform-state` export)
 4. Configure static IPs on physical nodes via Ansible
 
 **Phase 2 — Bootstrap the deploy VM (from operator laptop):**
 ```bash
 cp terraform/diglett/terraform.tfvars.example terraform/diglett/terraform.tfvars
-# fill in Proxmox tokens, MinIO creds, SSH key, Cloudflare API token
+# fill in Proxmox tokens, SSH key, Cloudflare API token
 cd terraform/diglett && terraform apply -target=module.deploy
 ansible-playbook ansible/bootstrap-deploy.yml
 ```
@@ -131,7 +131,7 @@ ansible-playbook ansible/site.yml
 
 | Store | What | How populated |
 |---|---|---|
-| **`terraform.tfvars`** | Infrastructure credentials (Proxmox tokens, MinIO, SSH key, Cloudflare API token, Headscale pre-auth key) | Manually; `bootstrap-headscale.yml` writes the pre-auth key automatically |
+| **`terraform.tfvars`** | Infrastructure credentials (Proxmox tokens, SSH key, Cloudflare API token, Headscale pre-auth key) | Manually; `bootstrap-headscale.yml` writes the pre-auth key automatically |
 | **Infisical** | Machine-consumed secrets: service API keys, inter-service tokens, developer API keys | Auto-seeded per service by `ansible/site.yml`; external keys added via UI |
 | **Vaultwarden** | Human-consumed secrets: web UI admin passwords, personal credentials | Written by each service's Ansible role after configuration |
 
