@@ -22,6 +22,14 @@ resource "proxmox_virtual_environment_file" "user_data" {
       hostname: ${var.name}
       fqdn: ${var.name}.home
 
+      users:
+        - name: ubuntu
+          groups: sudo
+          shell: /bin/bash
+          ssh_authorized_keys:
+            - ${var.ssh_public_key}
+          sudo: ALL=(ALL) NOPASSWD:ALL
+
       package_update: true
       package_upgrade: true
       packages:
