@@ -12,10 +12,10 @@ Goal: every VM in `network.yml` is provisioned and passes `ansible-playbook ansi
 - [ ] **Add Cloudflare provider to Terraform** — add `cloudflare/cloudflare` provider to `terraform/diglett/versions.tf`; add `cloudflare_api_token` to `variables.tf` and `terraform.tfvars.example`; add `cloudflare_tunnel` + `cloudflare_tunnel_config` + `cloudflare_record` resources for Headscale
 - [ ] **Wire Cloudflare tunnel token into DNS VM cloud-init** — pass the `cloudflare_tunnel` token output from Terraform into the DNS VM module as a variable; cloud-init writes it to the cloudflared env file
 - [ ] **Fix Tailscale `--login-server` in cloud-init** — add a `headscale_url` variable to `terraform/modules/proxmox-vm/`; thread it through all VM definitions; set to the Cloudflare Tunnel public URL
-- [ ] **Write `ansible/bootstrap-deploy.yml`** — playbook that clones the repo, installs Terraform and Ansible, and copies `terraform.tfvars` onto the deploy VM; run from operator laptop after `terraform apply -target=module.deploy`
+- [ ] **Write `scripts/bootstrap-deploy.sh`** — shell script that installs Terraform, Ansible, Infisical CLI, Tailscale, and clones the repo; run directly on the deploy VM after creating it manually in Proxmox
 - [ ] **Write `ansible/bootstrap-headscale.yml`** — waits for Headscale healthy, generates a reusable pre-auth key via `docker exec headscale headscale preauthkeys create --reusable --expiration 365d`, patches `headscale_preauth_key` into `terraform.tfvars` on the deploy VM
-- [ ] **Configure static IPs on physical nodes** — run `ansible-playbook ansible/network.yml` for Machamp and Diglett; set static IPs on Alakazam and Ditto via TrueNAS UI
-- [ ] **Bootstrap deploy VM** — `terraform apply -target=module.deploy` from operator laptop; then `ansible-playbook ansible/bootstrap-deploy.yml`
+- [ ] **Configure static IPs on physical nodes** — set static IPs on Alakazam and Ditto via TrueNAS UI; run `ansible-playbook ansible/network.yml` from deploy VM for Machamp and Diglett
+- [ ] **Bootstrap deploy VM** — create manually in Proxmox on Diglett (Ubuntu 24.04, IP `192.168.0.20`); SSH in and run `scripts/bootstrap-deploy.sh`; write `terraform.tfvars` and mount NFS state share
 - [ ] **Bootstrap DNS VM** — `terraform apply -target=module.dns`; verify AdGuard, Headscale, and cloudflared are running; run `ansible-playbook ansible/bootstrap-headscale.yml`
 - [ ] **Deploy all VMs** — `terraform apply` from deploy VM; verify all VMs come online
 - [ ] **Verify Ansible base** — `ansible-playbook ansible/base.yml` runs clean against all VMs with no failures

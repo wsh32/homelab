@@ -93,25 +93,24 @@ cd ~/homelab && git pull
 Full step-by-step guide in [`docs/runbook.md`](docs/runbook.md). High-level summary:
 
 **Phase 1 — Physical setup (one-time, manual):**
-1. Join Machamp, Diglett, and services node into a Proxmox cluster via UI
-2. Create Proxmox API tokens on each node
+1. Join Machamp and Diglett into a Proxmox cluster via UI
+2. Create one Proxmox API token (cluster-wide, create on either node)
 3. Create NFS datasets on Alakazam (including `terraform-state` export)
-4. Configure static IPs on physical nodes via Ansible
+4. Configure static IPs on physical nodes
 
-**Phase 2 — Bootstrap the deploy VM (from operator laptop):**
-```bash
-cp terraform/diglett/terraform.tfvars.example terraform/diglett/terraform.tfvars
-# fill in Proxmox tokens, SSH key, Cloudflare API token
-cd terraform/diglett && terraform apply -target=module.deploy
-ansible-playbook ansible/bootstrap-deploy.yml
-```
+**Phase 2 — Create and bootstrap the deploy VM:**
+1. Create the deploy VM manually in Proxmox on Diglett (Ubuntu 24.04, IP `192.168.0.20`)
+2. SSH in and run the bootstrap script — installs tools and clones the repo
+3. Write `terraform.tfvars` on the deploy VM; mount the NFS state share
+
+All remaining steps run from the deploy VM.
 
 **Phase 3 — Full deployment (from the deploy VM):**
 ```bash
-ssh ubuntu@192.168.0.23 && cd ~/homelab
+ssh ubuntu@192.168.0.20 && cd ~/homelab
 
 # DNS VM first (Headscale must exist before other VMs get Tailscale keys)
-cd terraform/diglett && terraform apply -target=module.dns
+cd terraform/diglett && terraform init && terraform apply -target=module.dns
 ansible-playbook ansible/bootstrap-headscale.yml  # generates + writes pre-auth key
 
 # All remaining VMs

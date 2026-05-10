@@ -10,27 +10,9 @@ Normal deploys after bootstrap are manual: SSH to the deploy VM and run
 
 ## Prerequisites
 
-Tools required on the operator laptop:
-
-```bash
-# Terraform >= 1.10 (required for S3 lockfile support)
-terraform -version
-
-# Ansible
-ansible --version
-
-# Bitwarden CLI (for Vaultwarden account creation)
-bw --version
-
-# SSH key pair (used for VM access)
-ls ~/.ssh/id_ed25519.pub
-```
-
-Install if missing:
-```bash
-brew install terraform ansible bitwarden-cli
-ssh-keygen -t ed25519  # if no key exists
-```
+- SSH access from your laptop (just to get into the deploy VM initially)
+- All other tools (Terraform, Ansible, Infisical CLI, Tailscale) are installed
+  on the deploy VM by the bootstrap script in Phase 2
 
 ---
 
@@ -55,10 +37,11 @@ Verify: both nodes appear under Datacenter in either UI.
 pvecm expected 1
 ```
 
-### 2. Create Proxmox API tokens
+### 2. Create Proxmox API token
 
-Repeat on **both** Machamp (`192.168.0.5:8006`) and Diglett (`192.168.0.6:8006`):
+Tokens are cluster-wide — create on either node (Diglett is fine).
 
+On Diglett (`https://192.168.0.6:8006`):
 1. Datacenter → Permissions → Users → Add: `terraform@pam`
 2. Datacenter → Permissions → Add → User Permission: path `/`, user `terraform@pam`, role `Administrator`
 3. Datacenter → Permissions → API Tokens → Add:
@@ -86,45 +69,66 @@ Log into TrueNAS at `https://192.168.0.4`:
 
 ### 4. Configure static IPs on physical nodes
 
-Find the NIC bridged to `vmbr0` on Machamp and Diglett:
+For Alakazam and Ditto: Network → Interfaces in TrueNAS UI → set static IPs
+(`192.168.0.4` and `192.168.0.8`).
+
+For Machamp and Diglett, find the NIC bridged to `vmbr0`:
 ```bash
 ssh root@192.168.0.5 ip link show   # machamp — look for eno1 or similar
 ssh root@192.168.0.6 ip link show   # diglett
 ```
 
-Update `bridge_port` in `network.yml` if needed, then:
+Update `bridge_port` in `network.yml` if needed, then from your laptop:
 ```bash
 ansible-playbook ansible/network.yml
 ```
 
-For Alakazam and Ditto: Network → Interfaces in TrueNAS UI → set static IPs
-(`192.168.0.4` and `192.168.0.8`).
-
 ---
 
-## Phase 2 — Bootstrap the deploy VM (operator laptop)
+## Phase 2 — Create and bootstrap the deploy VM
 
-### 5. Write terraform.tfvars
+### 5. Create the deploy VM manually in Proxmox
 
+On Diglett (`https://192.168.0.6:8006`):
+1. Download the Ubuntu Server 24.04 ISO to Diglett local storage
+2. Create VM:
+   - VM ID: `200`, Name: `deploy`
+   - CPU: 2 cores, Memory: 2 GiB, Disk: 20 GiB on local-lvm
+   - Network: `vmbr0`
+   - Boot from Ubuntu ISO
+3. Complete the Ubuntu installer. Set:
+   - Username: `ubuntu`
+   - Static IP: `192.168.0.20/24`, gateway `192.168.0.1`, DNS `192.168.0.2` (or `8.8.8.8` before DNS VM exists)
+   - Install OpenSSH server, paste in your SSH public key
+4. Verify SSH access: `ssh ubuntu@192.168.0.20`
+
+### 6. Bootstrap the deploy VM
+
+SSH in and run the bootstrap script directly on the VM:
 ```bash
-cp terraform/diglett/terraform.tfvars.example terraform/diglett/terraform.tfvars
-cp terraform/machamp/terraform.tfvars.example terraform/machamp/terraform.tfvars
+ssh ubuntu@192.168.0.20
+curl -fsSL https://raw.githubusercontent.com/wsh32/homelab/main/scripts/bootstrap-deploy.sh | bash
 ```
 
-Fill in:
+This installs Terraform, Ansible, Tailscale, Infisical CLI, and clones the repo to `~/homelab`.
+
+### 7. Write terraform.tfvars on the deploy VM
+
+From the deploy VM:
+```bash
+cd ~/homelab
+cp terraform/diglett/terraform.tfvars.example terraform/diglett/terraform.tfvars
+cp terraform/machamp/terraform.tfvars.example terraform/machamp/terraform.tfvars
+nano terraform/diglett/terraform.tfvars
+nano terraform/machamp/terraform.tfvars
+```
+
+Fill in each file:
 ```hcl
-# Proxmox — Diglett
-proxmox_endpoint  = "https://192.168.0.6:8006"
+proxmox_endpoint  = "https://192.168.0.6:8006"   # diglett; use .5 for machamp
 proxmox_api_token = "terraform@pam!terraform=<uuid-from-step-2>"
 
-# Proxmox — Machamp (used by terraform/machamp/)
-# proxmox_endpoint  = "https://192.168.0.5:8006"
-# proxmox_api_token = "terraform@pam!terraform=<uuid-from-step-2>"
-
-# Shared
-ssh_public_key   = "<contents of ~/.ssh/id_ed25519.pub>"
-minio_access_key = "<access-key-from-step-3>"
-minio_secret_key = "<secret-key-from-step-3>"
+ssh_public_key = "<paste your public key here>"
 
 # Cloudflare (for Headscale tunnel + DNS)
 cloudflare_api_token = "<cloudflare-api-token>"
@@ -132,39 +136,15 @@ cloudflare_api_token = "<cloudflare-api-token>"
 # headscale_preauth_key = ""  # filled automatically by bootstrap-headscale.yml
 ```
 
-### 6. Create the deploy VM in TrueNAS
-
-`alakazam-deploy` is an Ubuntu 24.04 KVM VM managed by TrueNAS SCALE — not Terraform.
-Create it manually:
-
-1. Log into TrueNAS at `https://192.168.0.4`
-2. Virtualization → Add → Linux VM:
-   - Name: `alakazam-deploy`
-   - CPU: 2 cores, Memory: 2 GiB, Disk: 20 GiB
-   - ISO: Ubuntu Server 24.04 minimal
-   - Network: bridge to the LAN interface
-3. Complete the Ubuntu installer. Set:
-   - Username: `ubuntu`
-   - Static IP: `192.168.0.20/24`, gateway `192.168.0.1`, DNS `8.8.8.8`
-   - Install OpenSSH server, import your SSH public key
-4. After first boot, verify SSH access: `ssh ubuntu@192.168.0.20`
-
-### 7. Bootstrap the deploy VM
-
-From the operator laptop:
-
+Mount the Terraform state NFS share:
 ```bash
-ssh ubuntu@192.168.0.20 \
-  TAILSCALE_AUTH_KEY=<headscale-preauth-key> \
-  bash -s < scripts/bootstrap-alakazam-deploy.sh
+sudo mkdir -p /mnt/terraform-state
+sudo mount -t nfs alakazam:/mnt/pool/terraform-state /mnt/terraform-state
 ```
 
-This installs Terraform, Ansible, Tailscale, Infisical CLI, and clones the repo.
-Then copy `terraform.tfvars` to the deploy VM:
-
-```bash
-scp terraform/diglett/terraform.tfvars ubuntu@192.168.0.20:~/homelab/terraform/diglett/
-scp terraform/machamp/terraform.tfvars ubuntu@192.168.0.20:~/homelab/terraform/machamp/
+Add to `/etc/fstab` so it persists across reboots:
+```
+alakazam:/mnt/pool/terraform-state  /mnt/terraform-state  nfs  soft,timeo=30,nfsvers=4  0  0
 ```
 
 All remaining steps run from the deploy VM.
@@ -183,6 +163,7 @@ cd ~/homelab
 
 ```bash
 cd terraform/diglett
+terraform init
 terraform apply -target=module.dns
 ```
 
@@ -258,7 +239,7 @@ pause with instructions for the one manual browser step.
 ### 13. TLS — trust the step-ca root CA
 
 step-ca is initialized by the `site.yml` Ansible role. Copy the root CA cert to your
-operator laptop and trust it:
+personal devices and trust it:
 
 ```bash
 scp ubuntu@192.168.0.31:/tmp/homelab-root-ca.crt ~/homelab-root-ca.crt
@@ -303,7 +284,7 @@ GITHUB_TOKEN
 # any other external keys used in terminal workflows
 ```
 
-To use them on the operator laptop:
+To use them on the deploy VM:
 ```bash
 infisical run -- claude
 infisical run -- env   # inspect all injected vars
@@ -352,7 +333,7 @@ cd ~/homelab && ./scripts/deploy.sh <node>
 
 **Add a new physical device:**
 1. Add to `network.yml` under `physical` with the correct `type` (inventory updates automatically)
-2. Bootstrap the device (one SSH session):
+2. Bootstrap the device (one SSH session from the deploy VM):
 ```bash
 ssh root@<device-ip> \
   TAILSCALE_AUTH_KEY=<headscale-preauth-key> \
