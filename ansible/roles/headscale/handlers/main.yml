@@ -1,7 +1,0 @@
----
-- name: Restart headscale
-  community.docker.docker_compose_v2:
-    project_src: /opt/homelab/services/vps
-    state: present
-    recreate: always
-  become: true

@@ -1,4 +1,0 @@
-do_token       = "dop_v1_..."
-do_region      = "nyc3"
-do_size        = "s-1vcpu-1gb"
-ssh_public_key = "ssh-ed25519 AAAA..."

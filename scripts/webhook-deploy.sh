@@ -36,12 +36,6 @@ CHANGED=$(git diff --name-only "${PREV}" HEAD 2>/dev/null || git diff --name-onl
 echo "==> Changed files:"
 echo "$CHANGED"
 
-# terraform/vps/ cannot self-apply — notify and exit.
-if echo "$CHANGED" | grep -q "^terraform/vps/"; then
-  echo "==> ERROR: terraform/vps/ changed — run manually from operator laptop."
-  exit 1
-fi
-
 # Terraform apply if Diglett or Machamp definitions changed.
 if echo "$CHANGED" | grep -qE "^terraform/(diglett|machamp|modules)/"; then
   echo "==> Running Terraform + Ansible deploy..."
@@ -55,8 +49,6 @@ if echo "$CHANGED" | grep -q "^ansible/" && ! echo "$CHANGED" | grep -qE "^terra
   ansible-playbook base.yml
   echo "==> Running Ansible: physical devices (physical.yml)..."
   ansible-playbook physical.yml
-  echo "==> Running Ansible: VPS (vps.yml)..."
-  ansible-playbook vps.yml
 fi
 
 # Docker Compose redeploy if services changed.
