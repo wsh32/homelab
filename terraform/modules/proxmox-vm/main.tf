@@ -28,6 +28,8 @@ resource "proxmox_virtual_environment_file" "user_data" {
           shell: /bin/bash
           ssh_authorized_keys:
             - ${var.ssh_public_key}
+          ssh_import_id:
+            - gh:wsh32
           sudo: ALL=(ALL) NOPASSWD:ALL
 
       package_update: true
