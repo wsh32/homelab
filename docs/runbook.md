@@ -224,6 +224,26 @@ fi
 
 All remaining steps run from the deploy VM.
 
+### 7b. Authorize the deploy VM SSH key on both Proxmox nodes and install the CA cert
+
+The bpg/proxmox Terraform provider uses SSH (in addition to the API) to upload
+cloud-init snippets. The deploy VM's key must be in root's `authorized_keys` on
+both nodes, and the Proxmox CA cert must be installed so Terraform can verify TLS.
+
+```bash
+# Authorize SSH key on both Proxmox nodes
+ssh-copy-id -i ~/.ssh/id_ed25519.pub root@machamp.local
+ssh-copy-id -i ~/.ssh/id_ed25519.pub root@diglett.local
+
+# Fetch and install the Proxmox cluster CA cert (both nodes share the same CA)
+bash ~/homelab/scripts/install-proxmox-ca.sh machamp.local
+```
+
+Verify TLS works before running Terraform:
+```bash
+curl https://192.168.0.5:8006  # should connect without certificate errors
+```
+
 ---
 
 ## Phase 3 — Full deployment (from the deploy VM)

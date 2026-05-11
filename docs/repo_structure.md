@@ -167,6 +167,8 @@ Day-2 configuration management. Runs after Terraform provisions VMs and cloud-in
 
 **`webhook-deploy.sh`** — Triggered by the internal webhook. Pulls latest code, detects changed paths, and dispatches: Terraform changed → `deploy.sh`; `ansible/` changed → `base.yml` + `physical.yml`; `services/` changed → `deploy-services.sh`. Holds a lock to prevent concurrent runs.
 
+**`install-proxmox-ca.sh`** — Fetches the Proxmox cluster CA certificate from a Proxmox node and installs it system-wide on the deploy VM (`update-ca-certificates`). Run once after authorizing the deploy VM's SSH key on the Proxmox nodes. Required for Terraform to verify TLS connections to the Proxmox API (`insecure = false`). Usage: `bash install-proxmox-ca.sh [node]` (default: `machamp.local`).
+
 **`infisical-bootstrap.sh`** — Runs `infisical bootstrap` against a fresh Infisical instance. Creates admin user, organization, workspace, and machine identity. Outputs credentials to add to `terraform.tfvars`.
 
 **`jellyfin-init.sh`** — Drives the Jellyfin `/Startup/*` API headlessly: sets locale, creates admin user, configures remote access, completes wizard.
