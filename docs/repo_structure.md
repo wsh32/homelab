@@ -44,7 +44,7 @@ The shared VM module. Every standard (Ubuntu, cloud-init) VM is an instance of t
 
 ## `terraform/diglett/`
 
-Root module for the Diglett node. VM ID range 200–299, IP range `192.168.0.20–29`.
+Root module for the Diglett node. VM ID range 200–299, IP range `192.168.0.21–29`.
 
 **`main.tf`** — Defines:
 - `proxmox_virtual_environment_download_file.ubuntu_2404` — downloads the Ubuntu 24.04 cloud image once; re-applying is a no-op.
@@ -52,30 +52,19 @@ Root module for the Diglett node. VM ID range 200–299, IP range `192.168.0.20�
 - `module.dns` — `diglett-dns` VM (VM 200, `192.168.0.2`, 2 cores, 2GB): AdGuard Home + primary Tailscale exit node.
 - `module.infisical` — `diglett-infisical` VM (VM 201, `192.168.0.21`, 2 cores, 6GB): Infisical + Vaultwarden.
 - `resource.proxmox_virtual_environment_vm.haos` — `diglett-haos` VM (VM 202, `192.168.0.22`, 2 cores, 4GB): Home Assistant OS. Uses a dedicated resource (not the shared module) because HAOS boots from its own qcow2 image, not cloud-init.
-- `module.deploy` — `diglett-deploy` VM (VM 203, `192.168.0.23`, 1 core, 1GB): Terraform + Ansible + internal webhook listener.
 
 ---
 
 ## `terraform/machamp/`
 
-Root module for Machamp. VM ID range 100–199, IP range `192.168.0.10–19`.
+Root module for Machamp. VM ID range 100–199, IP range `192.168.0.30–49`.
 
 **`main.tf`** — Defines:
 - `proxmox_virtual_environment_download_file.ubuntu_2404` — downloads the Ubuntu 24.04 cloud image once.
-- `module.ollama` — `machamp-ollama` VM (VM 100, `192.168.0.10`, 4 cores, 32GB): Ollama GPU inference + backup Tailscale exit node. RTX 3060 hostpci block pending (see TODOS.md).
-- `module.services` — `machamp-services` VM (VM 103, `192.168.0.11`, 8 cores, 32GB): all Docker Compose services, Traefik reverse proxy, Quadro P2000 for Jellyfin transcoding. hostpci block pending.
-- `module.openclaw` — `machamp-openclaw` VM (VM 102, `192.168.0.12`, 2 cores, 8GB): OpenClaw AI assistant gateway.
-- `module.dev` — `machamp-dev` VM (VM 101, `192.168.0.13`, 6 cores, 16GB): personal development workstation.
-
----
-
-## `terraform/vps/`
-
-Root module for the DigitalOcean VPS. Runs only from the operator laptop — the VPS cannot manage its own existence. State stored locally (gitignored); back up in Vaultwarden.
-
-**`main.tf`** — Creates a DigitalOcean droplet and firewall. Firewall opens SSH (22), the GitHub webhook port (9000), Headscale HTTPS (443), and Headscale DERP UDP (41641). Outputs `vps_ip`.
-
-**`variables.tf`** — `do_token`, `do_region`, `do_size`, `ssh_public_key`.
+- `module.ollama` — `machamp-ollama` VM (VM 100, `192.168.0.30`, 4 cores, 32GB): Ollama GPU inference + backup Tailscale exit node. RTX 3060 hostpci block pending (see TODOS.md).
+- `module.services` — `machamp-services` VM (VM 103, `192.168.0.31`, 8 cores, 32GB): all Docker Compose services, Traefik reverse proxy, Quadro P2000 for Jellyfin transcoding. hostpci block pending.
+- `module.openclaw` — `machamp-openclaw` VM (VM 102, `192.168.0.32`, 2 cores, 8GB): OpenClaw AI assistant gateway.
+- `module.dev` — `machamp-dev` VM (VM 101, `192.168.0.33`, 6 cores, 16GB): personal development workstation.
 
 ---
 
@@ -85,7 +74,7 @@ Docker Compose stack for the `diglett-dns` VM.
 
 **`docker-compose.yml`** — AdGuard Home, `network_mode: host` (needs port 53 on host IP).
 
-**`adguard/AdGuardHome.yaml`** — Pre-seeded config. AdGuard detects a valid config on startup and skips the setup wizard entirely. Contains: bcrypt admin password hash (plaintext in Vaultwarden), upstream DNS (8.8.8.8 / 8.8.4.4), DNS rewrites (`*.wsh` CNAME → `machamp-services.ts.home`, `*.home` A → `192.168.0.11`), and default blocklists.
+**`adguard/AdGuardHome.yaml`** — Pre-seeded config. AdGuard detects a valid config on startup and skips the setup wizard entirely. Contains: bcrypt admin password hash (plaintext in Vaultwarden), upstream DNS (8.8.8.8 / 8.8.4.4), DNS rewrites (`*.wsh` CNAME → `machamp-services.ts.home`, `*.home` A → `192.168.0.31`), and default blocklists.
 
 ---
 
@@ -103,11 +92,7 @@ Docker Compose stack for the `diglett-infisical` VM.
 
 ## `services/diglett-deploy/`
 
-Docker Compose stack for the `diglett-deploy` VM.
-
-**`docker-compose.yml`** — `adnanh/webhook` listening on port 9001 (Tailscale only; not internet-facing). Receives forwarded payloads from the VPS webhook and runs `scripts/webhook-deploy.sh`.
-
-**`hooks.json`** — Webhook hook definition: accepts any payload and passes the `ref` field to `webhook-deploy.sh`.
+Not yet created.
 
 ---
 
@@ -146,18 +131,6 @@ Docker Compose stack for the `machamp-services` VM. This is the main services st
 
 ---
 
-## `services/vps/`
-
-Docker Compose stack for the DigitalOcean VPS. Deployed by `ansible/roles/headscale/` via `vps.yml`. The repo is synced to `/opt/homelab/` on the VPS by `ansible-playbook ansible/vps.yml`.
-
-**`docker-compose.yml`** — Headscale (Tailscale coordination server) and a webhook forwarder (`adnanh/webhook`) that validates GitHub HMAC signatures and forwards payloads to the deploy VM over Tailscale.
-
-**`headscale/config.yml`** — Headscale config: server URL, IP prefixes, DNS config (pushes AdGuard's Tailscale IP as resolver for `.wsh` and `.home` to all tailnet members).
-
-**`webhook/hooks.json`** — Webhook hook definition: validates GitHub HMAC-SHA256, then shells out to forward the payload to `diglett-deploy.ts.home:9001`.
-
----
-
 ## `ansible/`
 
 Day-2 configuration management. Runs after Terraform provisions VMs and cloud-init finishes. All Ansible is push — no pull mode, no crons on target machines.
@@ -182,8 +155,6 @@ Day-2 configuration management. Runs after Terraform provisions VMs and cloud-in
 
 **`roles/docker/`** — Applied to VMs running Docker Compose. Adds the official Docker apt repo, installs Docker CE + compose plugin, configures log rotation, adds `ubuntu` user to the `docker` group.
 
-**`roles/headscale/`** — Applied to the VPS. Ensures `/var/lib/headscale/` exists and deploys `services/vps/` via `docker compose up`.
-
 **`roles/network/`** — Installs `ifupdown2` and templates `/etc/network/interfaces` for Proxmox bridge config on physical nodes.
 
 ---
@@ -194,7 +165,9 @@ Day-2 configuration management. Runs after Terraform provisions VMs and cloud-in
 
 **`deploy-services.sh`** — SSHes to the relevant VM and runs `docker compose pull && docker compose up -d` for whichever `services/` subdirectory changed. Called by `webhook-deploy.sh`.
 
-**`webhook-deploy.sh`** — Runs on `diglett-deploy`, triggered by the internal webhook. Pulls latest code, detects changed paths, and dispatches: Terraform changed → `deploy.sh`; `ansible/` changed → `base.yml` + `physical.yml` + `vps.yml`; `services/` changed → `deploy-services.sh`; `terraform/vps/` changed → exit 1 (notify operator). Holds a lock to prevent concurrent runs.
+**`webhook-deploy.sh`** — Triggered by the internal webhook. Pulls latest code, detects changed paths, and dispatches: Terraform changed → `deploy.sh`; `ansible/` changed → `base.yml` + `physical.yml`; `services/` changed → `deploy-services.sh`. Holds a lock to prevent concurrent runs.
+
+**`install-proxmox-ca.sh`** — Fetches the Proxmox cluster CA certificate from a Proxmox node and installs it system-wide on the deploy VM (`update-ca-certificates`). Run once after authorizing the deploy VM's SSH key on the Proxmox nodes. Required for Terraform to verify TLS connections to the Proxmox API (`insecure = false`). Usage: `bash install-proxmox-ca.sh [node]` (default: `machamp.local`).
 
 **`infisical-bootstrap.sh`** — Runs `infisical bootstrap` against a fresh Infisical instance. Creates admin user, organization, workspace, and machine identity. Outputs credentials to add to `terraform.tfvars`.
 

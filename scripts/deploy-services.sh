@@ -35,6 +35,3 @@ if echo "$CHANGED" | grep -q "^services/machamp/"; then
   deploy_service "machamp-services" "services/machamp"
 fi
 
-if echo "$CHANGED" | grep -q "^services/vps/"; then
-  echo "  ==> VPS services deploy via ansible-pull — no action needed."
-fi

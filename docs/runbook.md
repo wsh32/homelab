@@ -67,23 +67,47 @@ Repeat on **both** Machamp (`192.168.0.5:8006`) and Diglett (`192.168.0.6:8006`)
    - **Uncheck** Privilege Separation
 4. Copy the token secret — it is only shown once. Format: `terraform@pam!terraform=<uuid>`
 
-### 3. Create NFS datasets and enable MinIO on Alakazam
+### 3. Create NFS datasets and shares on Alakazam
 
 Log into TrueNAS at `https://192.168.0.4`:
 
 1. Storage → Create Pool (if not already done): name `pool`
 2. Datasets → Add Dataset for each:
-   - `pool/docker`
+   - `pool/apps/terraform` — Terraform state files
+   - `pool/docker` — persistent service data (Docker volumes)
    - `pool/backups`
    - `pool/media`
    - `pool/photos`
    - `pool/lightroom`
-3. Sharing → NFS → Add for the docker dataset:
-   - Path: `/mnt/pool/docker`, Networks: `192.168.0.0/24`, Maproot User: `root`
-4. Services → NFS → Start, set to start automatically
-5. Enable MinIO (System → S3 Service or Apps → MinIO depending on TrueNAS version):
-   - Create bucket: `terraform-state`
-   - Create access key + secret key — save both for `terraform.tfvars`
+3. Sharing → NFS → Add a share for **each** dataset below.
+   For every share set **Maproot User: `root`** — this allows the deploy VM's
+   `ubuntu` user to create directories and set permissions via `sudo`.
+   Without this, NFS root-squash maps `sudo` to `nobody` and writes fail.
+
+   | Dataset path              | Allowed networks  |
+   |---------------------------|-------------------|
+   | `/mnt/pool/apps/terraform`| `192.168.0.0/24`  |
+   | `/mnt/pool/docker`        | `192.168.0.0/24`  |
+
+4. Services → NFS → Start, set to start automatically.
+5. After adding or changing any share (e.g. adding an IP), reload exports from
+   the TrueNAS shell (System → Shell):
+   ```bash
+   exportfs -ra
+   ```
+   Changes to allowed hosts in the TrueNAS UI do **not** take effect until
+   exports are reloaded.
+
+### 3a. Enable Snippets storage on each Proxmox node
+
+The bpg/proxmox Terraform provider uploads cloud-init user-data as snippet files.
+The `local` datastore must have the Snippets content type enabled or Terraform will
+fail when creating VMs.
+
+Repeat on **both** Machamp and Diglett:
+1. Datacenter → Storage → `local` → Edit
+2. Under **Content**, check **Snippets**
+3. Click OK
 
 ### 4. Configure static IPs on physical nodes
 
@@ -124,8 +148,6 @@ proxmox_api_token = "terraform@pam!terraform=<uuid-from-step-2>"
 
 # Shared
 ssh_public_key   = "<contents of ~/.ssh/id_ed25519.pub>"
-minio_access_key = "<access-key-from-step-3>"
-minio_secret_key = "<secret-key-from-step-3>"
 
 # Cloudflare (for Headscale tunnel + DNS)
 cloudflare_api_token = "<cloudflare-api-token>"
@@ -141,7 +163,7 @@ Create it manually:
 1. Log into TrueNAS at `https://192.168.0.4`
 2. Virtualization → Add → Linux VM:
    - Name: `alakazam-deploy`
-   - CPU: 2 cores, Memory: 2 GiB, Disk: 20 GiB
+   - CPU: 1 core, Memory: 1 GiB, Disk: 20 GiB
    - ISO: Ubuntu Server 24.04 minimal
    - Network: bridge to the LAN interface
 3. Complete the Ubuntu installer. Set:
@@ -168,7 +190,59 @@ scp terraform/diglett/terraform.tfvars ubuntu@192.168.0.20:~/homelab/terraform/d
 scp terraform/machamp/terraform.tfvars ubuntu@192.168.0.20:~/homelab/terraform/machamp/
 ```
 
+### 7a. Mount the Terraform state NFS share on the deploy VM
+
+SSH to the deploy VM and run:
+
+```bash
+# Install NFS client (not present on Ubuntu minimal by default)
+sudo apt-get install -y nfs-common
+
+# Create mount point
+sudo mkdir -p /mnt/terraform-state
+
+# Mount (verify alakazam is reachable first)
+sudo mount -t nfs alakazam.local:/mnt/pool/apps/terraform /mnt/terraform-state
+
+# Create per-node state directories and set ownership
+sudo mkdir -p /mnt/terraform-state/machamp /mnt/terraform-state/diglett
+sudo chown ubuntu:ubuntu /mnt/terraform-state/machamp /mnt/terraform-state/diglett
+```
+
+Persist the mount across reboots by adding to `/etc/fstab`:
+```
+alakazam.local:/mnt/pool/apps/terraform /mnt/terraform-state nfs soft,timeo=30,nfsvers=4 0 0
+```
+
+To avoid needing to re-run `ssh-agent` every session, add to `~/.bashrc`:
+```bash
+if [ -z "$SSH_AUTH_SOCK" ]; then
+  eval $(ssh-agent -s)
+  ssh-add ~/.ssh/id_ed25519
+fi
+```
+
 All remaining steps run from the deploy VM.
+
+### 7b. Authorize the deploy VM SSH key on both Proxmox nodes and install the CA cert
+
+The bpg/proxmox Terraform provider uses SSH (in addition to the API) to upload
+cloud-init snippets. The deploy VM's key must be in root's `authorized_keys` on
+both nodes, and the Proxmox CA cert must be installed so Terraform can verify TLS.
+
+```bash
+# Authorize SSH key on both Proxmox nodes
+ssh-copy-id -i ~/.ssh/id_ed25519.pub root@machamp.local
+ssh-copy-id -i ~/.ssh/id_ed25519.pub root@diglett.local
+
+# Fetch and install the Proxmox cluster CA cert (both nodes share the same CA)
+bash ~/homelab/scripts/install-proxmox-ca.sh machamp.local
+```
+
+Verify TLS works before running Terraform:
+```bash
+curl https://192.168.0.5:8006  # should connect without certificate errors
+```
 
 ---
 

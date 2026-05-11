@@ -29,7 +29,8 @@ echo "==> Installing base packages..."
 sudo apt-get install -y -q \
   git curl wget gnupg software-properties-common \
   python3 python3-pip pipx \
-  unzip jq
+  unzip jq \
+  nfs-common
 
 # ── Terraform ────────────────────────────────────────────────────────────────
 
@@ -77,12 +78,30 @@ fi
 
 # ── Done ─────────────────────────────────────────────────────────────────────
 
+# ── Shell config ─────────────────────────────────────────────────────────────
+
+echo "==> Configuring ~/.bashrc..."
+if ! grep -q 'ssh-agent' "$HOME/.bashrc"; then
+  cat >> "$HOME/.bashrc" <<'BASHRC'
+
+# Auto-start ssh-agent (required for Terraform bpg/proxmox provider)
+if [ -z "$SSH_AUTH_SOCK" ]; then
+  eval $(ssh-agent -s)
+  ssh-add ~/.ssh/id_ed25519 2>/dev/null || true
+fi
+BASHRC
+fi
+
 echo ""
 echo "==> Bootstrap complete."
 echo ""
 echo "Remaining manual steps:"
 echo "  1. Copy terraform.tfvars to $REPO_DIR/terraform/diglett/"
 echo "     and $REPO_DIR/terraform/machamp/"
-echo "  2. If restoring: copy /etc/infisical.env (root:root, 0600)"
-echo "  3. Verify Tailscale: tailscale status"
-echo "  4. Verify Terraform: cd $REPO_DIR/terraform/diglett && terraform init"
+echo "  2. Mount Terraform state NFS share (see runbook step 7a)"
+echo "  3. Authorize SSH key on Proxmox nodes and install CA cert (runbook step 7b):"
+echo "       ssh-copy-id -i ~/.ssh/id_ed25519.pub root@machamp.local"
+echo "       ssh-copy-id -i ~/.ssh/id_ed25519.pub root@diglett.local"
+echo "       bash $REPO_DIR/scripts/install-proxmox-ca.sh"
+echo "  4. If restoring: copy /etc/infisical.env (root:root, 0600)"
+echo "  5. Verify Tailscale: tailscale status"

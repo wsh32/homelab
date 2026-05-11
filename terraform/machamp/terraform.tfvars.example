@@ -11,5 +11,11 @@ proxmox_api_token = "terraform@pam!terraform=REPLACE_ME"
 # Your SSH public key (cat ~/.ssh/id_ed25519.pub)
 ssh_public_key = "ssh-ed25519 AAAAC3... you@machine"
 
+# System timezone for all VMs — use a tz database name (e.g. America/Los_Angeles)
+timezone = "UTC"
+
+# Password for the ubuntu user on all VMs (enables console + SSH password login)
+vm_password = "REPLACE_ME"
+
 # Tailscale reusable auth key — generate at https://login.tailscale.com/admin/settings/keys
 tailscale_auth_key = "tskey-auth-REPLACE_ME"

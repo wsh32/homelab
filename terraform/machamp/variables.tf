@@ -14,6 +14,18 @@ variable "ssh_public_key" {
   type        = string
 }
 
+variable "timezone" {
+  description = "System timezone for all VMs (e.g. America/Los_Angeles)"
+  type        = string
+  default     = "UTC"
+}
+
+variable "vm_password" {
+  description = "Password for the ubuntu user on all VMs"
+  type        = string
+  sensitive   = true
+}
+
 variable "tailscale_auth_key" {
   description = "Tailscale reusable auth key for VM provisioning"
   type        = string

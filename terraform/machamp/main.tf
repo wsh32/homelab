@@ -35,6 +35,8 @@ module "ollama" {
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key
+  vm_password        = var.vm_password
+  timezone           = var.timezone
   tailscale_auth_key = var.tailscale_auth_key
 
   user_data_extra = <<-EOF
@@ -62,11 +64,14 @@ module "openclaw" {
   cores        = 2
   memory_mb    = 8192
   disk_size_gb = 20
+  swap_size_gb = 2
 
   ip_address         = "${local.vms["machamp-openclaw"].ip}/24"
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key
+  vm_password        = var.vm_password
+  timezone           = var.timezone
   tailscale_auth_key = var.tailscale_auth_key
 
   user_data_extra = <<-EOF
@@ -94,6 +99,8 @@ module "dev" {
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key
+  vm_password        = var.vm_password
+  timezone           = var.timezone
   tailscale_auth_key = var.tailscale_auth_key
 }
 
@@ -115,6 +122,8 @@ module "services" {
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key
+  vm_password        = var.vm_password
+  timezone           = var.timezone
   tailscale_auth_key = var.tailscale_auth_key
 
   user_data_extra = <<-EOF

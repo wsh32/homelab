@@ -70,6 +70,24 @@ variable "ssh_public_key" {
   type        = string
 }
 
+variable "timezone" {
+  description = "System timezone (e.g. America/Los_Angeles)"
+  type        = string
+  default     = "UTC"
+}
+
+variable "swap_size_gb" {
+  description = "Swap file size in GB. 0 disables swap."
+  type        = number
+  default     = 0
+}
+
+variable "vm_password" {
+  description = "Password for the ubuntu user (enables console and SSH password login)"
+  type        = string
+  sensitive   = true
+}
+
 variable "tailscale_auth_key" {
   description = "Tailscale one-time auth key for this VM"
   type        = string
