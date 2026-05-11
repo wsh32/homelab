@@ -10,7 +10,6 @@ Goal: every VM in `network.yml` is provisioned and passes `ansible-playbook ansi
 
 - [ ] **Verify bridge_port values** — SSH to Machamp and Diglett, run `ip link show`, confirm the NIC bridged to `vmbr0` is `eno1` (or correct it in `network.yml`)
 - [ ] **Add Cloudflare provider to Terraform** — add `cloudflare/cloudflare` provider to `terraform/diglett/versions.tf`; add `cloudflare_api_token` to `variables.tf` and `terraform.tfvars.example`; add `cloudflare_tunnel` + `cloudflare_tunnel_config` + `cloudflare_record` resources for Headscale
-- [ ] **Switch Terraform to S3 backend** — update `terraform/diglett/versions.tf` and `terraform/machamp/versions.tf` to use an `s3` backend block pointed at MinIO on Alakazam (`http://192.168.0.4:9000`, bucket `terraform-state`); add `minio_access_key` / `minio_secret_key` to `variables.tf` and `terraform.tfvars.example`
 - [ ] **Wire Cloudflare tunnel token into DNS VM cloud-init** — pass the `cloudflare_tunnel` token output from Terraform into the DNS VM module as a variable; cloud-init writes it to the cloudflared env file
 - [ ] **Fix Tailscale `--login-server` in cloud-init** — add a `headscale_url` variable to `terraform/modules/proxmox-vm/`; thread it through all VM definitions; set to the Cloudflare Tunnel public URL
 - [ ] **Write `ansible/bootstrap-deploy.yml`** — playbook that clones the repo, installs Terraform and Ansible, and copies `terraform.tfvars` onto the deploy VM; run from operator laptop after `terraform apply -target=module.deploy`

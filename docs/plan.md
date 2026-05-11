@@ -108,7 +108,7 @@ Each service defaults to being exposed on both domains. To restrict:
 
 # 4. Storage Architecture
 
-**Alakazam** is NAS-only. The only additional software is Tailscale and the TrueNAS Scale built-in MinIO S3 API (used as the Terraform state backend). No Docker, no services beyond TrueNAS.
+**Alakazam** is NAS-only. The only additional software is Tailscale. No Docker, no services beyond TrueNAS.
 
 | Dataset | Purpose |
 |---------|---------|
@@ -155,17 +155,15 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 ### One-time manual steps (Alakazam TrueNAS UI)
 
 3. **NFS datasets** — create and export:
+   - `apps/terraform` — Terraform state files (mounted at `/mnt/terraform-state` on the deploy VM)
    - `docker` — persistent Docker volumes for all services
-4. **Enable MinIO** — enable the TrueNAS Scale S3 service, create a `terraform-state`
-   bucket and an access key. Used as the Terraform state backend.
 
 ### One-time manual steps (operator laptop)
 
 5. **Configure static IPs on physical nodes** — `ansible-playbook ansible/network.yml`
    for Machamp and Diglett; set static IPs on Alakazam and Ditto via TrueNAS UI.
-6. **Write `terraform.tfvars`** — populate with Proxmox API tokens, MinIO credentials,
-   SSH public key, and Cloudflare API token. This is the only manual credential entry
-   in the bootstrap.
+5. **Write `terraform.tfvars`** — populate with Proxmox API tokens, SSH public key,
+   and Cloudflare API token. This is the only manual credential entry in the bootstrap.
 7. **Create `alakazam-deploy` VM in TrueNAS SCALE UI** — create a 1-core/1GB Ubuntu 24.04
    KVM VM, assign static IP `192.168.0.20` inside the VM. All subsequent steps run from
    inside the network.
@@ -443,12 +441,11 @@ done via an init container.
 
 ## Terraform State Backend
 
-All workspaces use MinIO S3 on Alakazam, accessed over Tailscale.
+All workspaces use a local file backend on an NFS mount from Alakazam.
 
-- Endpoint: `http://alakazam:9000` (Tailscale MagicDNS)
-- Bucket: `terraform-state`, keys `diglett/terraform.tfstate`, `machamp/terraform.tfstate`, `services/terraform.tfstate`
-- Locking via S3 lockfile (`use_lockfile = true`, Terraform ≥ 1.10) — no DynamoDB needed
-- Accessible from deploy VM (normal execution) and operator laptop (break-glass)
+- Mount: `alakazam.local:/mnt/pool/apps/terraform` → `/mnt/terraform-state` on the deploy VM
+- State files: `/mnt/terraform-state/machamp/terraform.tfstate`, `/mnt/terraform-state/diglett/terraform.tfstate`
+- Locking via local lockfile (Terraform default for `backend "local"`)
 - Replicated to Ditto daily; ZFS snapshots provide version history
 
 ---
@@ -499,7 +496,6 @@ Three separate stores with distinct roles, split by **consumer**:
 
 The provisioning source of truth. Manually supplied values only:
 - Proxmox API token + endpoint + username (one set per node)
-- MinIO access key + secret key
 - SSH public key
 - Cloudflare API token (used by Terraform to create the tunnel and manage DNS)
 - Headscale pre-auth key (written automatically by `ansible/bootstrap-headscale.yml`)
@@ -686,7 +682,7 @@ NUT clients: Machamp, Diglett, Alakazam (shut down gracefully on power loss)
 | CouchDB headless setup | Env vars for credentials; init container handles `/_cluster_setup` and CORS |
 | Tailscale coordination server | Self-hosted Headscale on the Diglett DNS VM (`192.168.0.2`), co-located with AdGuard. Public HTTPS endpoint provided by a Cloudflare Tunnel (cloudflared container). No public IP or open port required. Uses Tailscale's public DERP relays. Managed by Ansible (`roles/headscale`). |
 | Terraform execution host | `alakazam-deploy` (TrueNAS SCALE KVM VM, out-of-band) runs all Terraform workspaces. Intentionally outside Terraform management — bootstrapped once via script. Operator laptop is break-glass fallback. |
-| Terraform state backend | MinIO S3 on Alakazam (`http://alakazam:9000`) for all workspaces (`diglett/`, `machamp/`, `services/`). S3 lockfile replaces NFS file locking. Both deploy VM and operator laptop reach MinIO over Tailscale. |
+| Terraform state backend | Local file backend on Alakazam NFS (`/mnt/terraform-state`) for all workspaces. NFS mounted on the deploy VM at bootstrap; state files at `machamp/terraform.tfstate`, `diglett/terraform.tfstate`. |
 | Physical device management | Ansible push, same model as VMs. One-time bootstrap via `scripts/bootstrap-physical.sh` (installs Tailscale only). All further config pushed via `ansible-playbook ansible/physical.yml` from alakazam-deploy. |
 | Deployment automation | Manual. Operator SSHes to alakazam-deploy and runs `./scripts/deploy.sh`. No webhook, no CI. Simpler and sufficient for a personal homelab. |
 | DNS domain strategy | Two domains: `*.wsh` (Tailscale/HTTPS, personal devices) and `*.home` (LAN/HTTP, guests). Avoids subnet routing; guests can reach services without Tailscale. Single Traefik instance handles both. |

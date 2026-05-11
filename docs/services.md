@@ -28,7 +28,7 @@ Alakazam NFS — VMs are stateless and can be rebuilt without data loss.
 
 | Service | Notes |
 |---------|-------|
-| Terraform | Provisions Diglett and Machamp VMs. State stored in MinIO on Alakazam |
+| Terraform | Provisions Diglett and Machamp VMs. State stored on Alakazam NFS (`/mnt/terraform-state`) |
 | Ansible | Push-only config management for all VMs and physical nodes |
 
 ### diglett-haos (`192.168.0.22`)

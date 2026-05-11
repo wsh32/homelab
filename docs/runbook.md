@@ -148,8 +148,6 @@ proxmox_api_token = "terraform@pam!terraform=<uuid-from-step-2>"
 
 # Shared
 ssh_public_key   = "<contents of ~/.ssh/id_ed25519.pub>"
-minio_access_key = "<access-key-from-step-3>"
-minio_secret_key = "<secret-key-from-step-3>"
 
 # Cloudflare (for Headscale tunnel + DNS)
 cloudflare_api_token = "<cloudflare-api-token>"
