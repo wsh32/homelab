@@ -70,6 +70,12 @@ variable "ssh_public_key" {
   type        = string
 }
 
+variable "vm_password" {
+  description = "Password for the ubuntu user (enables console and SSH password login)"
+  type        = string
+  sensitive   = true
+}
+
 variable "tailscale_auth_key" {
   description = "Tailscale one-time auth key for this VM"
   type        = string

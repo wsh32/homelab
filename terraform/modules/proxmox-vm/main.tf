@@ -32,6 +32,13 @@ resource "proxmox_virtual_environment_file" "user_data" {
             - gh:wsh32
           sudo: ALL=(ALL) NOPASSWD:ALL
 
+      ssh_pwauth: true
+
+      chpasswd:
+        list: |
+          ubuntu:${var.vm_password}
+        expire: false
+
       package_update: true
       package_upgrade: true
       packages:

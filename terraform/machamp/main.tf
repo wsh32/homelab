@@ -35,6 +35,7 @@ module "ollama" {
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key
+  vm_password        = var.vm_password
   tailscale_auth_key = var.tailscale_auth_key
 
   user_data_extra = <<-EOF
@@ -67,6 +68,7 @@ module "openclaw" {
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key
+  vm_password        = var.vm_password
   tailscale_auth_key = var.tailscale_auth_key
 
   user_data_extra = <<-EOF
@@ -94,6 +96,7 @@ module "dev" {
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key
+  vm_password        = var.vm_password
   tailscale_auth_key = var.tailscale_auth_key
 }
 
@@ -115,6 +118,7 @@ module "services" {
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key
+  vm_password        = var.vm_password
   tailscale_auth_key = var.tailscale_auth_key
 
   user_data_extra = <<-EOF
