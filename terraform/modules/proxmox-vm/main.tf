@@ -10,6 +10,10 @@ terraform {
 # Cloud-init user-data snippet — uploaded to Proxmox local snippets storage.
 # Requires snippets enabled on the local datastore (one-time Proxmox UI step:
 #   Datacenter > Storage > local > Edit > check "Snippets").
+locals {
+  swap_config = var.swap_size_gb > 0 ? "swap:\n        filename: /swapfile\n        size: ${var.swap_size_gb}G\n        maxsize: ${var.swap_size_gb}G\n\n      " : ""
+}
+
 resource "proxmox_virtual_environment_file" "user_data" {
   node_name    = var.node_name
   content_type = "snippets"
@@ -21,6 +25,10 @@ resource "proxmox_virtual_environment_file" "user_data" {
       #cloud-config
       hostname: ${var.name}
       fqdn: ${var.name}.home
+      timezone: ${var.timezone}
+      locale: en_US.UTF-8
+
+      manage_etc_hosts: true
 
       users:
         - name: ubuntu
@@ -39,8 +47,9 @@ resource "proxmox_virtual_environment_file" "user_data" {
           ubuntu:${var.vm_password}
         expire: false
 
-      package_update: true
+      ${local.swap_config}package_update: true
       package_upgrade: true
+      package_reboot_if_required: true
       packages:
         - qemu-guest-agent
         - curl
