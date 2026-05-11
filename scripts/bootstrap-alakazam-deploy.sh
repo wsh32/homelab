@@ -29,7 +29,8 @@ echo "==> Installing base packages..."
 sudo apt-get install -y -q \
   git curl wget gnupg software-properties-common \
   python3 python3-pip pipx \
-  unzip jq
+  unzip jq \
+  nfs-common
 
 # ── Terraform ────────────────────────────────────────────────────────────────
 
@@ -76,6 +77,20 @@ else
 fi
 
 # ── Done ─────────────────────────────────────────────────────────────────────
+
+# ── Shell config ─────────────────────────────────────────────────────────────
+
+echo "==> Configuring ~/.bashrc..."
+if ! grep -q 'ssh-agent' "$HOME/.bashrc"; then
+  cat >> "$HOME/.bashrc" <<'BASHRC'
+
+# Auto-start ssh-agent (required for Terraform bpg/proxmox provider)
+if [ -z "$SSH_AUTH_SOCK" ]; then
+  eval $(ssh-agent -s)
+  ssh-add ~/.ssh/id_ed25519 2>/dev/null || true
+fi
+BASHRC
+fi
 
 echo ""
 echo "==> Bootstrap complete."
