@@ -10,7 +10,7 @@ consistent strategy, NFS config will be improvised per-service and become
 a mess.
 
 **Context:** Alakazam datasets: `backups`, `media`, `docker`,
-`terraform-state`, `photos`, `lightroom`. Each needs a defined NFS export
+`apps/terraform`, `photos`, `lightroom`. Each needs a defined NFS export
 policy (which VMs, read-only vs read-write). All mounts use
 `soft,timeo=30` options.
 
@@ -85,7 +85,7 @@ this.
 outside the homelab.
 
 **Contents:**
-- `terraform.tfvars` (Proxmox API token, Tailscale API key)
+- `terraform.tfvars` (Proxmox API token, Headscale pre-auth key)
 - Infisical secrets export (all service runtime secrets)
 - Proxmox root credentials
 - `pvecm expected 1` quorum recovery command

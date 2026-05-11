@@ -55,7 +55,7 @@ ansible/
 services/
   dns/                    # AdGuard + Headscale + cloudflared (pre-seeded, no wizards)
   diglett-infra/         # Infisical + Vaultwarden + Litestream
-  diglett-deploy/        # webhook listener for internal deploy triggers
+  diglett-deploy/        # (not yet created)
   machamp/                  # Docker Compose — all Machamp/services workloads
 network.yml               # single source of truth for all IPs and VM IDs
 scripts/
@@ -75,10 +75,10 @@ docs/
 
 ## How deploys work
 
-All deploys are manual, initiated from the deploy VM (`diglett-deploy`, `192.168.0.23`):
+All deploys are manual, initiated from the deploy VM (`alakazam-deploy`, `192.168.0.20`):
 
 ```bash
-ssh ubuntu@192.168.0.23
+ssh ubuntu@192.168.0.20
 cd ~/homelab && git pull
 
 ./scripts/deploy.sh           # terraform apply + ansible for all nodes
@@ -93,26 +93,36 @@ cd ~/homelab && git pull
 Full step-by-step guide in [`docs/runbook.md`](docs/runbook.md). High-level summary:
 
 **Phase 1 — Physical setup (one-time, manual):**
-1. Join Machamp, Diglett, and services node into a Proxmox cluster via UI
-2. Create Proxmox API tokens on each node
-3. Create NFS datasets on Alakazam (docker volumes + terraform state)
-4. Configure static IPs on physical nodes via Ansible
+1. Form the Proxmox cluster (Machamp + Diglett) via the UI
+2. Create Proxmox API tokens on each node; enable Snippets on `local` storage
+3. Create NFS datasets on Alakazam (`apps/terraform`, `docker`); configure NFS shares with Maproot User: root
+4. Configure static IPs on physical nodes via Ansible; set static IPs on Alakazam and Ditto via TrueNAS UI
 
 **Phase 2 — Bootstrap the deploy VM (from operator laptop):**
+
+The deploy VM (`alakazam-deploy`, `192.168.0.20`) is a TrueNAS SCALE KVM VM — not Terraform-managed. Create it manually in the TrueNAS UI, then:
 ```bash
+# Fill in terraform.tfvars on your laptop first
 cp terraform/diglett/terraform.tfvars.example terraform/diglett/terraform.tfvars
+cp terraform/machamp/terraform.tfvars.example terraform/machamp/terraform.tfvars
 # fill in Proxmox tokens, SSH key, Cloudflare API token
-cd terraform/diglett && terraform apply -target=module.deploy
-ansible-playbook ansible/bootstrap-deploy.yml
+
+# Bootstrap the VM (installs Terraform, Ansible, Tailscale, Infisical CLI; sets up NFS mount)
+ssh ubuntu@192.168.0.20 TAILSCALE_AUTH_KEY=<key> bash -s < scripts/bootstrap-alakazam-deploy.sh
+
+# Copy tfvars to the deploy VM
+scp terraform/diglett/terraform.tfvars ubuntu@192.168.0.20:~/homelab/terraform/diglett/
+scp terraform/machamp/terraform.tfvars ubuntu@192.168.0.20:~/homelab/terraform/machamp/
 ```
 
 **Phase 3 — Full deployment (from the deploy VM):**
 ```bash
-ssh ubuntu@192.168.0.23 && cd ~/homelab
+ssh ubuntu@192.168.0.20
+cd ~/homelab
 
-# DNS VM first (Headscale must exist before other VMs get Tailscale keys)
-cd terraform/diglett && terraform apply -target=module.dns
-ansible-playbook ansible/bootstrap-headscale.yml  # generates + writes pre-auth key
+# DNS VM first (Headscale must be running before other VMs register)
+cd terraform/diglett && terraform init && terraform apply -target=module.dns
+ansible-playbook ansible/bootstrap-headscale.yml  # generates + writes Headscale pre-auth key
 
 # All remaining VMs
 ./scripts/deploy.sh

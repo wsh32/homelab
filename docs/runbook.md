@@ -163,7 +163,7 @@ Create it manually:
 1. Log into TrueNAS at `https://192.168.0.4`
 2. Virtualization → Add → Linux VM:
    - Name: `alakazam-deploy`
-   - CPU: 2 cores, Memory: 2 GiB, Disk: 20 GiB
+   - CPU: 1 core, Memory: 1 GiB, Disk: 20 GiB
    - ISO: Ubuntu Server 24.04 minimal
    - Network: bridge to the LAN interface
 3. Complete the Ubuntu installer. Set:

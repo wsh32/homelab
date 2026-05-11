@@ -24,10 +24,12 @@ Alakazam NFS — VMs are stateless and can be rebuilt without data loss.
 | Vaultwarden | Human-consumed secrets (web UI admin passwords). One manual browser registration at bootstrap; persists on NFS forever |
 | Litestream | Continuously streams the Vaultwarden SQLite WAL to Alakazam NFS |
 
-### diglett-deploy (`192.168.0.23`)
+### alakazam-deploy (`192.168.0.20`)
 
-| Service | Notes |
-|---------|-------|
+TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/bootstrap-alakazam-deploy.sh`.
+
+| Tool | Notes |
+|------|-------|
 | Terraform | Provisions Diglett and Machamp VMs. State stored on Alakazam NFS (`/mnt/terraform-state`) |
 | Ansible | Push-only config management for all VMs and physical nodes |
 

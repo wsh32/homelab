@@ -115,7 +115,7 @@ Each service defaults to being exposed on both domains. To restrict:
 | backups | VM backups |
 | media | Media storage |
 | docker | Persistent Docker volumes |
-| terraform-state | Terraform state file |
+| apps/terraform | Terraform state files |
 | photos | Photo archive |
 | lightroom | Photo raws, Lightroom library backup |
 
@@ -124,7 +124,7 @@ Each service defaults to being exposed on both domains. To restrict:
 | Dataset | Frequency |
 |---------|-----------|
 | docker | Daily |
-| terraform-state | Daily |
+| apps/terraform | Daily |
 | backups | Daily |
 | media | Weekly |
 | photos | Weekly |
@@ -160,14 +160,14 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 
 ### One-time manual steps (operator laptop)
 
-5. **Configure static IPs on physical nodes** — `ansible-playbook ansible/network.yml`
+4. **Configure static IPs on physical nodes** — `ansible-playbook ansible/network.yml`
    for Machamp and Diglett; set static IPs on Alakazam and Ditto via TrueNAS UI.
 5. **Write `terraform.tfvars`** — populate with Proxmox API tokens, SSH public key,
    and Cloudflare API token. This is the only manual credential entry in the bootstrap.
-7. **Create `alakazam-deploy` VM in TrueNAS SCALE UI** — create a 1-core/1GB Ubuntu 24.04
+6. **Create `alakazam-deploy` VM in TrueNAS SCALE UI** — create a 1-core/1GB Ubuntu 24.04
    KVM VM, assign static IP `192.168.0.20` inside the VM. All subsequent steps run from
    inside the network.
-8. **Bootstrap the deploy VM** — run the bootstrap script from the operator laptop:
+7. **Bootstrap the deploy VM** — run the bootstrap script from the operator laptop:
    ```
    ssh ubuntu@192.168.0.20 \
      TAILSCALE_AUTH_KEY=<headscale-preauth-key> \
