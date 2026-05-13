@@ -1,0 +1,67 @@
+---
+# Deploy role — applied to alakazam-deploy on top of the base role.
+# Installs operator tooling: Terraform, Infisical CLI, Ansible (via pipx).
+
+- name: Install pipx and pip
+  ansible.builtin.apt:
+    name:
+      - python3-pip
+      - pipx
+    state: present
+    update_cache: true
+  become: true
+
+- name: Add HashiCorp GPG key
+  ansible.builtin.apt_key:
+    url: https://apt.releases.hashicorp.com/gpg
+    state: present
+  become: true
+
+- name: Add HashiCorp apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [arch=amd64] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
+    state: present
+  become: true
+
+- name: Install Terraform
+  ansible.builtin.apt:
+    name: terraform
+    state: present
+    update_cache: true
+  become: true
+
+- name: Add Infisical apt repository
+  ansible.builtin.shell:
+    cmd: curl -1sLf 'https://dl.cloudsmith.io/public/infisical/infisical-cli/setup.deb.sh' | bash
+    creates: /etc/apt/sources.list.d/infisical-infisical-cli.list
+  become: true
+
+- name: Install Infisical CLI
+  ansible.builtin.apt:
+    name: infisical
+    state: present
+    update_cache: true
+  become: true
+
+- name: Install Ansible via pipx
+  community.general.pipx:
+    name: ansible
+    include_deps: true
+    state: present
+
+- name: Ensure pipx bin dir is on PATH
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_env.HOME }}/.bashrc"
+    line: 'export PATH="$HOME/.local/bin:$PATH"'
+    regexp: '\.local/bin.*PATH'
+    state: present
+
+- name: Configure SSH agent in .bashrc
+  ansible.builtin.blockinfile:
+    path: "{{ ansible_env.HOME }}/.bashrc"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK — ssh-agent"
+    block: |
+      if [ -z "$SSH_AUTH_SOCK" ]; then
+        eval $(ssh-agent -s)
+        ssh-add ~/.ssh/id_ed25519 2>/dev/null || true
+      fi
