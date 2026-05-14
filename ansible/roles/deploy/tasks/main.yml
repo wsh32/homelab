@@ -46,7 +46,7 @@
 - name: Install Ansible via pipx
   community.general.pipx:
     name: ansible
-    include_deps: true
+    install_deps: true
     state: present
 
 - name: Ensure pipx bin dir is on PATH
