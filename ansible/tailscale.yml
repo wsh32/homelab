@@ -42,7 +42,7 @@
           --accept-routes
       become: true
       register: ts_up
-      changed_when: ts_up.rc == 0
+      changed_when: ts_up.rc == 0 and "already authenticated" not in ts_up.stderr
       failed_when: ts_up.rc != 0 and "already authenticated" not in ts_up.stderr
 
     - name: Show Tailscale status
