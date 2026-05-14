@@ -26,7 +26,7 @@
 
 - name: Set timezone to America/New_York
   community.general.timezone:
-    name: America/New_York
+    name: America/Los_Angeles
   become: true
 
 - name: Configure UFW — allow SSH
