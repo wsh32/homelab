@@ -36,6 +36,11 @@ echo "==> Installing prerequisites..."
 sudo apt-get update -q
 sudo apt-get install -y -q git python3 python3-pip pipx
 
+# Allow passwordless sudo so Ansible can run become tasks non-interactively.
+# Matches what cloud-init configures on Terraform-provisioned VMs.
+echo "ubuntu ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/ubuntu-nopasswd > /dev/null
+sudo chmod 0440 /etc/sudoers.d/ubuntu-nopasswd
+
 echo "==> Installing Ansible..."
 pipx install --include-deps ansible
 pipx ensurepath
