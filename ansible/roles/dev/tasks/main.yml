@@ -94,6 +94,34 @@
     name: ubuntu
     shell: /usr/bin/zsh
 
+# base16-shell — terminal colorscheme framework
+- name: Clone base16-shell
+  git:
+    repo: https://github.com/tinted-theming/base16-shell.git
+    dest: /home/ubuntu/.config/base16-shell
+    update: true
+  become_user: ubuntu
+
+- name: Source base16-shell profile helper in .zshrc
+  blockinfile:
+    path: /home/ubuntu/.zshrc
+    marker: "# {mark} base16-shell"
+    block: |
+      BASE16_SHELL="$HOME/.config/base16-shell/"
+      [ -n "$PS1" ] && [ -s "$BASE16_SHELL/profile_helper.sh" ] && \
+          eval "$("$BASE16_SHELL/profile_helper.sh")"
+    create: true
+    owner: ubuntu
+    group: ubuntu
+
+- name: Set base16 theme to google-dark
+  file:
+    src: /home/ubuntu/.config/base16-shell/scripts/base16-google-dark.sh
+    dest: /home/ubuntu/.base16_theme
+    state: link
+    owner: ubuntu
+    group: ubuntu
+
 # rustup — user-level install for ubuntu
 - name: Check if rustup is already installed
   stat:
