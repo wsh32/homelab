@@ -17,6 +17,7 @@
       - gnupg
       - lsb-release
       - nfs-common
+      - avahi-daemon
       - fail2ban
       - ufw
     state: present
