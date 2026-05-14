@@ -76,6 +76,12 @@ def build_inventory():
             hostvars[vmname] = {'ansible_host': vmattrs['ip']}
             if vm_group:
                 groups[vm_group]['hosts'].append(vmname)
+            vm_role = vmattrs.get('vm_role')
+            if vm_role:
+                if vm_role not in groups:
+                    groups[vm_role] = {'hosts': []}
+                groups[vm_role]['hosts'].append(vmname)
+                hostvars[vmname]['vm_role'] = vm_role
 
     return {**groups, '_meta': {'hostvars': hostvars}}
 

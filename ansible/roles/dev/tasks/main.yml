@@ -1,0 +1,110 @@
+---
+# Dev role — applied to VMs tagged with vm_role: dev in network.yml.
+# Installs developer tooling on top of the base role.
+
+- name: Install build essentials and dev CLI tools
+  apt:
+    name:
+      - build-essential
+      - gcc
+      - g++
+      - make
+      - cmake
+      - pkg-config
+      - python3-dev
+      - python3-pip
+      - python3-venv
+      - jq
+      - ripgrep
+      - fd-find
+      - bat
+      - fzf
+      - direnv
+      - strace
+      - gdb
+      - zsh
+    state: present
+    update_cache: true
+
+# Node.js LTS via NodeSource
+- name: Add NodeSource GPG key
+  get_url:
+    url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+    dest: /etc/apt/keyrings/nodesource.asc
+    mode: "0644"
+
+- name: Add NodeSource apt repository
+  apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/nodesource.asc] https://deb.nodesource.com/node_22.x nodistro main"
+    filename: nodesource
+    state: present
+
+- name: Install Node.js
+  apt:
+    name: nodejs
+    state: present
+    update_cache: true
+
+# GitHub CLI via GitHub's official apt repo
+- name: Add GitHub CLI GPG key
+  get_url:
+    url: https://cli.github.com/packages/githubcli-archive-keyring.gpg
+    dest: /etc/apt/keyrings/githubcli-archive-keyring.gpg
+    mode: "0644"
+
+- name: Add GitHub CLI apt repository
+  apt_repository:
+    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
+    filename: github-cli
+    state: present
+
+- name: Install gh
+  apt:
+    name: gh
+    state: present
+    update_cache: true
+# TODO: auto-login via `gh auth login --with-token` using GITHUB_TOKEN from Infisical.
+# Requires plumbing machine identity access for the ubuntu user. Deferred.
+
+# Claude Code CLI
+- name: Install Claude Code globally via npm
+  npm:
+    name: "@anthropic-ai/claude-code"
+    global: true
+    state: present
+
+# oh-my-zsh — user-level install for ubuntu
+- name: Check if oh-my-zsh is already installed
+  stat:
+    path: /home/ubuntu/.oh-my-zsh
+  register: omz_dir
+
+- name: Install oh-my-zsh
+  become_user: ubuntu
+  shell: >
+    curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh |
+    sh -s -- --unattended
+  args:
+    creates: /home/ubuntu/.oh-my-zsh
+  when: not omz_dir.stat.exists
+# Note: custom .zshrc will be pulled from a separate git repo in a future task.
+
+- name: Set zsh as default shell for ubuntu
+  user:
+    name: ubuntu
+    shell: /usr/bin/zsh
+
+# rustup — user-level install for ubuntu
+- name: Check if rustup is already installed
+  stat:
+    path: /home/ubuntu/.cargo/bin/rustup
+  register: rustup_bin
+
+- name: Install rustup
+  become_user: ubuntu
+  shell: >
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
+    sh -s -- -y
+  args:
+    creates: /home/ubuntu/.cargo/bin/rustup
+  when: not rustup_bin.stat.exists
