@@ -79,6 +79,18 @@ this.
 
 ---
 
+## Ansible Multi-OS Support
+
+**What:** Handle OS differences in Ansible roles, starting with the SSH service name.
+
+**Why:** Roles currently hardcode Ubuntu conventions. If Arch Linux VMs are ever added, at minimum the SSH service name differs (`ssh` on Ubuntu/Debian, `sshd` on Arch and most other distros). Other divergences likely exist (package manager, service manager, paths).
+
+**Minimum change:** Use `ansible_facts['os_family']` to set the SSH service name, e.g. `ssh` for Debian family, `sshd` for Arch/RedHat.
+
+**Depends on:** Actually adding a non-Ubuntu VM.
+
+---
+
 ## Break-glass Procedure
 
 **What:** Document and maintain an offline copy of critical credentials
