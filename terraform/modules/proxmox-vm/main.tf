@@ -52,16 +52,6 @@ resource "proxmox_virtual_environment_file" "user_data" {
       package_reboot_if_required: true
       packages:
         - qemu-guest-agent
-        - curl
-        - wget
-        - git
-        - htop
-        - vim
-        - unzip
-        - ca-certificates
-        - gnupg
-        - lsb-release
-        - nfs-common
 
       runcmd:
         - curl -fsSL https://tailscale.com/install.sh | sh

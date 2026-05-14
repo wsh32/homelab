@@ -10,8 +10,12 @@
       - wget
       - git
       - htop
-      - vim
+      - neovim
+      - tmux
       - unzip
+      - ca-certificates
+      - gnupg
+      - lsb-release
       - nfs-common
       - fail2ban
       - ufw
@@ -57,10 +61,10 @@
   become: true
   notify: Restart sshd
 
-- name: Set vim as default editor
+- name: Set nvim as default editor
   ansible.builtin.alternatives:
     name: editor
-    path: /usr/bin/vim.basic
+    path: /usr/bin/nvim
   become: true
   ignore_errors: true  # non-critical
 
