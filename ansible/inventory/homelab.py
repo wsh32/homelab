@@ -32,8 +32,10 @@ def build_inventory():
         'all': {'vars': {'ansible_python_interpreter': '/usr/bin/python3'}},
     }
 
+    managed_nodes = {h: a for h, a in nodes.items() if a.get('os') != 'truenas'}
+
     # One child group under physical per unique type value
-    physical_types = sorted({attrs.get('type', 'other') for attrs in nodes.values()})
+    physical_types = sorted({attrs.get('type', 'other') for attrs in managed_nodes.values()})
     groups['physical'] = {'children': physical_types}
     for ptype in physical_types:
         groups[ptype] = {'hosts': []}
@@ -48,7 +50,7 @@ def build_inventory():
             'vars': node_cfg.get('vars', {}),
         }
 
-    for hostname, attrs in nodes.items():
+    for hostname, attrs in managed_nodes.items():
         hvars = {'ansible_host': attrs['ip']}
         if attrs.get('bridge_port'):
             hvars['static_ip'] = f"{attrs['ip']}/{subnet_prefix}"

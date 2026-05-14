@@ -27,6 +27,7 @@ dns:
 # Fields on every node:
 #   ip:              LAN IP address
 #   type:            Ansible physical group (proxmox | nas | other)
+#   os:              OS family — nodes with os=truenas are excluded from Ansible inventory
 #   ansible_user:    SSH user override (default: ubuntu)
 #
 # Additional fields for Proxmox nodes:
@@ -42,6 +43,7 @@ nodes:
   alakazam:
     ip: 192.168.0.4
     type: nas
+    os: truenas
 
   alakazam-deploy:
     ip: 192.168.0.20
@@ -50,7 +52,8 @@ nodes:
 
   ditto:
     ip: 192.168.0.8
-    type: nas  # offsite; only reachable via Tailscale
+    type: nas
+    os: truenas  # offsite; only reachable via Tailscale
 
   orangepi:
     ip: 192.168.0.7
