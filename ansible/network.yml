@@ -13,22 +13,22 @@
   hosts: proxmox
   gather_facts: false
   vars_files:
-    - ../../network.yml
+    - ../network.yml
 
   pre_tasks:
     - name: Verify host is defined in network.yml
       ansible.builtin.assert:
         that:
-          - inventory_hostname in physical
-          - physical[inventory_hostname].bridge_port is defined
+          - inventory_hostname in nodes
+          - nodes[inventory_hostname].bridge_port is defined
         fail_msg: >
           {{ inventory_hostname }} must have an entry with bridge_port set
-          in network.yml under 'physical'. Find it with:
+          in network.yml under 'nodes'. Find it with:
           ssh root@{{ ansible_host }} ip link show
 
     - name: Set network facts from network.yml
       ansible.builtin.set_fact:
-        proxmox_bridge_port: "{{ physical[inventory_hostname].bridge_port }}"
+        proxmox_bridge_port: "{{ nodes[inventory_hostname].bridge_port }}"
 
   roles:
     - role: network

@@ -2,6 +2,9 @@
 # Bootstrap the alakazam-deploy VM (TrueNAS SCALE KVM, Ubuntu 24.04).
 # Run once from the operator laptop after creating the VM in TrueNAS UI.
 #
+# Installs Ansible, then uses it to configure the VM (base + deploy roles).
+# All tool installs (Terraform, Infisical, etc.) happen inside the playbook.
+#
 # Usage:
 #   ssh ubuntu@192.168.0.20 \
 #     TAILSCALE_AUTH_KEY=<headscale-preauth-key> \
@@ -9,8 +12,13 @@
 #
 # After this:
 #   1. Copy terraform.tfvars to ~/homelab/terraform/diglett/ and ~/homelab/terraform/machamp/
-#   2. Copy /etc/infisical.env (root-owned, 0600) if restoring an existing machine identity
-#   3. Verify: ssh ubuntu@alakazam-deploy (Tailscale MagicDNS)
+#   2. Mount Terraform state NFS share (see runbook step 7a)
+#   3. Authorize SSH key on Proxmox nodes and install CA cert (runbook step 7b):
+#        ssh-copy-id -i ~/.ssh/id_ed25519.pub root@machamp.local
+#        ssh-copy-id -i ~/.ssh/id_ed25519.pub root@diglett.local
+#        bash ~/homelab/scripts/install-proxmox-ca.sh
+#   4. If restoring: copy /etc/infisical.env (root:root, 0600)
+#   5. Verify Tailscale: tailscale status
 
 set -euo pipefail
 
@@ -22,49 +30,21 @@ fi
 REPO_URL="https://github.com/wsh32/homelab.git"
 REPO_DIR="$HOME/homelab"
 
-echo "==> Updating apt..."
+# ── Minimal prerequisites for Ansible ────────────────────────────────────────
+
+echo "==> Installing prerequisites..."
 sudo apt-get update -q
+sudo apt-get install -y -q git python3 python3-pip pipx
 
-echo "==> Installing base packages..."
-sudo apt-get install -y -q \
-  git curl wget gnupg software-properties-common \
-  python3 python3-pip pipx \
-  unzip jq \
-  nfs-common
-
-# ── Terraform ────────────────────────────────────────────────────────────────
-
-echo "==> Installing Terraform..."
-wget -qO- https://apt.releases.hashicorp.com/gpg \
-  | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
-https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
-  | sudo tee /etc/apt/sources.list.d/hashicorp.list > /dev/null
-sudo apt-get update -q
-sudo apt-get install -y -q terraform
-
-# ── Ansible ──────────────────────────────────────────────────────────────────
+# Allow passwordless sudo so Ansible can run become tasks non-interactively.
+# Matches what cloud-init configures on Terraform-provisioned VMs.
+echo "ubuntu ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/ubuntu-nopasswd > /dev/null
+sudo chmod 0440 /etc/sudoers.d/ubuntu-nopasswd
 
 echo "==> Installing Ansible..."
 pipx install --include-deps ansible
 pipx ensurepath
 export PATH="$HOME/.local/bin:$PATH"
-
-# ── Tailscale ────────────────────────────────────────────────────────────────
-
-echo "==> Installing Tailscale..."
-curl -fsSL https://tailscale.com/install.sh | sh
-sudo tailscale up \
-  --authkey="${TAILSCALE_AUTH_KEY}" \
-  --hostname="alakazam-deploy" \
-  --accept-routes
-
-# ── Infisical CLI ─────────────────────────────────────────────────────────────
-
-echo "==> Installing Infisical CLI..."
-curl -1sLf 'https://dl.cloudsmith.io/public/infisical/infisical-cli/setup.deb.sh' \
-  | sudo bash
-sudo apt-get install -y -q infisical
 
 # ── Repo ─────────────────────────────────────────────────────────────────────
 
@@ -76,21 +56,21 @@ else
   git clone "$REPO_URL" "$REPO_DIR"
 fi
 
-# ── Done ─────────────────────────────────────────────────────────────────────
+# ── Ansible self-configuration ────────────────────────────────────────────────
+# Configures this VM (base hardening + deploy tooling) without SSHing to itself.
 
-# ── Shell config ─────────────────────────────────────────────────────────────
+echo "==> Configuring VM via Ansible..."
+cd "$REPO_DIR/ansible"
+ansible-playbook deploy-vm.yml --limit alakazam-deploy --connection=local
 
-echo "==> Configuring ~/.bashrc..."
-if ! grep -q 'ssh-agent' "$HOME/.bashrc"; then
-  cat >> "$HOME/.bashrc" <<'BASHRC'
+# ── Tailscale join ────────────────────────────────────────────────────────────
+# Tailscale is installed by the base role above; join the network here.
 
-# Auto-start ssh-agent (required for Terraform bpg/proxmox provider)
-if [ -z "$SSH_AUTH_SOCK" ]; then
-  eval $(ssh-agent -s)
-  ssh-add ~/.ssh/id_ed25519 2>/dev/null || true
-fi
-BASHRC
-fi
+echo "==> Joining Tailscale network..."
+sudo tailscale up \
+  --authkey="${TAILSCALE_AUTH_KEY}" \
+  --hostname="alakazam-deploy" \
+  --accept-routes
 
 echo ""
 echo "==> Bootstrap complete."
@@ -99,7 +79,7 @@ echo "Remaining manual steps:"
 echo "  1. Copy terraform.tfvars to $REPO_DIR/terraform/diglett/"
 echo "     and $REPO_DIR/terraform/machamp/"
 echo "  2. Mount Terraform state NFS share (see runbook step 7a)"
-echo "  3. Authorize SSH key on Proxmox nodes and install CA cert (runbook step 7b):"
+echo "  3. Authorize SSH key on Proxmox nodes and install CA cert:"
 echo "       ssh-copy-id -i ~/.ssh/id_ed25519.pub root@machamp.local"
 echo "       ssh-copy-id -i ~/.ssh/id_ed25519.pub root@diglett.local"
 echo "       bash $REPO_DIR/scripts/install-proxmox-ca.sh"

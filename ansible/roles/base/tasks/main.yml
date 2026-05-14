@@ -10,18 +10,23 @@
       - wget
       - git
       - htop
-      - vim
+      - neovim
+      - tmux
       - unzip
+      - ca-certificates
+      - gnupg
+      - lsb-release
       - nfs-common
+      - avahi-daemon
       - fail2ban
       - ufw
     state: present
     update_cache: true
   become: true
 
-- name: Set timezone to America/New_York
+- name: Set timezone to America/Los_Angeles
   community.general.timezone:
-    name: America/New_York
+    name: America/Los_Angeles
   become: true
 
 - name: Configure UFW — allow SSH
@@ -57,10 +62,10 @@
   become: true
   notify: Restart sshd
 
-- name: Set vim as default editor
+- name: Set nvim as default editor
   ansible.builtin.alternatives:
     name: editor
-    path: /usr/bin/vim.basic
+    path: /usr/bin/nvim
   become: true
   ignore_errors: true  # non-critical
 

@@ -1,0 +1,17 @@
+---
+# Configure the alakazam-deploy VM.
+# Run once after bootstrap, and again whenever deploy tooling needs updating.
+#
+# During bootstrap (self-configuration from the VM itself):
+#   ansible-playbook ansible/deploy-vm.yml --limit alakazam-deploy --connection=local
+#
+# Subsequently (from the deploy VM targeting itself via Tailscale):
+#   ansible-playbook ansible/deploy-vm.yml
+
+- name: Configure deploy VM
+  hosts: alakazam-deploy
+  gather_facts: true
+
+  roles:
+    - role: base
+    - role: deploy
