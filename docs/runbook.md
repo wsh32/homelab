@@ -182,7 +182,19 @@ ssh ubuntu@192.168.0.20 \
   bash -s < scripts/bootstrap-alakazam-deploy.sh
 ```
 
-This installs Terraform, Ansible, Tailscale, Infisical CLI, and clones the repo.
+This installs Ansible, clones the repo, configures passwordless sudo, then runs
+`ansible-playbook deploy-vm.yml --connection=local` to apply base hardening and
+deploy tooling (Terraform, Infisical CLI, Tailscale). You will be prompted for
+the `ubuntu` sudo password once at the start.
+
+If the Ansible step fails and you need to re-run it manually:
+
+```bash
+ssh ubuntu@alakazam-deploy
+cd ~/homelab/ansible
+ansible-playbook deploy-vm.yml --limit alakazam-deploy --connection=local --ask-become-pass
+```
+
 Then copy `terraform.tfvars` to the deploy VM:
 
 ```bash
