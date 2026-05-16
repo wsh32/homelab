@@ -1,3 +1,7 @@
+networks:
+  dns:
+    driver: bridge
+
 services:
   adguardhome:
     image: adguard/adguardhome:latest
@@ -9,3 +13,27 @@ services:
       - /mnt/nas/docker/adguardhome/work:/opt/adguardhome/work
     # Pre-seeded AdGuardHome.yaml in ./adguard/ bypasses the setup wizard.
     # Admin password (bcrypt) and DNS rewrites are committed in AdGuardHome.yaml.
+
+  headscale:
+    image: headscale/headscale:latest
+    container_name: headscale
+    restart: unless-stopped
+    networks:
+      - dns
+    volumes:
+      - ./headscale:/etc/headscale
+      - /mnt/nas/docker/headscale:/var/lib/headscale
+    env_file: /etc/cloudflared.env  # provides HEADSCALE_SERVER_URL
+    command: serve
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    networks:
+      - dns
+    env_file: /etc/cloudflared.env  # provides TUNNEL_TOKEN
+    # tunnel_token env var is read automatically by cloudflared
+    command: tunnel --no-autoupdate run
+    depends_on:
+      - headscale

@@ -58,6 +58,10 @@ module "dns" {
     - systemctl enable --now docker
     # Configure Tailscale exit node
     - tailscale set --advertise-exit-node
+    # Write Cloudflare Tunnel credentials for cloudflared and Headscale
+    - echo 'TUNNEL_TOKEN=${cloudflare_tunnel.headscale.tunnel_token}' > /etc/cloudflared.env
+    - echo 'HEADSCALE_SERVER_URL=https://${local.headscale_hostname}' >> /etc/cloudflared.env
+    - chmod 600 /etc/cloudflared.env
   EOF
 }
 

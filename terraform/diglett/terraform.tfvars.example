@@ -21,3 +21,16 @@ vm_password = "REPLACE_ME"
 # Tailscale reusable auth key — generate at https://login.tailscale.com/admin/settings/keys
 # Use a reusable, ephemeral key tagged with "tag:homelab"
 tailscale_auth_key = "tskey-auth-REPLACE_ME"
+
+# Cloudflare API token — create at https://dash.cloudflare.com/profile/api-tokens
+# Required permissions: Account > Cloudflare Tunnel (Edit), Zone > DNS (Edit)
+cloudflare_api_token = "REPLACE_ME"
+
+# Cloudflare account ID — found in the right sidebar of any zone page in the dashboard
+cloudflare_account_id = "REPLACE_ME"
+
+# Cloudflare zone ID — found in the right sidebar of the zone's Overview page
+cloudflare_zone_id = "REPLACE_ME"
+
+# Subdomain for Headscale — will create <headscale_subdomain>.<your-zone> in Cloudflare DNS
+headscale_subdomain = "headscale"
