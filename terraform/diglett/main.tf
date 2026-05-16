@@ -5,7 +5,7 @@ locals {
 }
 
 # Download Ubuntu 24.04 (Noble) cloud image to Diglett once.
-resource "proxmox_virtual_environment_download_file" "ubuntu_2404" {
+resource "proxmox_download_file" "ubuntu_2404" {
   node_name    = local.node
   content_type = "iso"
   datastore_id = "local"
@@ -17,7 +17,7 @@ resource "proxmox_virtual_environment_download_file" "ubuntu_2404" {
 }
 
 # Download HAOS qcow2 image for Home Assistant VM.
-resource "proxmox_virtual_environment_download_file" "haos" {
+resource "proxmox_download_file" "haos" {
   node_name    = local.node
   content_type = "import"
   datastore_id = "local"
@@ -37,7 +37,7 @@ module "dns" {
   name          = "diglett-dns"
   description   = "AdGuard Home DNS + Tailscale exit node (primary)"
   tags          = ["diglett", "infra", "dns"]
-  image_file_id = proxmox_virtual_environment_download_file.ubuntu_2404.id
+  image_file_id = proxmox_download_file.ubuntu_2404.id
 
   cores        = 2
   memory_mb    = 2048
@@ -59,7 +59,7 @@ module "dns" {
     # Configure Tailscale exit node
     - tailscale set --advertise-exit-node
     # Write Cloudflare Tunnel credentials for cloudflared and Headscale
-    - echo 'TUNNEL_TOKEN=${cloudflare_tunnel.headscale.tunnel_token}' > /etc/cloudflared.env
+    - echo 'TUNNEL_TOKEN=${cloudflare_zero_trust_tunnel_cloudflared.headscale.tunnel_token}' > /etc/cloudflared.env
     - echo 'HEADSCALE_SERVER_URL=https://${local.headscale_hostname}' >> /etc/cloudflared.env
     - chmod 600 /etc/cloudflared.env
   EOF
@@ -73,7 +73,7 @@ module "infisical" {
   name          = "diglett-infisical"
   description   = "Infisical (secrets manager) + Vaultwarden (password manager)"
   tags          = ["diglett", "infra", "infisical"]
-  image_file_id = proxmox_virtual_environment_download_file.ubuntu_2404.id
+  image_file_id = proxmox_download_file.ubuntu_2404.id
 
   cores        = 2
   memory_mb    = 6144
@@ -116,7 +116,7 @@ resource "proxmox_virtual_environment_vm" "haos" {
 
   disk {
     datastore_id = "local-lvm"
-    file_id      = proxmox_virtual_environment_download_file.haos.id
+    file_id      = proxmox_download_file.haos.id
     interface    = "virtio0"
     size         = 32
     discard      = "on"

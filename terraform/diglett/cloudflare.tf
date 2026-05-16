@@ -11,15 +11,15 @@ resource "random_id" "tunnel_secret" {
   byte_length = 32
 }
 
-resource "cloudflare_tunnel" "headscale" {
+resource "cloudflare_zero_trust_tunnel_cloudflared" "headscale" {
   account_id = var.cloudflare_account_id
   name       = "homelab-headscale"
   secret     = random_id.tunnel_secret.b64_std
 }
 
-resource "cloudflare_tunnel_config" "headscale" {
+resource "cloudflare_zero_trust_tunnel_cloudflared_config" "headscale" {
   account_id = var.cloudflare_account_id
-  tunnel_id  = cloudflare_tunnel.headscale.id
+  tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.headscale.id
 
   config {
     ingress_rule {
@@ -36,7 +36,7 @@ resource "cloudflare_tunnel_config" "headscale" {
 resource "cloudflare_record" "headscale" {
   zone_id = var.cloudflare_zone_id
   name    = var.headscale_subdomain
-  content = "${cloudflare_tunnel.headscale.id}.cfargotunnel.com"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.headscale.id}.cfargotunnel.com"
   type    = "CNAME"
   proxied = true
 }
@@ -48,6 +48,6 @@ output "headscale_url" {
 
 output "headscale_tunnel_token" {
   description = "Cloudflare tunnel token written to /etc/cloudflared.env on the DNS VM"
-  value       = cloudflare_tunnel.headscale.tunnel_token
+  value       = cloudflare_zero_trust_tunnel_cloudflared.headscale.tunnel_token
   sensitive   = true
 }
