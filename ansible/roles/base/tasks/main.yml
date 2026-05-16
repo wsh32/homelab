@@ -19,7 +19,6 @@
       - nfs-common
       - avahi-daemon
       - fail2ban
-      - ufw
     state: present
     update_cache: true
   become: true
@@ -27,18 +26,6 @@
 - name: Set timezone to America/Los_Angeles
   community.general.timezone:
     name: America/Los_Angeles
-  become: true
-
-- name: Configure UFW — allow SSH
-  community.general.ufw:
-    rule: allow
-    name: OpenSSH
-  become: true
-
-- name: Enable UFW
-  community.general.ufw:
-    state: enabled
-    policy: deny
   become: true
 
 - name: Configure fail2ban for SSH
