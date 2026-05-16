@@ -11,7 +11,7 @@ terraform {
 # Requires snippets enabled on the local datastore (one-time Proxmox UI step:
 #   Datacenter > Storage > local > Edit > check "Snippets").
 locals {
-  swap_config = var.swap_size_gb > 0 ? "swap:\n        filename: /swapfile\n        size: ${var.swap_size_gb}G\n        maxsize: ${var.swap_size_gb}G\n\n      " : ""
+  swap_config = var.swap_size_gb > 0 ? "swap:\n  filename: /swapfile\n  size: ${var.swap_size_gb}G\n  maxsize: ${var.swap_size_gb}G\n\n" : ""
 }
 
 resource "proxmox_virtual_environment_file" "user_data" {
@@ -57,7 +57,7 @@ resource "proxmox_virtual_environment_file" "user_data" {
         - curl -fsSL https://tailscale.com/install.sh | sh
         - tailscale up --authkey=${var.tailscale_auth_key} --hostname=${var.name}
         - systemctl enable --now qemu-guest-agent
-      ${var.user_data_extra != "" ? "\n      # Extra user-data\n      ${indent(6, var.user_data_extra)}" : ""}
+      ${var.user_data_extra != "" ? "\n${var.user_data_extra}" : ""}
     EOF
   }
 }
