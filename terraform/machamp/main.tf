@@ -6,7 +6,7 @@ locals {
 
 # Download Ubuntu 24.04 (Noble) cloud image to Machamp once.
 # Re-applying after first download is a no-op (overwrite = false).
-resource "proxmox_virtual_environment_download_file" "ubuntu_2404" {
+resource "proxmox_download_file" "ubuntu_2404" {
   node_name    = local.node
   content_type = "iso"
   datastore_id = "local"
@@ -25,7 +25,7 @@ module "ollama" {
   name          = "machamp-ollama"
   description   = "Ollama GPU inference (RTX 3060 passthrough) + Tailscale exit node (backup)"
   tags          = ["machamp", "gpu", "ollama"]
-  image_file_id = proxmox_virtual_environment_download_file.ubuntu_2404.id
+  image_file_id = proxmox_download_file.ubuntu_2404.id
 
   cores        = 4
   memory_mb    = 32768
@@ -59,7 +59,7 @@ module "openclaw" {
   name          = "machamp-openclaw"
   description   = "OpenClaw — personal AI assistant gateway (permanent on Machamp)"
   tags          = ["machamp", "ai", "openclaw"]
-  image_file_id = proxmox_virtual_environment_download_file.ubuntu_2404.id
+  image_file_id = proxmox_download_file.ubuntu_2404.id
 
   cores        = 2
   memory_mb    = 8192
@@ -89,7 +89,7 @@ module "dev" {
   name          = "machamp-dev"
   description   = "Personal development workstation"
   tags          = ["machamp", "dev"]
-  image_file_id = proxmox_virtual_environment_download_file.ubuntu_2404.id
+  image_file_id = proxmox_download_file.ubuntu_2404.id
 
   cores        = 6
   memory_mb    = 16384
@@ -112,7 +112,7 @@ module "services" {
   name          = "machamp-services"
   description   = "Services VM — Traefik, Jellyfin, Servarr, Monitoring, etc. (Quadro P2000 passthrough)"
   tags          = ["machamp", "gpu", "services"]
-  image_file_id = proxmox_virtual_environment_download_file.ubuntu_2404.id
+  image_file_id = proxmox_download_file.ubuntu_2404.id
 
   cores        = 8
   memory_mb    = 32768
