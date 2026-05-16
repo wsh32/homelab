@@ -1,19 +1,6 @@
 ---
-- name: Configure VMs with vm_roles
-  hosts: vms
+- name: Configure dev VMs
+  hosts: dev
   become: true
   roles:
-    - base
-  tasks:
-    - name: Check which vm_roles have a matching role directory
-      stat:
-        path: "{{ playbook_dir }}/roles/{{ item }}"
-      register: role_dirs
-      loop: "{{ vm_roles | default([]) }}"
-      delegate_to: localhost
-
-    - name: Apply each vm_role that has a matching role directory
-      include_role:
-        name: "{{ item.item }}"
-      loop: "{{ role_dirs.results }}"
-      when: item.stat.exists
+    - dev
