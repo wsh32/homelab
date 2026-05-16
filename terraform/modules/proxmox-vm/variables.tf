@@ -94,10 +94,10 @@ variable "tailscale_auth_key" {
   sensitive   = true
 }
 
-variable "user_data_extra" {
-  description = "Extra cloud-init user-data YAML (appended to base config)"
-  type        = string
-  default     = ""
+variable "extra_runcmd" {
+  description = "Additional shell commands to run at first boot, appended to runcmd"
+  type        = list(string)
+  default     = []
 }
 
 variable "tags" {
