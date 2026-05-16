@@ -1,0 +1,8 @@
+---
+# Run all playbooks in dependency order.
+# Excludes tailscale.yml — bootstrap-only, requires TAILSCALE_AUTH_KEY.
+- import_playbook: network.yml
+- import_playbook: physical.yml
+- import_playbook: base.yml
+- import_playbook: deploy-vm.yml
+- import_playbook: dev.yml
