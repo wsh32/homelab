@@ -63,6 +63,7 @@ nodes:
   diglett:
     ip: 192.168.0.6
     type: proxmox
+    ansible_user: root
     bridge_port: eno1  # TODO: verify with `ip link show`
     vms:
       diglett-dns:
@@ -79,6 +80,7 @@ nodes:
   machamp:
     ip: 192.168.0.5
     type: proxmox
+    ansible_user: root
     bridge_port: eno1  # TODO: verify with `ip link show`
     vms:
       machamp-ollama:
