@@ -1,0 +1,45 @@
+#cloud-config
+hostname: ${name}
+fqdn: ${name}.home
+timezone: ${timezone}
+locale: en_US.UTF-8
+
+manage_etc_hosts: true
+
+users:
+  - name: ubuntu
+    groups: sudo
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+    ssh_import_id:
+      - gh:wsh32
+    sudo: ALL=(ALL) NOPASSWD:ALL
+
+ssh_pwauth: true
+
+chpasswd:
+  list: |
+    ubuntu:${vm_password}
+  expire: false
+%{ if swap_size_gb > 0 ~}
+
+swap:
+  filename: /swapfile
+  size: ${swap_size_gb}G
+  maxsize: ${swap_size_gb}G
+%{ endif ~}
+
+package_update: true
+package_upgrade: true
+package_reboot_if_required: true
+packages:
+  - qemu-guest-agent
+
+runcmd:
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  - tailscale up --authkey=${tailscale_auth_key} --hostname=${name}
+  - systemctl enable --now qemu-guest-agent
+%{ for cmd in extra_runcmd ~}
+  - ${cmd}
+%{ endfor ~}
