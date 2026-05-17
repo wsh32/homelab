@@ -57,9 +57,9 @@ resource "proxmox_virtual_environment_file" "user_data" {
         - curl -fsSL https://tailscale.com/install.sh | sh
         - tailscale up --authkey=${var.tailscale_auth_key} --hostname=${var.name}
         - systemctl enable --now qemu-guest-agent
-%{~ for cmd in var.extra_runcmd}
+      %{~ for cmd in var.extra_runcmd}
         - ${cmd}
-%{endfor~}
+      %{endfor~}
     EOF
   }
 }
