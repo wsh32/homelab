@@ -1,0 +1,58 @@
+---
+# DNS role — deploys the services/dns/ Docker Compose stack to diglett-dns.
+# Requires: base role (already run), Docker installed via cloud-init at VM creation.
+
+- name: Install git
+  ansible.builtin.apt:
+    name: git
+    state: present
+    update_cache: true
+  become: true
+
+- name: Clone homelab repo
+  ansible.builtin.git:
+    repo: https://github.com/wsh32/homelab.git
+    dest: /home/ubuntu/homelab
+    version: main
+    update: true
+  become: true
+  become_user: ubuntu
+
+- name: Create NFS mount point for persistent data
+  ansible.builtin.file:
+    path: /mnt/nas/docker
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Mount Alakazam NFS share
+  ansible.posix.mount:
+    path: /mnt/nas/docker
+    src: alakazam:/mnt/pool/docker
+    fstype: nfs
+    opts: soft,timeo=30,nfsvers=4
+    state: mounted
+  become: true
+
+- name: Create persistent data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /mnt/nas/docker/adguardhome/work
+    - /mnt/nas/docker/headscale
+  become: true
+
+- name: Pull Docker images
+  community.docker.docker_compose_v2_pull:
+    project_src: /home/ubuntu/homelab/services/dns
+  become: true
+
+- name: Start DNS stack
+  community.docker.docker_compose_v2:
+    project_src: /home/ubuntu/homelab/services/dns
+    state: present
+    pull: never
+  become: true
+  notify: Restart dns stack

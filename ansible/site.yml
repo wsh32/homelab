@@ -6,3 +6,4 @@
 - import_playbook: base.yml
 - import_playbook: deploy-vm.yml
 - import_playbook: dev.yml
+- import_playbook: dns.yml

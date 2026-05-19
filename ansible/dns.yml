@@ -1,0 +1,17 @@
+---
+# Deploy the DNS stack (AdGuard Home + Headscale + cloudflared) to diglett-dns.
+#
+# Prerequisites:
+#   - diglett-dns VM must be up and cloud-init must have completed
+#   - /etc/cloudflared.env must exist on the VM (written by Terraform cloud-init)
+#   - Alakazam NFS must be reachable at alakazam:/mnt/pool/docker
+#
+# Usage:
+#   ansible-playbook ansible/dns.yml
+
+- name: Deploy DNS stack
+  hosts: diglett-dns
+  gather_facts: true
+
+  roles:
+    - role: dns
