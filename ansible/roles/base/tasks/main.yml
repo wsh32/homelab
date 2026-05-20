@@ -17,6 +17,7 @@
       - gnupg
       - lsb-release
       - nfs-common
+      - rsync
       - avahi-daemon
       - fail2ban
       - ufw

@@ -6,6 +6,8 @@
   ansible.builtin.file:
     path: /home/ubuntu/homelab/services/dns
     state: directory
+    owner: ubuntu
+    group: ubuntu
     mode: "0755"
   become: true
 
