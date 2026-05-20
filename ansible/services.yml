@@ -5,7 +5,7 @@
 # Usage: ansible-playbook ansible/services.yml
 
 - name: Install Docker on service VMs
-  hosts: vms:!dev
+  hosts: services
   gather_facts: true
 
   roles:

@@ -38,6 +38,7 @@ dns:
 #   ip:              LAN IP (static, set via cloud-init)
 #   vm_id:           Proxmox VM ID
 #   ansible_managed: Set false to exclude from Ansible inventory (default: true)
+#   vm_roles:        List of Ansible groups this VM belongs to (e.g. [services], [dev])
 
 nodes:
   alakazam:
@@ -69,9 +70,11 @@ nodes:
       diglett-dns:
         ip: 192.168.0.2
         vm_id: 200
+        vm_roles: [services]
       diglett-infisical:
         ip: 192.168.0.21
         vm_id: 201
+        vm_roles: [services]
       diglett-haos:
         ip: 192.168.0.22
         vm_id: 202
@@ -86,12 +89,15 @@ nodes:
       machamp-ollama:
         ip: 192.168.0.30
         vm_id: 100
+        vm_roles: [services]
       machamp-services:
         ip: 192.168.0.31
         vm_id: 103
+        vm_roles: [services]
       machamp-openclaw:
         ip: 192.168.0.32
         vm_id: 102
+        vm_roles: [services]
       machamp-dev:
         ip: 192.168.0.33
         vm_id: 101
