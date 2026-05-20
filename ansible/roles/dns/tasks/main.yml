@@ -18,6 +18,12 @@
     delete: true
     recursive: true
 
+- name: Force unmount stale NFS mount if present
+  ansible.builtin.command: umount -f -l /mnt/nas/docker
+  become: true
+  failed_when: false
+  changed_when: false
+
 - name: Ensure NFS mount point exists
   ansible.builtin.file:
     path: /mnt/nas/docker
