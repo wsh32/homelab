@@ -20,6 +20,8 @@ services:
     restart: unless-stopped
     networks:
       - dns
+    ports:
+      - "8080:8080"
     volumes:
       - ./headscale:/etc/headscale
       - /mnt/nas/docker/headscale:/var/lib/headscale
