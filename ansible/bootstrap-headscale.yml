@@ -18,7 +18,7 @@
       register: create_user
       failed_when:
         - create_user.rc != 0
-        - "'already exists' not in (create_user.stderr | default(''))"
+        - "'UNIQUE constraint failed' not in (create_user.stderr | default(''))"
       become: true
 
     - name: Generate reusable pre-auth key (1 year expiry)
