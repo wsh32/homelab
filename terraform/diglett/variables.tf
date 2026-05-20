@@ -31,3 +31,25 @@ variable "tailscale_auth_key" {
   type        = string
   sensitive   = true
 }
+
+variable "cloudflare_api_token" {
+  description = "Cloudflare API token with Zero Trust and DNS write permissions"
+  type        = string
+  sensitive   = true
+}
+
+variable "cloudflare_account_id" {
+  description = "Cloudflare account ID (found in the Cloudflare dashboard sidebar)"
+  type        = string
+}
+
+variable "cloudflare_zone_id" {
+  description = "Cloudflare zone ID for the domain used for Headscale"
+  type        = string
+}
+
+variable "headscale_subdomain" {
+  description = "Subdomain for Headscale public endpoint (e.g. 'headscale' → headscale.example.com)"
+  type        = string
+  default     = "headscale"
+}

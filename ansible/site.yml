@@ -4,5 +4,7 @@
 - import_playbook: network.yml
 - import_playbook: physical.yml
 - import_playbook: base.yml
+- import_playbook: services.yml
 - import_playbook: deploy-vm.yml
 - import_playbook: dev.yml
+- import_playbook: dns.yml

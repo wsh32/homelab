@@ -1,0 +1,67 @@
+---
+# Bootstrap Headscale: create a user and generate a reusable pre-auth key.
+# Writes the key to terraform.tfvars on the machine running this playbook
+# so that subsequent `terraform apply` runs join VMs to this Headscale instance.
+#
+# Run after: ansible-playbook ansible/dns.yml
+# Usage:     ansible-playbook ansible/bootstrap-headscale.yml
+
+- name: Generate Headscale pre-auth key
+  hosts: diglett-dns
+  gather_facts: false
+
+  tasks:
+    - name: Create Headscale user
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale users create main
+      register: create_user
+      failed_when:
+        - create_user.rc != 0
+        - "'UNIQUE constraint failed' not in (create_user.stderr | default(''))"
+      become: true
+
+    - name: Get user ID for main
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale users list --output json
+      register: users_result
+      become: true
+
+    - name: Parse user ID
+      ansible.builtin.set_fact:
+        headscale_user_id: "{{ (users_result.stdout | from_json) | selectattr('name', 'equalto', 'main') | map(attribute='id') | first }}"
+
+    - name: Generate reusable pre-auth key (1 year expiry)
+      community.docker.docker_container_exec:
+        container: headscale
+        command: "headscale preauthkeys create --user {{ headscale_user_id }} --reusable --expiration 8760h --output json"
+      register: preauthkey_result
+      become: true
+
+    - name: Parse key from JSON output
+      ansible.builtin.set_fact:
+        headscale_preauth_key: "{{ (preauthkey_result.stdout | from_json).key }}"
+
+- name: Write pre-auth key to terraform.tfvars
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    preauth_key: "{{ hostvars['diglett-dns'].headscale_preauth_key }}"
+    tfvars_files:
+      - "{{ playbook_dir }}/../terraform/diglett/terraform.tfvars"
+      - "{{ playbook_dir }}/../terraform/machamp/terraform.tfvars"
+
+  tasks:
+    - name: Write tailscale_auth_key to terraform.tfvars
+      ansible.builtin.lineinfile:
+        path: "{{ item }}"
+        regexp: '^tailscale_auth_key'
+        line: 'tailscale_auth_key = "{{ preauth_key }}"'
+        state: present
+      loop: "{{ tfvars_files }}"
+
+    - name: Display pre-auth key
+      ansible.builtin.debug:
+        msg: "Headscale pre-auth key written to terraform.tfvars: {{ preauth_key }}"

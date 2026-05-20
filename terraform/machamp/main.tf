@@ -39,13 +39,9 @@ module "ollama" {
   timezone           = var.timezone
   tailscale_auth_key = var.tailscale_auth_key
 
-  user_data_extra = <<-EOF
-    # Install Docker + NVIDIA container toolkit
-    - apt-get install -y docker.io docker-compose-plugin
-    - systemctl enable --now docker
-    # Configure Tailscale backup exit node
-    - tailscale set --advertise-exit-node
-  EOF
+  extra_runcmd = [
+    "tailscale set --advertise-exit-node",
+  ]
 
   # TODO: GPU passthrough — add hostpci block after verifying RTX 3060 PCI address on Machamp.
   # Run: ssh root@machamp lspci | grep -i nvidia
@@ -74,11 +70,7 @@ module "openclaw" {
   timezone           = var.timezone
   tailscale_auth_key = var.tailscale_auth_key
 
-  user_data_extra = <<-EOF
-    # Install Docker
-    - apt-get install -y docker.io docker-compose-plugin
-    - systemctl enable --now docker
-  EOF
+  extra_runcmd = []
 }
 
 module "dev" {
@@ -126,15 +118,7 @@ module "services" {
   timezone           = var.timezone
   tailscale_auth_key = var.tailscale_auth_key
 
-  user_data_extra = <<-EOF
-    # Install Docker + NVIDIA container toolkit
-    - apt-get install -y docker.io docker-compose-plugin
-    - systemctl enable --now docker
-    # Mount NAS NFS volumes
-    - mkdir -p /mnt/nas
-    - echo "alakazam:/mnt/pool/docker /mnt/nas/docker nfs soft,timeo=30,nfsvers=4 0 0" >> /etc/fstab
-    - mount -a
-  EOF
+  extra_runcmd = []
 
   # TODO: GPU passthrough — add hostpci block after verifying Quadro P2000 PCI address on Machamp.
   # Run: ssh root@machamp lspci | grep -i quadro

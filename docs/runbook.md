@@ -71,10 +71,12 @@ Repeat on **both** Machamp (`192.168.0.5:8006`) and Diglett (`192.168.0.6:8006`)
 
 Log into TrueNAS at `https://192.168.0.4`:
 
-1. Storage → Create Pool (if not already done): name `pool`
+1. Storage → Create pools (if not already done):
+   - `pool` — HDD storage (bulk data)
+   - `apps` — SSD storage (512 GB, for latency-sensitive data)
 2. Datasets → Add Dataset for each:
-   - `pool/apps/terraform` — Terraform state files
-   - `pool/docker` — persistent service data (Docker volumes)
+   - `apps/terraform` — Terraform state files (SSD)
+   - `apps/docker` — persistent service data / Docker volumes (SSD)
    - `pool/backups`
    - `pool/media`
    - `pool/photos`
@@ -84,10 +86,10 @@ Log into TrueNAS at `https://192.168.0.4`:
    `ubuntu` user to create directories and set permissions via `sudo`.
    Without this, NFS root-squash maps `sudo` to `nobody` and writes fail.
 
-   | Dataset path              | Allowed networks  |
-   |---------------------------|-------------------|
-   | `/mnt/pool/apps/terraform`| `192.168.0.0/24`  |
-   | `/mnt/pool/docker`        | `192.168.0.0/24`  |
+   | Dataset path          | Allowed networks  |
+   |-----------------------|-------------------|
+   | `/mnt/apps/terraform` | `192.168.0.0/24`  |
+   | `/mnt/apps/docker`    | `192.168.0.0/24`  |
 
 4. Services → NFS → Start, set to start automatically.
 5. After adding or changing any share (e.g. adding an IP), reload exports from
@@ -214,7 +216,7 @@ sudo apt-get install -y nfs-common
 sudo mkdir -p /mnt/terraform-state
 
 # Mount (verify alakazam is reachable first)
-sudo mount -t nfs alakazam.local:/mnt/pool/apps/terraform /mnt/terraform-state
+sudo mount -t nfs alakazam.local:/mnt/apps/terraform /mnt/terraform-state
 
 # Create per-node state directories and set ownership
 sudo mkdir -p /mnt/terraform-state/machamp /mnt/terraform-state/diglett
@@ -223,7 +225,7 @@ sudo chown ubuntu:ubuntu /mnt/terraform-state/machamp /mnt/terraform-state/digle
 
 Persist the mount across reboots by adding to `/etc/fstab`:
 ```
-alakazam.local:/mnt/pool/apps/terraform /mnt/terraform-state nfs soft,timeo=30,nfsvers=4 0 0
+alakazam.local:/mnt/apps/terraform /mnt/terraform-state nfs soft,timeo=30,nfsvers=4 0 0
 ```
 
 To avoid needing to re-run `ssh-agent` every session, add to `~/.bashrc`:

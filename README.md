@@ -43,12 +43,14 @@ terraform/
   services/               # services node root module — state on Alakazam NFS
 ansible/
   inventory/
-    hosts.py              # dynamic inventory script — reads network.yml
+    homelab.py            # dynamic inventory script — reads network.yml
   roles/
     base/                 # all Ubuntu VMs and physical devices
     docker/               # Docker Compose VMs
+    dns/                  # deploys services/dns/ stack to diglett-dns
     network/              # Proxmox bridge config on physical nodes
   base.yml                # day-2 config for all VMs (push)
+  dns.yml                 # deploy AdGuard Home + Headscale + cloudflared
   physical.yml            # physical device config (push)
   tailscale.yml           # one-time Tailscale install on physical nodes
   network.yml             # static IP config for Proxmox nodes
@@ -86,7 +88,7 @@ cd ~/homelab && git pull
 ./scripts/deploy-services.sh  # docker compose only, no terraform
 ```
 
-`network.yml` is the single source of truth for all IPs and VM IDs. The dynamic inventory script (`ansible/inventory/hosts.py`) reads it directly — no separate hosts file to maintain.
+`network.yml` is the single source of truth for all IPs and VM IDs. The dynamic inventory script (`ansible/inventory/homelab.py`) reads it directly — no separate hosts file to maintain.
 
 ## Bootstrap
 
@@ -122,6 +124,7 @@ cd ~/homelab
 
 # DNS VM first (Headscale must be running before other VMs register)
 cd terraform/diglett && terraform init && terraform apply -target=module.dns
+ansible-playbook ansible/dns.yml                  # deploys AdGuard + Headscale + cloudflared
 ansible-playbook ansible/bootstrap-headscale.yml  # generates + writes Headscale pre-auth key
 
 # All remaining VMs

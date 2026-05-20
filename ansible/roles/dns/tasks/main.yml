@@ -1,0 +1,100 @@
+---
+# DNS role — deploys the services/dns/ Docker Compose stack to diglett-dns.
+# Requires: base role (already run), Docker installed via cloud-init at VM creation.
+
+- name: Create services directory
+  ansible.builtin.file:
+    path: /home/ubuntu/homelab/services/dns
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0755"
+  become: true
+
+- name: Sync services/dns/ from deploy VM
+  ansible.posix.synchronize:
+    src: "{{ playbook_dir }}/../services/dns/"
+    dest: /home/ubuntu/homelab/services/dns/
+    delete: true
+    recursive: true
+
+- name: Check current mount source for /mnt/nas/docker
+  ansible.builtin.shell: awk '$2 == "/mnt/nas/docker" {print $1}' /proc/mounts
+  register: current_mount_src
+  changed_when: false
+
+- name: Check if /mnt/nas/docker is accessible (detects stale mounts)
+  ansible.builtin.command: timeout 5 stat /mnt/nas/docker
+  register: mount_accessible
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: Force unmount if stale or wrong source
+  ansible.builtin.command: umount -f -l /mnt/nas/docker
+  become: true
+  changed_when: true
+  failed_when: false
+  when: >
+    (current_mount_src.stdout != '' and mount_accessible.rc != 0) or
+    (current_mount_src.stdout != '' and current_mount_src.stdout != nas_ip + ':/mnt/apps/docker')
+
+- name: Ensure NFS mount point exists
+  ansible.builtin.file:
+    path: /mnt/nas/docker
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Mount Alakazam NFS share
+  ansible.posix.mount:
+    path: /mnt/nas/docker
+    src: "{{ nas_ip }}:/mnt/apps/docker"
+    fstype: nfs
+    opts: soft,timeo=30,nfsvers=4
+    state: mounted
+  become: true
+
+- name: Create persistent data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /mnt/nas/docker/adguardhome/work
+    - /mnt/nas/docker/headscale
+  become: true
+
+- name: Read HEADSCALE_SERVER_URL from cloudflared.env
+  ansible.builtin.shell: grep '^HEADSCALE_SERVER_URL=' /etc/cloudflared.env | cut -d= -f2-
+  register: headscale_server_url
+  become: true
+  changed_when: false
+
+- name: Write server_url into headscale config
+  ansible.builtin.lineinfile:
+    path: /home/ubuntu/homelab/services/dns/headscale/config.yaml
+    regexp: '^server_url:'
+    line: "server_url: {{ headscale_server_url.stdout }}"
+  notify: Restart dns stack
+
+- name: Disable systemd-resolved stub listener (frees port 53)
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/resolved.conf
+    regexp: '^#?DNSStubListener='
+    line: 'DNSStubListener=no'
+  become: true
+  notify: Restart systemd-resolved
+
+- name: Pull Docker images
+  community.docker.docker_compose_v2_pull:
+    project_src: /home/ubuntu/homelab/services/dns
+  become: true
+
+- name: Start DNS stack
+  community.docker.docker_compose_v2:
+    project_src: /home/ubuntu/homelab/services/dns
+    state: present
+    pull: never
+  become: true
+  notify: Restart dns stack

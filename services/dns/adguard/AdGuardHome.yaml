@@ -4,7 +4,7 @@ http:
 users:
   - name: admin
     # bcrypt hash — plaintext in Vaultwarden. Generate with: htpasswd -bnBC 10 "" <password> | tr -d ':\n'
-    password: $2y$10$CHANGEME_BCRYPT_HASH_HERE
+    password: $2y$10$AJQxn6NM9IXJAxjmQyrD8Og87JDDyrMTkEg4F.E.U5vqFrwhsLiIK
 
 dns:
   bind_hosts:
@@ -12,9 +12,6 @@ dns:
   port: 53
 
   upstream_dns:
-    - 8.8.8.8
-    - 8.8.4.4
-  bootstrap_dns:
     - 8.8.8.8
     - 8.8.4.4
 
@@ -26,6 +23,16 @@ dns:
       answer: machamp-services.ts.home   # Tailscale MagicDNS; each node resolves to services VM Tailscale IP
     - domain: "*.home"
       answer: 192.168.0.31              # machamp-services VM LAN IP
+
+  safe_search:
+    enabled: false
+    bing: false
+    duckduckgo: false
+    ecosia: false
+    google: false
+    pixabay: false
+    yandex: false
+    youtube: false
 
   cache_size: 4194304
   ratelimit: 20
