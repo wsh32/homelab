@@ -14,9 +14,7 @@ dns:
   upstream_dns:
     - 8.8.8.8
     - 8.8.4.4
-  bootstrap_dns:
-    - 8.8.8.8
-    - 8.8.4.4
+  bootstrap_dns: "8.8.8.8\n8.8.4.4"
 
   # DNS rewrites — two-domain architecture:
   #   *.wsh  → Tailscale HTTPS path (step-ca TLS, personal devices)
