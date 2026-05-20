@@ -209,7 +209,7 @@ services that depend on those external keys.
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
 | Proxmox host | 2GB | — | OS overhead |
-| DNS VM | 2GB | 2 | AdGuard + Tailscale exit node + Headscale + cloudflared |
+| DNS VM | 2GB | 2 | AdGuard + Tailscale exit node + Headscale + cloudflare-ddns |
 | Home Assistant VM | 4GB | 2 | HAOS |
 | Infisical VM | 6GB | 2 | Infisical + Vaultwarden |
 | alakazam-deploy VM | 1GB | 1 | Terraform + Ansible (TrueNAS KVM, out-of-band) |
@@ -260,8 +260,8 @@ services that depend on those external keys.
 |---------|-------|
 | AdGuard Home | DNS + ad blocking; 8.8.8.8 as fallback upstream |
 | Tailscale exit node (primary) | Coupled with DNS VM; acceptable since exit node is used infrequently |
-| Headscale | Tailscale coordination server; Cloudflare Tunnel provides the public HTTPS endpoint |
-| cloudflared | Cloudflare Tunnel client; exposes Headscale without a public IP or open port |
+| Headscale | Tailscale coordination server; public HTTPS on port 443 via Eero port forward (TCP 443 → 192.168.0.2). TLS via Let's Encrypt DNS-01 (Cloudflare). |
+| cloudflare-ddns | Keeps the `headscale.wesleysoohoo.me` A record pointed at the current home IP |
 
 **Home Assistant VM** (`192.168.0.22`):
 
@@ -680,7 +680,7 @@ NUT clients: Machamp, Diglett, Alakazam (shut down gracefully on power loss)
 | Calibre-Web headless setup | Post-start `cps.py -s` CLI; library at `/books` mount |
 | n8n headless setup | `POST /api/v1/owner/setup` scripted in `n8n-init.sh` |
 | CouchDB headless setup | Env vars for credentials; init container handles `/_cluster_setup` and CORS |
-| Tailscale coordination server | Self-hosted Headscale on the Diglett DNS VM (`192.168.0.2`), co-located with AdGuard. Public HTTPS endpoint provided by a Cloudflare Tunnel (cloudflared container). No public IP or open port required. Uses Tailscale's public DERP relays. Managed by Ansible (`roles/headscale`). |
+| Tailscale coordination server | Self-hosted Headscale on the Diglett DNS VM (`192.168.0.2`), co-located with AdGuard. Public HTTPS on port 443 via Eero port forward (TCP 443 → 192.168.0.2:443). TLS via Let's Encrypt DNS-01 challenge (Cloudflare API token; no port 80 needed). DNS A record kept current by a `cloudflare-ddns` sidecar. Cloudflare proxy disabled — the proxy strips the TS2021 upgrade header. Uses Tailscale's public DERP relays. |
 | Terraform execution host | `alakazam-deploy` (TrueNAS SCALE KVM VM, out-of-band) runs all Terraform workspaces. Intentionally outside Terraform management — bootstrapped once via script. Operator laptop is break-glass fallback. |
 | Terraform state backend | Local file backend on Alakazam NFS (`/mnt/terraform-state`) for all workspaces. NFS mounted on the deploy VM at bootstrap; state files at `machamp/terraform.tfstate`, `diglett/terraform.tfstate`. |
 | Physical device management | Ansible push, same model as VMs. One-time bootstrap via `scripts/bootstrap-physical.sh` (installs Tailscale only). All further config pushed via `ansible-playbook ansible/physical.yml` from alakazam-deploy. |

@@ -152,8 +152,30 @@ Run a minimal Headscale relay or DERP server on a cheap cloud VPS (Hetzner, Vult
 public IP. Cloudflare Tunnel is not involved — the VPS has a real port 443. More complex but keeps
 the Eero closed.
 
-## Current Status
+## Resolution — Option A implemented
 
-LAN access is working. Option A (port forward) is the intended resolution. The Cloudflare Tunnel
-config (`ws://headscale:8080`) is kept in place for the cloudflared → Headscale leg; only the
-Cloudflare proxy (orange cloud) needs to be disabled for the DNS record.
+Option A (port forward on Eero) was chosen. The Cloudflare Tunnel infrastructure has been removed.
+
+**What changed:**
+
+- `terraform/diglett/cloudflare.tf` — tunnel resources removed; replaced with a DNS-only A record
+  (`proxied = false`, `ttl = 60`). The IP is a `0.0.0.0` placeholder on first apply;
+  `cloudflare-ddns` updates it at runtime. `lifecycle { ignore_changes = [content] }` prevents
+  Terraform from resetting it on subsequent applies.
+- `services/dns/docker-compose.yml` — `cloudflared` removed; `cloudflare-ddns` (favonia/cloudflare-ddns)
+  added as a sidecar to keep the A record pointing at the current home IP.
+- `services/dns/headscale/config.yaml` — `listen_addr` changed to `0.0.0.0:443`; Let's Encrypt
+  DNS-01 ACME configured. Headscale handles TLS directly; no nginx or Caddy needed.
+- `terraform/diglett/main.tf` — cloud-init writes `/etc/headscale.env` (replacing the old
+  `/etc/cloudflared.env`) with the Cloudflare API token, DDNS domain, and Headscale env vars.
+
+**Manual step required (one-time):**
+
+Forward TCP 443 on the Eero to `192.168.0.2:443`. Do this in the Eero app:
+Settings → Network Settings → Advanced Settings → Port Forwarding → Add → TCP 443 → 192.168.0.2.
+
+**TLS:**
+
+Headscale obtains a Let's Encrypt cert for `headscale.wesleysoohoo.me` via DNS-01 challenge using
+the Cloudflare API token (`CF_DNS_API_TOKEN`). No port 80 needed. Cert is cached at
+`/var/lib/headscale/cache` (on Alakazam NFS, survives VM rebuilds).

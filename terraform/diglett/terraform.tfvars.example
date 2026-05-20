@@ -23,11 +23,9 @@ vm_password = "REPLACE_ME"
 tailscale_auth_key = "tskey-auth-REPLACE_ME"
 
 # Cloudflare API token — create at https://dash.cloudflare.com/profile/api-tokens
-# Required permissions: Account > Cloudflare Tunnel (Edit), Zone > DNS (Edit)
+# Required permissions: Zone > DNS > Edit (for the headscale zone only)
+# Used by Terraform to manage the A record, and by Headscale for Let's Encrypt DNS-01 cert issuance.
 cloudflare_api_token = "REPLACE_ME"
-
-# Cloudflare account ID — found in the right sidebar of any zone page in the dashboard
-cloudflare_account_id = "REPLACE_ME"
 
 # Cloudflare zone ID — found in the right sidebar of the zone's Overview page
 cloudflare_zone_id = "REPLACE_ME"

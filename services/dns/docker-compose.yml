@@ -21,21 +21,19 @@ services:
     networks:
       - dns
     ports:
-      - "8080:8080"
+      - "443:443"
     volumes:
       - ./headscale:/etc/headscale
       - /mnt/nas/docker/headscale:/var/lib/headscale
-    env_file: /etc/cloudflared.env  # provides HEADSCALE_SERVER_URL
+    env_file: /etc/headscale.env  # provides HEADSCALE_SERVER_URL, HEADSCALE_TLS_LETSENCRYPT_HOSTNAME, CF_DNS_API_TOKEN
     command: serve
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: cloudflared
+  cloudflare-ddns:
+    image: favonia/cloudflare-ddns:latest
+    container_name: cloudflare-ddns
     restart: unless-stopped
-    networks:
-      - dns
-    env_file: /etc/cloudflared.env  # provides TUNNEL_TOKEN
-    # tunnel_token env var is read automatically by cloudflared
-    command: tunnel --no-autoupdate run
-    depends_on:
-      - headscale
+    network_mode: host  # needs host networking to detect the real public IP
+    read_only: true
+    cap_drop:
+      - ALL
+    env_file: /etc/headscale.env  # provides CF_API_TOKEN, DOMAINS, PROXIED

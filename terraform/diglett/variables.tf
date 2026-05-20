@@ -33,14 +33,9 @@ variable "tailscale_auth_key" {
 }
 
 variable "cloudflare_api_token" {
-  description = "Cloudflare API token with Zero Trust and DNS write permissions"
+  description = "Cloudflare API token with Zone > DNS > Edit permission"
   type        = string
   sensitive   = true
-}
-
-variable "cloudflare_account_id" {
-  description = "Cloudflare account ID (found in the Cloudflare dashboard sidebar)"
-  type        = string
 }
 
 variable "cloudflare_zone_id" {

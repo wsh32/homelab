@@ -111,6 +111,23 @@ Repeat on **both** Machamp and Diglett:
 2. Under **Content**, check **Snippets**
 3. Click OK
 
+### 3b. Configure Eero port forward for Headscale
+
+Headscale listens on port 443 and must be reachable from the internet for remote device enrollment.
+Configure a port forward on the Eero **before** running Terraform (Headscale will attempt ACME cert
+issuance on first start, which requires the port to be reachable):
+
+1. Open the Eero app
+2. Settings → Network Settings → Advanced Settings → Port Forwarding
+3. Add a rule:
+   - Name: `headscale`
+   - Protocol: TCP
+   - External port: 443
+   - Internal IP: `192.168.0.2`
+   - Internal port: 443
+
+This is the only port exposed through the router. The Eero stays closed for everything else.
+
 ### 4. Configure static IPs on physical nodes
 
 Find the NIC bridged to `vmbr0` on Machamp and Diglett:
@@ -270,18 +287,26 @@ cd ~/homelab
 
 ### 8. Provision the DNS VM
 
+Ensure the Eero port forward (step 3b) is in place before this step — Headscale will attempt
+Let's Encrypt cert issuance on first start and needs port 443 reachable from the internet.
+
 ```bash
 cd terraform/diglett
 terraform apply -target=module.dns
 ```
 
-Terraform creates the Cloudflare Tunnel automatically and passes the tunnel token to
-the DNS VM via cloud-init. AdGuard, Headscale, and cloudflared all start on first boot.
+Terraform creates the Cloudflare DNS A record and writes `/etc/headscale.env` (Cloudflare API
+token + DDNS config) to the DNS VM via cloud-init. AdGuard, Headscale, and cloudflare-ddns
+all start on first boot. Headscale obtains a Let's Encrypt cert via DNS-01 on first start
+(no port 80 required).
 
 Verify:
 ```bash
 ssh ubuntu@192.168.0.2 "docker ps --format 'table {{.Names}}\t{{.Status}}'"
-# Should show adguard, headscale, cloudflared all Up
+# Should show adguardhome, headscale, cloudflare-ddns all Up
+
+# Confirm TLS cert issued and Headscale is reachable
+curl https://headscale.<your-domain>/health
 ```
 
 ### 9. Generate Headscale pre-auth key
