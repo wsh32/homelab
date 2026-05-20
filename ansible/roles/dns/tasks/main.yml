@@ -37,7 +37,7 @@
   failed_when: false
   when: >
     (current_mount_src.stdout != '' and mount_accessible.rc != 0) or
-    (current_mount_src.stdout != '' and current_mount_src.stdout != 'alakazam:/mnt/apps/docker')
+    (current_mount_src.stdout != '' and current_mount_src.stdout != nas_ip + ':/mnt/apps/docker')
 
 - name: Ensure NFS mount point exists
   ansible.builtin.file:
