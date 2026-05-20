@@ -65,6 +65,19 @@
     - /mnt/nas/docker/headscale
   become: true
 
+- name: Read HEADSCALE_SERVER_URL from cloudflared.env
+  ansible.builtin.shell: grep '^HEADSCALE_SERVER_URL=' /etc/cloudflared.env | cut -d= -f2-
+  register: headscale_server_url
+  become: true
+  changed_when: false
+
+- name: Write server_url into headscale config
+  ansible.builtin.lineinfile:
+    path: /home/ubuntu/homelab/services/dns/headscale/config.yaml
+    regexp: '^server_url:'
+    line: "server_url: {{ headscale_server_url.stdout }}"
+  notify: Restart dns stack
+
 - name: Disable systemd-resolved stub listener (frees port 53)
   ansible.builtin.lineinfile:
     path: /etc/systemd/resolved.conf
