@@ -24,7 +24,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "headscale" {
   config {
     ingress_rule {
       hostname = local.headscale_hostname
-      service  = "http://headscale:8080"
+      service  = "ws://headscale:8080"
       origin_request {
         no_tls_verify         = true
         http2_origin          = false
