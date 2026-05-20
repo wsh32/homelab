@@ -24,6 +24,16 @@ dns:
     - domain: "*.home"
       answer: 192.168.0.31              # machamp-services VM LAN IP
 
+  safe_search:
+    enabled: false
+    bing: false
+    duckduckgo: false
+    ecosia: false
+    google: false
+    pixabay: false
+    yandex: false
+    youtube: false
+
   cache_size: 4194304
   ratelimit: 20
 
