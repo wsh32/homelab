@@ -4,7 +4,7 @@
 # Prerequisites:
 #   - diglett-dns VM must be up and cloud-init must have completed
 #   - /etc/cloudflared.env must exist on the VM (written by Terraform cloud-init)
-#   - Alakazam NFS must be reachable at alakazam:/mnt/apps/docker
+#   - Alakazam NFS must be reachable at 192.168.0.4:/mnt/apps/docker
 #
 # Usage:
 #   ansible-playbook ansible/dns.yml
@@ -12,6 +12,10 @@
 - name: Deploy DNS stack
   hosts: diglett-dns
   gather_facts: true
+
+  vars:
+    network: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
+    nas_ip: "{{ network.nodes.alakazam.ip }}"
 
   roles:
     - role: dns

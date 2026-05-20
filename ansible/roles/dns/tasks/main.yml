@@ -49,7 +49,7 @@
 - name: Mount Alakazam NFS share
   ansible.posix.mount:
     path: /mnt/nas/docker
-    src: alakazam:/mnt/apps/docker
+    src: "{{ nas_ip }}:/mnt/apps/docker"
     fstype: nfs
     opts: soft,timeo=30,nfsvers=4
     state: mounted
