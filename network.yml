@@ -64,7 +64,7 @@ nodes:
     ip: 192.168.0.6
     type: proxmox
     ansible_user: root
-    bridge_port: eno1  # TODO: verify with `ip link show`
+    bridge_port: nic0
     vms:
       diglett-dns:
         ip: 192.168.0.2
