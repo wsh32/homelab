@@ -81,7 +81,7 @@ nodes:
     ip: 192.168.0.5
     type: proxmox
     ansible_user: root
-    bridge_port: eno1  # TODO: verify with `ip link show`
+    bridge_port: nic1
     vms:
       machamp-ollama:
         ip: 192.168.0.30
