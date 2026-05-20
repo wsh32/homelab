@@ -18,13 +18,6 @@
     delete: true
     recursive: true
 
-- name: Create NFS mount point for persistent data
-  ansible.builtin.file:
-    path: /mnt/nas/docker
-    state: directory
-    mode: "0755"
-  become: true
-
 - name: Mount Alakazam NFS share
   ansible.posix.mount:
     path: /mnt/nas/docker
