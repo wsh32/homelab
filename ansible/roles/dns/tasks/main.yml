@@ -16,7 +16,6 @@
     version: main
     update: true
   become: true
-  become_user: ubuntu
 
 - name: Create NFS mount point for persistent data
   ansible.builtin.file:
