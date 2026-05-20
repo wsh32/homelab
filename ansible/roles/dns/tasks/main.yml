@@ -18,11 +18,26 @@
     delete: true
     recursive: true
 
-- name: Force unmount stale NFS mount if present
+- name: Check current mount source for /mnt/nas/docker
+  ansible.builtin.shell: awk '$2 == "/mnt/nas/docker" {print $1}' /proc/mounts
+  register: current_mount_src
+  changed_when: false
+
+- name: Check if /mnt/nas/docker is accessible (detects stale mounts)
+  ansible.builtin.command: timeout 5 stat /mnt/nas/docker
+  register: mount_accessible
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: Force unmount if stale or wrong source
   ansible.builtin.command: umount -f -l /mnt/nas/docker
   become: true
+  changed_when: true
   failed_when: false
-  changed_when: false
+  when: >
+    (current_mount_src.stdout != '' and mount_accessible.rc != 0) or
+    (current_mount_src.stdout != '' and current_mount_src.stdout != 'alakazam:/mnt/apps/docker')
 
 - name: Ensure NFS mount point exists
   ansible.builtin.file:
