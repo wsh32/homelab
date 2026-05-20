@@ -54,11 +54,3 @@
     mode: "0644"
   become: true
   notify: Restart docker
-
-- name: UFW — allow Docker internal traffic
-  community.general.ufw:
-    rule: allow
-    interface: docker0
-    direction: in
-  become: true
-  ignore_errors: true  # docker0 may not exist yet
