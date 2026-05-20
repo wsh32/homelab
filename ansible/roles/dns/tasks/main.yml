@@ -18,6 +18,13 @@
     delete: true
     recursive: true
 
+- name: Ensure NFS mount point exists
+  ansible.builtin.file:
+    path: /mnt/nas/docker
+    state: directory
+    mode: "0755"
+  become: true
+
 - name: Mount Alakazam NFS share
   ansible.posix.mount:
     path: /mnt/nas/docker
