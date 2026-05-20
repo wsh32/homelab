@@ -21,10 +21,21 @@
         - "'UNIQUE constraint failed' not in (create_user.stderr | default(''))"
       become: true
 
+    - name: Get user ID for main
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale users list --output json
+      register: users_result
+      become: true
+
+    - name: Parse user ID
+      ansible.builtin.set_fact:
+        headscale_user_id: "{{ (users_result.stdout | from_json) | selectattr('name', 'equalto', 'main') | map(attribute='id') | first }}"
+
     - name: Generate reusable pre-auth key (1 year expiry)
       community.docker.docker_container_exec:
         container: headscale
-        command: headscale preauthkeys create --user main --reusable --expiration 8760h --output json
+        command: "headscale preauthkeys create --user {{ headscale_user_id }} --reusable --expiration 8760h --output json"
       register: preauthkey_result
       become: true
 
