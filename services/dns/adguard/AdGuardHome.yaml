@@ -4,7 +4,7 @@ http:
 users:
   - name: admin
     # bcrypt hash — plaintext in Vaultwarden. Generate with: htpasswd -bnBC 10 "" <password> | tr -d ':\n'
-    password: $2y$10$CHANGEME_BCRYPT_HASH_HERE
+    password: $2y$10$AJQxn6NM9IXJAxjmQyrD8Og87JDDyrMTkEg4F.E.U5vqFrwhsLiIK
 
 dns:
   bind_hosts:
