@@ -44,7 +44,7 @@ The shared VM module. Every standard (Ubuntu, cloud-init) VM is an instance of t
 
 ## `terraform/diglett/`
 
-Root module for the Diglett node. VM ID range 200–299, IP range `192.168.0.21–29`.
+Root module for the Diglett node. VM ID range 200–299, IP range `192.168.0.21–29`. Note: `diglett-dns` (VM 200) is special-cased at `192.168.0.2` as the primary DNS resolver.
 
 **`main.tf`** — Defines:
 - `proxmox_virtual_environment_download_file.ubuntu_2404` — downloads the Ubuntu 24.04 cloud image once; re-applying is a no-op.
@@ -61,10 +61,8 @@ Root module for Machamp. VM ID range 100–199, IP range `192.168.0.30–49`.
 
 **`main.tf`** — Defines:
 - `proxmox_virtual_environment_download_file.ubuntu_2404` — downloads the Ubuntu 24.04 cloud image once.
-- `module.ollama` — `machamp-ollama` VM (VM 100, `192.168.0.30`, 4 cores, 32GB): Ollama GPU inference + backup Tailscale exit node. RTX 3060 hostpci block pending (see TODOS.md).
-- `module.services` — `machamp-services` VM (VM 103, `192.168.0.31`, 8 cores, 32GB): all Docker Compose services, Traefik reverse proxy, Quadro P2000 for Jellyfin transcoding. hostpci block pending.
-- `module.openclaw` — `machamp-openclaw` VM (VM 102, `192.168.0.32`, 2 cores, 8GB): OpenClaw AI assistant gateway.
-- `module.dev` — `machamp-dev` VM (VM 101, `192.168.0.33`, 6 cores, 16GB): personal development workstation.
+- `module.services` — `machamp-services` VM (VM 100, `192.168.0.30`, 8 cores, 32GB): all Docker Compose services, Traefik reverse proxy, Quadro P2000 for Jellyfin transcoding. hostpci block pending.
+- `module.dev` — `machamp-dev` VM (VM 101, `192.168.0.31`, 6 cores, 16GB): personal development workstation.
 
 ---
 
@@ -74,7 +72,7 @@ Docker Compose stack for the `diglett-dns` VM.
 
 **`docker-compose.yml`** — AdGuard Home, `network_mode: host` (needs port 53 on host IP).
 
-**`adguard/AdGuardHome.yaml`** — Pre-seeded config. AdGuard detects a valid config on startup and skips the setup wizard entirely. Contains: bcrypt admin password hash (plaintext in Vaultwarden), upstream DNS (8.8.8.8 / 8.8.4.4), DNS rewrites (`*.wsh` CNAME → `machamp-services.ts.home`, `*.home` A → `192.168.0.31`), and default blocklists.
+**`adguard/AdGuardHome.yaml`** — Pre-seeded config. AdGuard detects a valid config on startup and skips the setup wizard entirely. Contains: bcrypt admin password hash (plaintext in Vaultwarden), upstream DNS (8.8.8.8 / 8.8.4.4), DNS rewrites (`*.wsh` CNAME → `machamp-services.ts.home`, `*.home` A → `192.168.0.30`), and default blocklists.
 
 ---
 

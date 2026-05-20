@@ -5,13 +5,26 @@ Alakazam NFS — VMs are stateless and can be rebuilt without data loss.
 
 ---
 
+## Physical hosts
+
+### alakazam-deploy (`192.168.0.7`)
+
+TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/bootstrap-alakazam-deploy.sh`.
+
+| Tool | Notes |
+|------|-------|
+| Terraform | Provisions Diglett and Machamp VMs. State stored on Alakazam NFS (`/mnt/terraform-state`) |
+| Ansible | Push-only config management for all VMs and physical nodes |
+
+---
+
 ## Diglett VMs
 
 ### diglett-dns (`192.168.0.2`)
 
 | Service | Notes |
 |---------|-------|
-| AdGuard Home | LAN DNS resolver. Pre-seeded config — no setup wizard. DNS rewrites: `*.wsh` → CNAME `machamp-services.ts.home`, `*.home` → A `192.168.0.31` |
+| AdGuard Home | LAN DNS resolver. Pre-seeded config — no setup wizard. DNS rewrites: `*.wsh` → CNAME `machamp-services.ts.home`, `*.home` → A `192.168.0.30` |
 | Headscale | Self-hosted Tailscale coordination server. Pushes AdGuard's Tailscale IP as the DNS resolver for `.wsh` and `.home` to all tailnet members |
 | cloudflared | Cloudflare Tunnel — exposes Headscale publicly without open ports or a static IP |
 | Tailscale exit node | Primary exit node for the tailnet |
@@ -24,15 +37,6 @@ Alakazam NFS — VMs are stateless and can be rebuilt without data loss.
 | Vaultwarden | Human-consumed secrets (web UI admin passwords). One manual browser registration at bootstrap; persists on NFS forever |
 | Litestream | Continuously streams the Vaultwarden SQLite WAL to Alakazam NFS |
 
-### alakazam-deploy (`192.168.0.20`)
-
-TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/bootstrap-alakazam-deploy.sh`.
-
-| Tool | Notes |
-|------|-------|
-| Terraform | Provisions Diglett and Machamp VMs. State stored on Alakazam NFS (`/mnt/terraform-state`) |
-| Ansible | Push-only config management for all VMs and physical nodes |
-
 ### diglett-haos (`192.168.0.22`)
 
 | Service | Notes |
@@ -43,7 +47,7 @@ TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/boo
 
 ## Machamp VMs
 
-### machamp-services (`192.168.0.31`)
+### machamp-services (`192.168.0.30`)
 
 | Service | Notes |
 |---------|-------|
@@ -64,20 +68,7 @@ TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/boo
 | Loki | Log aggregation |
 | Promtail | Log shipping (scrapes Docker container logs) |
 
-### machamp-ollama (`192.168.0.30`)
-
-| Service | Notes |
-|---------|-------|
-| Ollama | GPU inference server. RTX 3060 passthrough (hostpci pending — see TODOS.md) |
-| Tailscale exit node | Backup exit node for the tailnet |
-
-### machamp-openclaw (`192.168.0.32`)
-
-| Service | Notes |
-|---------|-------|
-| OpenClaw | Personal AI assistant gateway. Permanent on Machamp |
-
-### machamp-dev (`192.168.0.33`)
+### machamp-dev (`192.168.0.31`)
 
 | Service | Notes |
 |---------|-------|

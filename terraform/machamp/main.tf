@@ -17,62 +17,6 @@ resource "proxmox_download_file" "ubuntu_2404" {
   overwrite = false
 }
 
-module "ollama" {
-  source = "../modules/proxmox-vm"
-
-  node_name     = local.node
-  vm_id         = local.vms["machamp-ollama"].vm_id
-  name          = "machamp-ollama"
-  description   = "Ollama GPU inference (RTX 3060 passthrough) + Tailscale exit node (backup)"
-  tags          = ["machamp", "gpu", "ollama"]
-  image_file_id = proxmox_download_file.ubuntu_2404.id
-
-  cores        = 4
-  memory_mb    = 32768
-  disk_size_gb = 60
-
-  ip_address         = "${local.vms["machamp-ollama"].ip}/24"
-  gateway            = local.net.gateway
-  dns_servers        = local.net.dns
-  ssh_public_key     = var.ssh_public_key
-  vm_password        = var.vm_password
-  timezone           = var.timezone
-  tailscale_auth_key = var.tailscale_auth_key
-
-  extra_runcmd = [
-    "tailscale set --advertise-exit-node",
-  ]
-
-  # TODO: GPU passthrough — add hostpci block after verifying RTX 3060 PCI address on Machamp.
-  # Run: ssh root@machamp lspci | grep -i nvidia
-}
-
-module "openclaw" {
-  source = "../modules/proxmox-vm"
-
-  node_name     = local.node
-  vm_id         = local.vms["machamp-openclaw"].vm_id
-  name          = "machamp-openclaw"
-  description   = "OpenClaw — personal AI assistant gateway (permanent on Machamp)"
-  tags          = ["machamp", "ai", "openclaw"]
-  image_file_id = proxmox_download_file.ubuntu_2404.id
-
-  cores        = 2
-  memory_mb    = 8192
-  disk_size_gb = 20
-  swap_size_gb = 2
-
-  ip_address         = "${local.vms["machamp-openclaw"].ip}/24"
-  gateway            = local.net.gateway
-  dns_servers        = local.net.dns
-  ssh_public_key     = var.ssh_public_key
-  vm_password        = var.vm_password
-  timezone           = var.timezone
-  tailscale_auth_key = var.tailscale_auth_key
-
-  extra_runcmd = []
-}
-
 module "dev" {
   source = "../modules/proxmox-vm"
 

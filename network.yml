@@ -6,10 +6,9 @@
 #
 # IP layout:
 #   .1       gateway (Eero)
-#   .2       diglett-dns VM (AdGuard Home — primary DNS for all VMs)
+#   .2       diglett-dns VM (AdGuard Home — primary DNS; special-cased outside VM range)
 #   .3       reserved (future backup DNS)
-#   .4–.19   physical nodes
-#   .20      alakazam-deploy (TrueNAS KVM, out-of-band — not Terraform-managed)
+#   .4–.19   physical nodes (.7 = alakazam-deploy deploy host)
 #   .21–.29  Diglett VMs (VM IDs 200–299)
 #   .30–.49  Machamp VMs (VM IDs 100–199)
 #   .100+    DHCP (Eero managed)
@@ -47,19 +46,9 @@ nodes:
     os: truenas
 
   alakazam-deploy:
-    ip: 192.168.0.20
-    type: other
-    ansible_user: ubuntu
-
-  ditto:
-    ip: 192.168.0.8
-    type: nas
-    os: truenas  # offsite; only reachable via Tailscale
-
-  orangepi:
     ip: 192.168.0.7
     type: other
-    ansible_user: root
+    ansible_user: ubuntu
 
   diglett:
     ip: 192.168.0.6
@@ -86,19 +75,11 @@ nodes:
     ansible_user: root
     bridge_port: nic1
     vms:
-      machamp-ollama:
+      machamp-services:
         ip: 192.168.0.30
         vm_id: 100
         vm_roles: [services]
-      machamp-services:
-        ip: 192.168.0.31
-        vm_id: 103
-        vm_roles: [services]
-      machamp-openclaw:
-        ip: 192.168.0.32
-        vm_id: 102
-        vm_roles: [services]
       machamp-dev:
-        ip: 192.168.0.33
+        ip: 192.168.0.31
         vm_id: 101
         vm_roles: [dev]
