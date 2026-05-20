@@ -18,5 +18,4 @@
     nas_ip: "{{ network.nodes.alakazam.ip }}"
 
   roles:
-    - role: docker
     - role: dns

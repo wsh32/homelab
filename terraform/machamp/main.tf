@@ -40,8 +40,6 @@ module "ollama" {
   tailscale_auth_key = var.tailscale_auth_key
 
   extra_runcmd = [
-    "apt-get install -y docker.io docker-compose-plugin",
-    "systemctl enable --now docker",
     "tailscale set --advertise-exit-node",
   ]
 
@@ -72,10 +70,7 @@ module "openclaw" {
   timezone           = var.timezone
   tailscale_auth_key = var.tailscale_auth_key
 
-  extra_runcmd = [
-    "apt-get install -y docker.io docker-compose-plugin",
-    "systemctl enable --now docker",
-  ]
+  extra_runcmd = []
 }
 
 module "dev" {
@@ -123,13 +118,7 @@ module "services" {
   timezone           = var.timezone
   tailscale_auth_key = var.tailscale_auth_key
 
-  extra_runcmd = [
-    "apt-get install -y docker.io docker-compose-plugin",
-    "systemctl enable --now docker",
-    "mkdir -p /mnt/nas",
-    "echo 'alakazam.local:/mnt/apps/docker /mnt/nas/docker nfs soft,timeo=30,nfsvers=4 0 0' >> /etc/fstab",
-    "mount -a",
-  ]
+  extra_runcmd = []
 
   # TODO: GPU passthrough — add hostpci block after verifying Quadro P2000 PCI address on Machamp.
   # Run: ssh root@machamp lspci | grep -i quadro

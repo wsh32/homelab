@@ -53,8 +53,6 @@ module "dns" {
   tailscale_auth_key = var.tailscale_auth_key
 
   extra_runcmd = [
-    "apt-get install -y docker.io docker-compose-plugin",
-    "systemctl enable --now docker",
     "tailscale set --advertise-exit-node",
     "echo 'TUNNEL_TOKEN=${cloudflare_zero_trust_tunnel_cloudflared.headscale.tunnel_token}' > /etc/cloudflared.env",
     "echo 'HEADSCALE_SERVER_URL=https://${local.headscale_hostname}' >> /etc/cloudflared.env",
@@ -85,10 +83,7 @@ module "infisical" {
   timezone           = var.timezone
   tailscale_auth_key = var.tailscale_auth_key
 
-  extra_runcmd = [
-    "apt-get install -y docker.io docker-compose-plugin",
-    "systemctl enable --now docker",
-  ]
+  extra_runcmd = []
 }
 
 # HAOS uses a dedicated VM resource — no cloud-init, restored from vzdump backup.
