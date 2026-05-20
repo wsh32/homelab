@@ -2,20 +2,19 @@
 # DNS role — deploys the services/dns/ Docker Compose stack to diglett-dns.
 # Requires: base role (already run), Docker installed via cloud-init at VM creation.
 
-- name: Install git
-  ansible.builtin.apt:
-    name: git
-    state: present
-    update_cache: true
+- name: Create services directory
+  ansible.builtin.file:
+    path: /home/ubuntu/homelab/services/dns
+    state: directory
+    mode: "0755"
   become: true
 
-- name: Clone homelab repo
-  ansible.builtin.git:
-    repo: https://github.com/wsh32/homelab.git
-    dest: /home/ubuntu/homelab
-    version: main
-    update: true
-  become: true
+- name: Sync services/dns/ from deploy VM
+  ansible.posix.synchronize:
+    src: "{{ playbook_dir }}/../services/dns/"
+    dest: /home/ubuntu/homelab/services/dns/
+    delete: true
+    recursive: true
 
 - name: Create NFS mount point for persistent data
   ansible.builtin.file:
