@@ -65,28 +65,6 @@
     - /mnt/nas/docker/headscale
   become: true
 
-- name: UFW — allow DNS (TCP)
-  community.general.ufw:
-    rule: allow
-    port: "53"
-    proto: tcp
-  become: true
-
-- name: UFW — allow DNS (UDP)
-  community.general.ufw:
-    rule: allow
-    port: "53"
-    proto: udp
-  become: true
-
-- name: UFW — allow AdGuard Home UI (LAN only)
-  community.general.ufw:
-    rule: allow
-    port: "3000"
-    proto: tcp
-    src: 192.168.0.0/24
-  become: true
-
 - name: Disable systemd-resolved stub listener (frees port 53)
   ansible.builtin.lineinfile:
     path: /etc/systemd/resolved.conf

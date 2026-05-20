@@ -19,8 +19,6 @@
       - nfs-common
       - rsync
       - avahi-daemon
-      - fail2ban
-      - ufw
     state: present
     update_cache: true
   become: true
@@ -29,30 +27,6 @@
   community.general.timezone:
     name: America/Los_Angeles
   become: true
-
-- name: Configure UFW — allow SSH
-  community.general.ufw:
-    rule: allow
-    name: OpenSSH
-  become: true
-
-- name: Enable UFW
-  community.general.ufw:
-    state: enabled
-    policy: deny
-  become: true
-
-- name: Configure fail2ban for SSH
-  ansible.builtin.copy:
-    dest: /etc/fail2ban/jail.local
-    content: |
-      [sshd]
-      enabled  = true
-      maxretry = 5
-      bantime  = 1h
-    mode: "0644"
-  become: true
-  notify: Restart fail2ban
 
 - name: Disable password authentication in SSH
   ansible.builtin.lineinfile:

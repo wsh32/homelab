@@ -47,6 +47,25 @@ and breaks `.home` domain resolution.
 
 ---
 
+## UFW Firewall Hardening
+
+**What:** Enable UFW on all VMs with a default-deny policy and per-role allowlists.
+
+**Why:** Currently no host firewall is configured. All ports are open on the LAN. Tailscale provides network-level segmentation but no per-VM port filtering.
+
+**Minimum policy per role:**
+- All VMs: allow SSH (22)
+- `services` VMs: allow Docker bridge traffic
+- `diglett-dns`: allow DNS (53 TCP/UDP), AdGuard UI (3000 TCP) from LAN
+- `machamp-services`: allow Traefik (80, 443) from LAN and Tailscale
+- `diglett-infisical`: allow Infisical (8080) and Vaultwarden (8083) from LAN/Tailscale
+
+**Note:** Add UFW tasks back to `ansible/roles/base/tasks/main.yml` and per-role allowlists to each service role. The base role previously had UFW enabled — removed to unblock initial bring-up.
+
+**Depends on:** All services deployed and ports confirmed.
+
+---
+
 ## Tailscale ACL Segmentation
 
 **What:** Add role-based ACL policy via the `tailscale_acl` Terraform
