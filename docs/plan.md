@@ -443,7 +443,7 @@ done via an init container.
 
 All workspaces use a local file backend on an NFS mount from Alakazam.
 
-- Mount: `alakazam.local:/mnt/pool/apps/terraform` → `/mnt/terraform-state` on the deploy VM
+- Mount: `alakazam.local:/mnt/apps/terraform` → `/mnt/terraform-state` on the deploy VM
 - State files: `/mnt/terraform-state/machamp/terraform.tfstate`, `/mnt/terraform-state/diglett/terraform.tfstate`
 - Locking via local lockfile (Terraform default for `backend "local"`)
 - Replicated to Ditto daily; ZFS snapshots provide version history

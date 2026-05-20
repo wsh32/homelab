@@ -127,7 +127,7 @@ module "services" {
     "apt-get install -y docker.io docker-compose-plugin",
     "systemctl enable --now docker",
     "mkdir -p /mnt/nas",
-    "echo 'alakazam:/mnt/pool/docker /mnt/nas/docker nfs soft,timeo=30,nfsvers=4 0 0' >> /etc/fstab",
+    "echo 'alakazam:/mnt/apps/docker /mnt/nas/docker nfs soft,timeo=30,nfsvers=4 0 0' >> /etc/fstab",
     "mount -a",
   ]
 
