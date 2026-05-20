@@ -4,3 +4,9 @@
     project_src: /home/ubuntu/homelab/services/dns
     state: restarted
   become: true
+
+- name: Restart systemd-resolved
+  ansible.builtin.service:
+    name: systemd-resolved
+    state: restarted
+  become: true
