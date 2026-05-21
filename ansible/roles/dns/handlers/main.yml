@@ -5,13 +5,6 @@
     state: restarted
   become: true
 
-- name: Restart headplane
-  community.docker.docker_container:
-    name: headplane
-    state: started
-    restart: true
-  become: true
-
 - name: Restart systemd-resolved
   ansible.builtin.service:
     name: systemd-resolved
