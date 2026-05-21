@@ -11,10 +11,8 @@ scrape_configs:
     static_configs:
       # Add node_exporter targets as VMs are stood up.
       - targets:
-          - diglett-infisical:9100
+          - diglett-infra:9100
           - alakazam-deploy:9100
           - diglett-dns:9100
           - machamp-services:9100
-          - machamp-ollama:9100
-          - machamp-openclaw:9100
           - machamp-dev:9100

@@ -22,7 +22,7 @@ dns:
     - domain: "*.wsh"
       answer: machamp-services.ts.home   # Tailscale MagicDNS; each node resolves to services VM Tailscale IP
     - domain: "*.home"
-      answer: 192.168.0.31              # machamp-services VM LAN IP
+      answer: 192.168.0.30              # machamp-services VM LAN IP
 
   safe_search:
     enabled: false

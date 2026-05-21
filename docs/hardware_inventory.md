@@ -8,7 +8,7 @@ What hardware do I own that is part of my homelab?
     * Role: Main compute node
     * OS: Proxmox
     * CPU: AMD Threadripper 3975WX (32c/64t)
-    * GPU: Nvidia RTX 3060, Nvidia Quadro P2000
+    * GPU: Nvidia RTX 3060, Nvidia Quadro P2200
     * RAM: 128GB ECC DDR4
     * Boot drive: 500GB SATA SSD
     * NVMe storage: 2x 2TB NVMe SSD
@@ -48,7 +48,7 @@ What hardware do I own that is part of my homelab?
     * OS: Proxmox (planned)
     * CPU: Ryzen 7 3700x (8c/16t)
     * RAM: 128GB DDR4
-    * GPU: none (P2000 is on Machamp; will migrate to this node with the services VM when built)
+    * GPU: none (P2200 is on Machamp; will migrate to this node with the services VM when built)
     * Boot drive: tbd (small SSD)
     * NVMe storage: 2TB NVMe SSD
     * Status: Not yet built

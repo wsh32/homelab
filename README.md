@@ -25,11 +25,9 @@ Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Te
 
 | Node | Role |
 |------|------|
-| **Machamp** | Proxmox compute node. Hosts all VMs: GPU inference (Ollama, RTX 3060), personal tooling (OpenClaw, development workstation), and all Docker Compose services (Traefik, Jellyfin, Servarr, etc.) |
-| **Diglett** | Always-on Proxmox infrastructure node. Hosts DNS (AdGuard Home), Tailscale coordination (Headscale behind Cloudflare Tunnel), secrets (Infisical + Vaultwarden), and the deploy VM |
-| **Alakazam** | TrueNAS NAS. Provides NFS mounts for all persistent Docker volumes and Terraform state |
-| **Ditto** | Offsite TrueNAS NAS. Receives daily/weekly ZFS replication from Alakazam; only reachable over Tailscale |
-| **Orange Pi** | Miscellaneous device (role TBD) |
+| **Machamp** | Proxmox compute node. Hosts all VMs: development workstation and all Docker Compose services (Traefik, Jellyfin, Servarr, etc.) |
+| **Diglett** | Always-on Proxmox infrastructure node. Hosts DNS (AdGuard Home), Tailscale coordination (Headscale behind Cloudflare Tunnel), and secrets (Infisical + Vaultwarden) |
+| **Alakazam** | TrueNAS NAS. Provides NFS mounts for all persistent Docker volumes and Terraform state; runs alakazam-deploy (TrueNAS KVM deploy host) |
 
 See [`docs/services.md`](docs/services.md) for the full per-VM service list.
 
@@ -77,10 +75,10 @@ docs/
 
 ## How deploys work
 
-All deploys are manual, initiated from the deploy VM (`alakazam-deploy`, `192.168.0.20`):
+All deploys are manual, initiated from the deploy VM (`alakazam-deploy`, `192.168.0.7`):
 
 ```bash
-ssh ubuntu@192.168.0.20
+ssh ubuntu@192.168.0.7
 cd ~/homelab && git pull
 
 ./scripts/deploy.sh           # terraform apply + ansible for all nodes
@@ -98,11 +96,11 @@ Full step-by-step guide in [`docs/runbook.md`](docs/runbook.md). High-level summ
 1. Form the Proxmox cluster (Machamp + Diglett) via the UI
 2. Create Proxmox API tokens on each node; enable Snippets on `local` storage
 3. Create NFS datasets on Alakazam (`apps/terraform`, `docker`); configure NFS shares with Maproot User: root
-4. Configure static IPs on physical nodes via Ansible; set static IPs on Alakazam and Ditto via TrueNAS UI
+4. Configure static IPs on physical nodes via Ansible; set static IP on Alakazam via TrueNAS UI
 
 **Phase 2 — Bootstrap the deploy VM (from operator laptop):**
 
-The deploy VM (`alakazam-deploy`, `192.168.0.20`) is a TrueNAS SCALE KVM VM — not Terraform-managed. Create it manually in the TrueNAS UI, then:
+The deploy VM (`alakazam-deploy`, `192.168.0.7`) is a TrueNAS SCALE KVM VM — not Terraform-managed. Create it manually in the TrueNAS UI, then:
 ```bash
 # Fill in terraform.tfvars on your laptop first
 cp terraform/diglett/terraform.tfvars.example terraform/diglett/terraform.tfvars
@@ -110,16 +108,16 @@ cp terraform/machamp/terraform.tfvars.example terraform/machamp/terraform.tfvars
 # fill in Proxmox tokens, SSH key, Cloudflare API token
 
 # Bootstrap the VM (installs Terraform, Ansible, Tailscale, Infisical CLI; sets up NFS mount)
-ssh ubuntu@192.168.0.20 TAILSCALE_AUTH_KEY=<key> bash -s < scripts/bootstrap-alakazam-deploy.sh
+ssh ubuntu@192.168.0.7 TAILSCALE_AUTH_KEY=<key> bash -s < scripts/bootstrap-alakazam-deploy.sh
 
 # Copy tfvars to the deploy VM
-scp terraform/diglett/terraform.tfvars ubuntu@192.168.0.20:~/homelab/terraform/diglett/
-scp terraform/machamp/terraform.tfvars ubuntu@192.168.0.20:~/homelab/terraform/machamp/
+scp terraform/diglett/terraform.tfvars ubuntu@192.168.0.7:~/homelab/terraform/diglett/
+scp terraform/machamp/terraform.tfvars ubuntu@192.168.0.7:~/homelab/terraform/machamp/
 ```
 
 **Phase 3 — Full deployment (from the deploy VM):**
 ```bash
-ssh ubuntu@192.168.0.20
+ssh ubuntu@192.168.0.7
 cd ~/homelab
 
 # DNS VM first (Headscale must be running before other VMs register)
