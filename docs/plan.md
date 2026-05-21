@@ -293,6 +293,7 @@ Vaultwarden stores all passwords a human types into a browser. The two stores ne
 |---------|-------|
 | Traefik | Reverse proxy; two entrypoints: `web` (80, `*.home`) and `websecure` (443, `*.wsh`) |
 | step-ca | Local CA; issues wildcard `*.wsh` cert; Traefik ACME uses local step-ca endpoint |
+| Zitadel | OIDC identity provider; SSO for headplane and future services |
 | Jellyfin | Media server; GPU transcoding |
 | Servarr stack | Radarr, Sonarr, Prowlarr |
 | PhotoPrism | Photo archive and browsing |
