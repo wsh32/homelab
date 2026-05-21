@@ -98,12 +98,6 @@
     regexp: '^\s+base_url:'
     line: "  base_url: \"http://{{ ansible_host }}:3001\""
 
-- name: Remove leftover /etc/headplane.env (no longer used)
-  ansible.builtin.file:
-    path: /etc/headplane.env
-    state: absent
-  become: true
-
 - name: Disable systemd-resolved stub listener (frees port 53)
   ansible.builtin.lineinfile:
     path: /etc/systemd/resolved.conf
