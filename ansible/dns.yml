@@ -82,12 +82,20 @@
       no_log: true
       when: not headplane_api_key_stat.stat.exists
 
-    - name: Write headscale API key to NFS for headplane
+    - name: Write headscale API key to NFS (idempotency marker)
       ansible.builtin.copy:
         content: "{{ headplane_apikey_result.stdout | from_json }}"
         dest: /mnt/nas/docker/headplane/api.key
         mode: "0600"
       become: true
+      no_log: true
+      when: not headplane_api_key_stat.stat.exists
+
+    - name: Write headscale API key into headplane config
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/dns/headplane/config.yaml
+        regexp: '^\s+api_key:'
+        line: "  api_key: \"{{ headplane_apikey_result.stdout | from_json }}\""
       no_log: true
       when: not headplane_api_key_stat.stat.exists
 
