@@ -62,6 +62,71 @@
       ansible.builtin.set_fact:
         headscale_preauth_key: "{{ (preauthkey_result.stdout | from_json).key }}"
 
+    - name: Wait for headscale-ui to be ready
+      ansible.builtin.wait_for:
+        port: 3050
+        host: "{{ ansible_host }}"
+        timeout: 60
+
+    - name: Check if headscale-ui is already bootstrapped
+      ansible.builtin.stat:
+        path: /mnt/nas/docker/headscale-ui/admin.key
+      register: headscale_ui_bootstrapped
+
+    - name: Generate headscale API key for headscale-ui
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale apikeys create --output json
+      register: headscale_ui_apikey_result
+      become: true
+      no_log: true
+      when: not headscale_ui_bootstrapped.stat.exists
+
+    - name: Generate headscale-ui admin password
+      ansible.builtin.set_fact:
+        headscale_ui_admin_password: "{{ lookup('password', '/dev/null length=24 chars=ascii_letters,digits') }}"
+      no_log: true
+      when: not headscale_ui_bootstrapped.stat.exists
+
+    - name: Create headscale-ui admin account
+      ansible.builtin.uri:
+        url: http://localhost:3050/api/backend/new-default-admin
+        method: POST
+        body_format: json
+        body:
+          username: admin
+          password: "{{ headscale_ui_admin_password }}"
+        status_code: 200
+      register: headscale_ui_admin_result
+      no_log: true
+      when: not headscale_ui_bootstrapped.stat.exists
+
+    - name: Set headscale API key in headscale-ui
+      ansible.builtin.uri:
+        url: http://localhost:3050/api/backend/update-token-key
+        method: PATCH
+        body_format: json
+        headers:
+          Cookie: "headscale-ui.admin={{ headscale_ui_admin_result.json.data.token }}"
+        body:
+          apikey: "{{ headscale_ui_apikey_result.stdout | from_json }}"
+        status_code: 200
+      no_log: true
+      when: not headscale_ui_bootstrapped.stat.exists
+
+    - name: Store headscale-ui admin password on NFS
+      ansible.builtin.copy:
+        content: "{{ headscale_ui_admin_password }}"
+        dest: /mnt/nas/docker/headscale-ui/admin.key
+        mode: "0600"
+      no_log: true
+      when: not headscale_ui_bootstrapped.stat.exists
+
+    - name: Display headscale-ui credentials for Vaultwarden
+      ansible.builtin.debug:
+        msg: "headscale-ui login — username: admin  password: {{ headscale_ui_admin_password }} — save this in Vaultwarden"
+      when: not headscale_ui_bootstrapped.stat.exists
+
 - name: Write pre-auth key to terraform.tfvars
   hosts: localhost
   gather_facts: false
