@@ -1,36 +1,35 @@
 ---
-# Bootstrap Headscale: create a user and generate a reusable pre-auth key.
+# Bootstrap Headscale: create the infra user and generate a reusable pre-auth key.
 # Writes the key to terraform.tfvars on the machine running this playbook
 # so that subsequent `terraform apply` runs join VMs to this Headscale instance.
+# Idempotent: safe to re-run. The infra user is created only if absent;
+# the webui API key is provisioned only if key.txt does not already exist.
 #
 # Run after: ansible-playbook ansible/dns.yml
 # Usage:     ansible-playbook ansible/bootstrap-headscale.yml
 
-- name: Generate Headscale pre-auth key
+- name: Bootstrap Headscale
   hosts: diglett-dns
   gather_facts: false
 
   tasks:
-    - name: Create Headscale user
+    - name: Create Headscale infra user
       community.docker.docker_container_exec:
         container: headscale
-        command: headscale users create main
-      register: create_user
-      failed_when:
-        - create_user.rc != 0
-        - "'UNIQUE constraint failed' not in (create_user.stderr | default(''))"
+        command: headscale users create infra
+      failed_when: false  # idempotent: no-op if user already exists
       become: true
 
-    - name: Get user ID for main
+    - name: Get infra user ID
       community.docker.docker_container_exec:
         container: headscale
         command: headscale users list --output json
       register: users_result
       become: true
 
-    - name: Parse user ID
+    - name: Parse infra user ID
       ansible.builtin.set_fact:
-        headscale_user_id: "{{ (users_result.stdout | from_json) | selectattr('name', 'equalto', 'main') | map(attribute='id') | first }}"
+        headscale_user_id: "{{ (users_result.stdout | from_json) | selectattr('name', 'equalto', 'infra') | map(attribute='id') | first }}"
 
     - name: Generate reusable pre-auth key (1 year expiry)
       community.docker.docker_container_exec:
@@ -39,9 +38,15 @@
       register: preauthkey_result
       become: true
 
-    - name: Parse key from JSON output
+    - name: Parse pre-auth key
       ansible.builtin.set_fact:
         headscale_preauth_key: "{{ (preauthkey_result.stdout | from_json).key }}"
+
+    - name: Check if webui API key is already provisioned
+      ansible.builtin.stat:
+        path: /mnt/nas/docker/headscale-ui/key.txt
+      register: webui_key_stat
+      become: true
 
     - name: Generate headscale API key for webui
       community.docker.docker_container_exec:
@@ -49,11 +54,13 @@
         command: "headscale apikeys create --output json"
       register: webui_apikey_result
       become: true
+      when: not webui_key_stat.stat.exists
 
     - name: Parse webui API key
       ansible.builtin.set_fact:
         headscale_webui_api_key: "{{ (webui_apikey_result.stdout | from_json).key }}"
       no_log: true
+      when: not webui_key_stat.stat.exists
 
     - name: Read Fernet KEY from headscale-ui env file
       ansible.builtin.slurp:
@@ -61,11 +68,13 @@
       register: webui_env_raw
       become: true
       no_log: true
+      when: not webui_key_stat.stat.exists
 
     - name: Parse KEY from env file
       ansible.builtin.set_fact:
         headscale_webui_fernet_key: "{{ webui_env_raw.content | b64decode | regex_search('(?m)^KEY=(.+)$', '\\1') | first }}"
       no_log: true
+      when: not webui_key_stat.stat.exists
 
     - name: Fernet-encrypt API key for webui storage
       ansible.builtin.shell: |
@@ -80,6 +89,7 @@
         API_KEY: "{{ headscale_webui_api_key }}"
       register: encrypted_api_key
       no_log: true
+      when: not webui_key_stat.stat.exists
 
     - name: Write encrypted API key to webui data directory
       ansible.builtin.copy:
@@ -90,6 +100,7 @@
         group: root
       become: true
       no_log: true
+      when: not webui_key_stat.stat.exists
 
 - name: Write pre-auth key to terraform.tfvars
   hosts: localhost
