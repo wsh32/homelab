@@ -25,7 +25,7 @@ services:
     volumes:
       - ./headscale:/etc/headscale
       - /mnt/nas/docker/headscale:/var/lib/headscale
-    env_file: /etc/headscale.env  # provides HEADSCALE_SERVER_URL, HEADSCALE_TLS_LETSENCRYPT_HOSTNAME, CF_DNS_API_TOKEN
+    env_file: /etc/headscale.env  # provides HEADSCALE_SERVER_URL, HEADSCALE_TLS_LETSENCRYPT_HOSTNAME
     command: serve
 
   cloudflare-ddns:

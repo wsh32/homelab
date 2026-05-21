@@ -55,10 +55,8 @@ module "dns" {
   extra_runcmd = [
     "tailscale set --advertise-exit-node",
     # /etc/headscale.env is read by both the headscale and cloudflare-ddns containers.
-    # CF_DNS_API_TOKEN: used by headscale's built-in lego ACME client for DNS-01 challenge.
     # CF_API_TOKEN / DOMAINS / PROXIED: used by the cloudflare-ddns sidecar.
-    "echo 'CF_DNS_API_TOKEN=${var.cloudflare_api_token}' > /etc/headscale.env",
-    "echo 'CF_API_TOKEN=${var.cloudflare_api_token}' >> /etc/headscale.env",
+    "echo 'CF_API_TOKEN=${var.cloudflare_api_token}' > /etc/headscale.env",
     "echo 'DOMAINS=${local.headscale_hostname}' >> /etc/headscale.env",
     "echo 'PROXIED=false' >> /etc/headscale.env",
     "echo 'HEADSCALE_SERVER_URL=https://${local.headscale_hostname}' >> /etc/headscale.env",
