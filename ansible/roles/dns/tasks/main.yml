@@ -75,6 +75,7 @@
     chmod 600 /mnt/nas/docker/headplane/cookie.secret
   args:
     creates: /mnt/nas/docker/headplane/cookie.secret
+  become: true
 
 - name: Read HEADSCALE_SERVER_URL from headscale.env
   ansible.builtin.slurp:
