@@ -28,14 +28,14 @@ services:
     env_file: /etc/headscale.env  # provides HEADSCALE_SERVER_URL, HEADSCALE_TLS_LETSENCRYPT_HOSTNAME
     command: serve
 
-  headscale-webui:
+  headscale-ui:
     image: ernestoyoofi/headscale-ui:latest
-    container_name: headscale-webui
+    container_name: headscale-ui
     restart: unless-stopped
     networks:
       - dns
     ports:
-      - "5000:3050"
+      - "3050:3050"
     volumes:
       - /mnt/nas/docker/headscale-ui/database:/app/database
       - /mnt/nas/docker/headscale-ui/secret:/app/secret
