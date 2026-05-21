@@ -68,6 +68,48 @@
     - /mnt/nas/docker/headscale-ui
   become: true
 
+- name: Generate Fernet key for headscale-ui if not present
+  ansible.builtin.shell: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+  register: generated_fernet_key
+  args:
+    creates: /mnt/nas/docker/headscale-ui/fernet.key
+
+- name: Write Fernet key to NFS (persists across VM recreations)
+  ansible.builtin.copy:
+    content: "{{ generated_fernet_key.stdout }}"
+    dest: /mnt/nas/docker/headscale-ui/fernet.key
+    mode: "0600"
+    owner: root
+    group: root
+  become: true
+  when: generated_fernet_key is changed
+  no_log: true
+
+- name: Read Fernet key from NFS
+  ansible.builtin.slurp:
+    src: /mnt/nas/docker/headscale-ui/fernet.key
+  register: fernet_key_raw
+  become: true
+  no_log: true
+
+- name: Read HEADSCALE_SERVER_URL from headscale.env
+  ansible.builtin.slurp:
+    src: /etc/headscale.env
+  register: headscale_env_raw
+  become: true
+
+- name: Write /etc/headscale-ui.env
+  ansible.builtin.copy:
+    content: |
+      HS_SERVER={{ headscale_env_raw.content | b64decode | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\1') | first }}
+      KEY={{ fernet_key_raw.content | b64decode | trim }}
+    dest: /etc/headscale-ui.env
+    mode: "0600"
+    owner: root
+    group: root
+  become: true
+  no_log: true
+
 - name: Disable systemd-resolved stub listener (frees port 53)
   ansible.builtin.lineinfile:
     path: /etc/systemd/resolved.conf

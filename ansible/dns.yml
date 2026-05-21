@@ -82,17 +82,17 @@
       no_log: true
       when: not webui_key_stat.stat.exists
 
-    - name: Read Fernet KEY from headscale-ui env file
+    - name: Read Fernet key from NFS
       ansible.builtin.slurp:
-        src: /etc/headscale-ui.env
-      register: webui_env_raw
+        src: /mnt/nas/docker/headscale-ui/fernet.key
+      register: webui_fernet_key_raw
       become: true
       no_log: true
       when: not webui_key_stat.stat.exists
 
-    - name: Parse KEY from env file
+    - name: Parse Fernet key
       ansible.builtin.set_fact:
-        headscale_webui_fernet_key: "{{ webui_env_raw.content | b64decode | regex_search('(?m)^KEY=(.+)$', '\\1') | first }}"
+        headscale_webui_fernet_key: "{{ webui_fernet_key_raw.content | b64decode | trim }}"
       no_log: true
       when: not webui_key_stat.stat.exists
 
