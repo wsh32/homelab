@@ -72,17 +72,22 @@
       ansible.builtin.set_fact:
         headscale_server_url: "{{ headscale_env_bootstrap.content | b64decode | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\\1') | first }}"
 
-    - name: Check tailscale status on diglett-dns
-      ansible.builtin.command: tailscale status
-      register: tailscale_status
+    - name: Check if diglett-dns has a tailscale IP
+      ansible.builtin.command: tailscale ip -4
+      register: tailscale_ip_check
       changed_when: false
       failed_when: false
       become: true
 
     - name: Join diglett-dns to headscale
-      ansible.builtin.command: "tailscale up --login-server={{ headscale_server_url }} --auth-key={{ headscale_preauth_key }}"
+      ansible.builtin.command: >-
+        tailscale up
+        --login-server={{ headscale_server_url }}
+        --auth-key={{ headscale_preauth_key }}
+        --advertise-exit-node
+        --hostname=diglett-dns
       become: true
-      when: tailscale_status.rc != 0
+      when: tailscale_ip_check.rc != 0
 
     - name: Get diglett-dns tailscale IP
       ansible.builtin.command: tailscale ip -4
