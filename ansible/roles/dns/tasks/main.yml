@@ -68,13 +68,16 @@
     - /mnt/nas/docker/headplane
   become: true
 
-- name: Generate headplane cookie secret (if not present)
+- name: Generate headplane cookie secret (32 hex chars, regenerate if wrong length)
   ansible.builtin.shell: |
-    set -e
-    openssl rand -hex 32 > /mnt/nas/docker/headplane/cookie.secret
-    chmod 600 /mnt/nas/docker/headplane/cookie.secret
-  args:
-    creates: /mnt/nas/docker/headplane/cookie.secret
+    target=/mnt/nas/docker/headplane/cookie.secret
+    if [ ! -f "$target" ] || [ "$(tr -d '\n' < "$target" | wc -c)" -ne 32 ]; then
+      openssl rand -hex 16 > "$target"
+      chmod 600 "$target"
+      echo changed
+    fi
+  register: cookie_result
+  changed_when: "'changed' in cookie_result.stdout"
   become: true
 
 - name: Read HEADSCALE_SERVER_URL from headscale.env
