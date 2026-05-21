@@ -28,6 +28,17 @@ services:
     env_file: /etc/headscale.env  # provides HEADSCALE_SERVER_URL, HEADSCALE_TLS_LETSENCRYPT_HOSTNAME
     command: serve
 
+  headscale-ui:
+    image: ghcr.io/gurucomputing/headscale-ui:latest
+    container_name: headscale-ui
+    restart: unless-stopped
+    networks:
+      - dns
+    ports:
+      - "8080:80"
+    volumes:
+      - /mnt/nas/docker/headscale-ui:/data
+
   cloudflare-ddns:
     image: favonia/cloudflare-ddns:latest
     container_name: cloudflare-ddns
