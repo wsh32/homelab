@@ -61,7 +61,7 @@ Root module for Machamp. VM ID range 100–199, IP range `192.168.0.30–49`.
 
 **`main.tf`** — Defines:
 - `proxmox_virtual_environment_download_file.ubuntu_2404` — downloads the Ubuntu 24.04 cloud image once.
-- `module.services` — `machamp-services` VM (VM 100, `192.168.0.30`, 8 cores, 32GB): all Docker Compose services, Traefik reverse proxy, Quadro P2000 for Jellyfin transcoding. hostpci block pending.
+- `module.services` — `machamp-services` VM (VM 100, `192.168.0.30`, 8 cores, 32GB): all Docker Compose services, Traefik reverse proxy, Quadro P2200 for Jellyfin transcoding. hostpci block pending.
 - `module.dev` — `machamp-dev` VM (VM 101, `192.168.0.31`, 6 cores, 16GB): personal development workstation.
 
 ---
@@ -101,7 +101,7 @@ Docker Compose stack for the `machamp-services` VM. This is the main services st
 **`docker-compose.yml`** — All services:
 - **Traefik** — reverse proxy; two entrypoints: `web` (80, `*.home`) and `websecure` (443, `*.wsh`)
 - **step-ca** — local CA; Traefik uses it as the ACME endpoint for `*.wsh` TLS certs
-- **Jellyfin** — media server; `/dev/dri` passthrough for Quadro P2000 transcoding
+- **Jellyfin** — media server; `/dev/dri` passthrough for Quadro P2200 transcoding
 - **Prowlarr, Radarr, Sonarr** — Servarr stack
 - **PhotoPrism** — photo archive
 - **Calibre-Web** — ebook server

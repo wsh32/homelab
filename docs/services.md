@@ -53,7 +53,7 @@ TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/boo
 |---------|-------|
 | Traefik | Reverse proxy. Two entrypoints: `web` (port 80, `*.home`) and `websecure` (port 443, `*.wsh`) |
 | step-ca | Local CA. Issues wildcard `*.wsh` TLS certs; Traefik uses it as the ACME endpoint |
-| Jellyfin | Media server. Quadro P2000 passthrough for hardware transcoding |
+| Jellyfin | Media server. Quadro P2200 passthrough for hardware transcoding |
 | Radarr | Movie library management |
 | Sonarr | TV library management |
 | Prowlarr | Indexer manager; linked to Radarr and Sonarr |

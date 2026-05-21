@@ -41,7 +41,7 @@ services:
       - /mnt/nas/media:/media:ro
     environment:
       JELLYFIN_PublishedServerUrl: https://jellyfin.wsh
-    # GPU transcoding: Quadro P2000 passed through to VM; expose via /dev/dri
+    # GPU transcoding: Quadro P2200 passed through to VM; expose via /dev/dri
     devices:
       - /dev/dri:/dev/dri
     labels:

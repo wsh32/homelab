@@ -213,7 +213,7 @@ services that depend on those external keys.
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
 | Proxmox host | 4GB | — | OS overhead |
-| machamp-services | 32GB | 8 | All Docker Compose services; GPU passthrough (Quadro P2000) for Jellyfin |
+| machamp-services | 32GB | 8 | All Docker Compose services; GPU passthrough (Quadro P2200) for Jellyfin |
 | machamp-dev | 16GB | 6 | Development workstation |
 | Headroom | 76GB | — | Future VMs / workloads |
 
@@ -318,7 +318,7 @@ persistent data lives on Alakazam NFS, so services redeploy by retargeting Terra
 |---------|-------|
 | Traefik | Reverse proxy; `web` (80, `*.home`) and `websecure` (443, `*.wsh`) |
 | step-ca | Local CA; issues wildcard `*.wsh` cert (migrates with services VM) |
-| Jellyfin | GPU transcoding via P2000 (migrates with services VM) |
+| Jellyfin | GPU transcoding via P2200 (migrates with services VM) |
 | Servarr stack | Radarr, Sonarr, Prowlarr |
 | PhotoPrism | Photo archive and browsing |
 | Calibre-Web | Ebook server |
