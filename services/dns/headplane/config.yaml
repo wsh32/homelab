@@ -1,0 +1,10 @@
+headscale:
+  # URL overridden at runtime via HEADPLANE_HEADSCALE__URL in /etc/headplane.env
+  url: ""
+  config_path: /etc/headscale/config.yaml
+
+server:
+  listen: ":3000"
+  cookie_secret_path: /var/lib/headplane/cookie.secret
+  api_key_path: /var/lib/headplane/api.key
+  data_path: /var/lib/headplane

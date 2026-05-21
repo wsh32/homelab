@@ -28,20 +28,19 @@ services:
     env_file: /etc/headscale.env  # provides HEADSCALE_SERVER_URL, HEADSCALE_TLS_LETSENCRYPT_HOSTNAME
     command: serve
 
-  headscale-ui:
-    image: ernestoyoofi/headscale-ui:latest
-    container_name: headscale-ui
+  headplane:
+    image: ghcr.io/tale/headplane:latest
+    container_name: headplane
     restart: unless-stopped
     networks:
       - dns
     ports:
-      - "3050:3050"
+      - "3000:3000"
     volumes:
-      - /mnt/nas/docker/headscale-ui/database:/app/database
-      - /mnt/nas/docker/headscale-ui/secret:/app/secret
-    environment:
-      SERVER_LISTEN: ":3050"
-    env_file: /etc/headscale-ui.env  # provides HEADSCALE_SERVER
+      - ./headplane:/etc/headplane:ro
+      - ./headscale:/etc/headscale:ro
+      - /mnt/nas/docker/headplane:/var/lib/headplane
+    env_file: /etc/headplane.env  # provides HEADPLANE_HEADSCALE__URL
 
   cloudflare-ddns:
     image: favonia/cloudflare-ddns:latest

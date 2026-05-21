@@ -65,9 +65,16 @@
   loop:
     - /mnt/nas/docker/adguardhome/work
     - /mnt/nas/docker/headscale
-    - /mnt/nas/docker/headscale-ui/database
-    - /mnt/nas/docker/headscale-ui/secret
+    - /mnt/nas/docker/headplane
   become: true
+
+- name: Generate headplane cookie secret (if not present)
+  ansible.builtin.shell: |
+    set -e
+    openssl rand -hex 32 > /mnt/nas/docker/headplane/cookie.secret
+    chmod 600 /mnt/nas/docker/headplane/cookie.secret
+  args:
+    creates: /mnt/nas/docker/headplane/cookie.secret
 
 - name: Read HEADSCALE_SERVER_URL from headscale.env
   ansible.builtin.slurp:
@@ -75,11 +82,12 @@
   register: headscale_env_raw
   become: true
 
-- name: Write /etc/headscale-ui.env
+- name: Write /etc/headplane.env
   ansible.builtin.copy:
     content: |
-      HEADSCALE_SERVER={{ headscale_env_raw.content | b64decode | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\1') | first }}
-    dest: /etc/headscale-ui.env
+      HEADPLANE_LOAD_ENV_OVERRIDES=true
+      HEADPLANE_HEADSCALE__URL={{ headscale_env_raw.content | b64decode | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\1') | first }}
+    dest: /etc/headplane.env
     mode: "0600"
     owner: root
     group: root
