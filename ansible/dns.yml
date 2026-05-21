@@ -62,6 +62,49 @@
       ansible.builtin.set_fact:
         headscale_preauth_key: "{{ (preauthkey_result.stdout | from_json).key }}"
 
+    - name: Read headscale server URL
+      ansible.builtin.slurp:
+        src: /etc/headscale.env
+      register: headscale_env_bootstrap
+      become: true
+
+    - name: Set headscale URL fact
+      ansible.builtin.set_fact:
+        headscale_server_url: "{{ headscale_env_bootstrap.content | b64decode | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\\1') | first }}"
+
+    - name: Check tailscale status on diglett-dns
+      ansible.builtin.command: tailscale status
+      register: tailscale_status
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Join diglett-dns to headscale
+      ansible.builtin.command: "tailscale up --login-server={{ headscale_server_url }} --auth-key={{ headscale_preauth_key }}"
+      become: true
+      when: tailscale_status.rc != 0
+
+    - name: Get diglett-dns tailscale IP
+      ansible.builtin.command: tailscale ip -4
+      register: diglett_ts_ip
+      changed_when: false
+      become: true
+
+    - name: Update headscale DNS nameserver to diglett-dns tailscale IP
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/dns/headscale/config.yaml
+        regexp: '^\s+- \d+\.\d+\.\d+\.\d+'
+        line: "      - {{ diglett_ts_ip.stdout | trim }}  # AdGuard Home on diglett-dns"
+      register: nameserver_update
+
+    - name: Restart headscale to apply updated nameserver
+      community.docker.docker_container:
+        name: headscale
+        state: started
+        restart: true
+      become: true
+      when: nameserver_update.changed
+
     - name: Wait for headplane to be ready
       ansible.builtin.wait_for:
         port: 3001
