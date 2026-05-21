@@ -1,6 +1,5 @@
 headscale:
-  # URL overridden at runtime via HEADPLANE_HEADSCALE__URL in /etc/headplane.env
-  url: ""
+  url: ""  # filled in by Ansible from /etc/headscale.env
   config_path: /etc/headscale/config.yaml
 
 server:

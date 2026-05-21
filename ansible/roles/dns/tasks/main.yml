@@ -83,16 +83,11 @@
   register: headscale_env_raw
   become: true
 
-- name: Write /etc/headplane.env
-  ansible.builtin.copy:
-    content: |
-      HEADPLANE_LOAD_ENV_OVERRIDES=true
-      HEADPLANE_HEADSCALE__URL={{ headscale_env_raw.content | b64decode | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\1') | first }}
-    dest: /etc/headplane.env
-    mode: "0600"
-    owner: root
-    group: root
-  become: true
+- name: Set headscale URL in headplane config
+  ansible.builtin.lineinfile:
+    path: /home/{{ ansible_user }}/homelab/services/dns/headplane/config.yaml
+    regexp: '^\s+url:'
+    line: "  url: \"{{ headscale_env_raw.content | b64decode | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\\1') | first }}\""
 
 - name: Disable systemd-resolved stub listener (frees port 53)
   ansible.builtin.lineinfile:

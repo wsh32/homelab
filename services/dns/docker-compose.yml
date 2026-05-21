@@ -40,7 +40,6 @@ services:
       - ./headplane:/etc/headplane:ro
       - ./headscale:/etc/headscale:ro
       - /mnt/nas/docker/headplane:/var/lib/headplane
-    env_file: /etc/headplane.env  # provides HEADPLANE_HEADSCALE__URL
 
   cloudflare-ddns:
     image: favonia/cloudflare-ddns:latest
