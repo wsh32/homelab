@@ -71,8 +71,8 @@ module "infisical" {
   source = "../modules/proxmox-vm"
 
   node_name     = local.node
-  vm_id         = local.vms["diglett-infisical"].vm_id
-  name          = "diglett-infisical"
+  vm_id         = local.vms["diglett-infra"].vm_id
+  name          = "diglett-infra"
   description   = "Infisical (secrets manager) + Vaultwarden (password manager)"
   tags          = ["diglett", "infra", "infisical"]
   image_file_id = proxmox_download_file.ubuntu_2404.id
@@ -82,7 +82,7 @@ module "infisical" {
   disk_size_gb = 20
   swap_size_gb = 2
 
-  ip_address         = "${local.vms["diglett-infisical"].ip}/24"
+  ip_address         = "${local.vms["diglett-infra"].ip}/24"
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key

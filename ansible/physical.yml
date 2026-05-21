@@ -1,7 +1,7 @@
 ---
 # Apply base config to physical (non-VM) devices.
 # Usage: ansible-playbook ansible/physical.yml
-#        ansible-playbook ansible/physical.yml --limit orangepi
+#        ansible-playbook ansible/physical.yml --limit alakazam-deploy
 
 - name: Configure physical devices
   hosts: physical

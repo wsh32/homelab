@@ -44,13 +44,13 @@ The shared VM module. Every standard (Ubuntu, cloud-init) VM is an instance of t
 
 ## `terraform/diglett/`
 
-Root module for the Diglett node. VM ID range 200–299, IP range `192.168.0.21–29`.
+Root module for the Diglett node. VM ID range 200–299, IP range `192.168.0.21–29`. Note: `diglett-dns` (VM 200) is special-cased at `192.168.0.2` as the primary DNS resolver.
 
 **`main.tf`** — Defines:
 - `proxmox_virtual_environment_download_file.ubuntu_2404` — downloads the Ubuntu 24.04 cloud image once; re-applying is a no-op.
 - `proxmox_virtual_environment_download_file.haos` — downloads the HAOS qcow2 image for the Home Assistant VM.
 - `module.dns` — `diglett-dns` VM (VM 200, `192.168.0.2`, 2 cores, 2GB): AdGuard Home + primary Tailscale exit node.
-- `module.infisical` — `diglett-infisical` VM (VM 201, `192.168.0.21`, 2 cores, 6GB): Infisical + Vaultwarden.
+- `module.infisical` — `diglett-infra` VM (VM 201, `192.168.0.21`, 2 cores, 6GB): Infisical + Vaultwarden.
 - `resource.proxmox_virtual_environment_vm.haos` — `diglett-haos` VM (VM 202, `192.168.0.22`, 2 cores, 4GB): Home Assistant OS. Uses a dedicated resource (not the shared module) because HAOS boots from its own qcow2 image, not cloud-init.
 
 ---
@@ -61,10 +61,8 @@ Root module for Machamp. VM ID range 100–199, IP range `192.168.0.30–49`.
 
 **`main.tf`** — Defines:
 - `proxmox_virtual_environment_download_file.ubuntu_2404` — downloads the Ubuntu 24.04 cloud image once.
-- `module.ollama` — `machamp-ollama` VM (VM 100, `192.168.0.30`, 4 cores, 32GB): Ollama GPU inference + backup Tailscale exit node. RTX 3060 hostpci block pending (see TODOS.md).
-- `module.services` — `machamp-services` VM (VM 103, `192.168.0.31`, 8 cores, 32GB): all Docker Compose services, Traefik reverse proxy, Quadro P2000 for Jellyfin transcoding. hostpci block pending.
-- `module.openclaw` — `machamp-openclaw` VM (VM 102, `192.168.0.32`, 2 cores, 8GB): OpenClaw AI assistant gateway.
-- `module.dev` — `machamp-dev` VM (VM 101, `192.168.0.33`, 6 cores, 16GB): personal development workstation.
+- `module.services` — `machamp-services` VM (VM 100, `192.168.0.30`, 8 cores, 32GB): all Docker Compose services, Traefik reverse proxy, Quadro P2200 for Jellyfin transcoding. hostpci block pending.
+- `module.dev` — `machamp-dev` VM (VM 101, `192.168.0.31`, 6 cores, 16GB): personal development workstation.
 
 ---
 
@@ -74,13 +72,13 @@ Docker Compose stack for the `diglett-dns` VM.
 
 **`docker-compose.yml`** — AdGuard Home, `network_mode: host` (needs port 53 on host IP).
 
-**`adguard/AdGuardHome.yaml`** — Pre-seeded config. AdGuard detects a valid config on startup and skips the setup wizard entirely. Contains: bcrypt admin password hash (plaintext in Vaultwarden), upstream DNS (8.8.8.8 / 8.8.4.4), DNS rewrites (`*.wsh` CNAME → `machamp-services.ts.home`, `*.home` A → `192.168.0.31`), and default blocklists.
+**`adguard/AdGuardHome.yaml`** — Pre-seeded config. AdGuard detects a valid config on startup and skips the setup wizard entirely. Contains: bcrypt admin password hash (plaintext in Vaultwarden), upstream DNS (8.8.8.8 / 8.8.4.4), DNS rewrites (`*.wsh` CNAME → `machamp-services.ts.home`, `*.home` A → `192.168.0.30`), and default blocklists.
 
 ---
 
 ## `services/diglett-infra/`
 
-Docker Compose stack for the `diglett-infisical` VM.
+Docker Compose stack for the `diglett-infra` VM.
 
 **`docker-compose.yml`** — Infisical (+ MongoDB + Redis), Vaultwarden, and a Litestream sidecar that continuously streams the Vaultwarden SQLite WAL to Alakazam NFS. Infisical's MongoDB data lives on local VM disk (not NFS) to avoid soft-mount corruption; backed up every 6 hours via a mongodump container to Alakazam.
 
@@ -103,7 +101,7 @@ Docker Compose stack for the `machamp-services` VM. This is the main services st
 **`docker-compose.yml`** — All services:
 - **Traefik** — reverse proxy; two entrypoints: `web` (80, `*.home`) and `websecure` (443, `*.wsh`)
 - **step-ca** — local CA; Traefik uses it as the ACME endpoint for `*.wsh` TLS certs
-- **Jellyfin** — media server; `/dev/dri` passthrough for Quadro P2000 transcoding
+- **Jellyfin** — media server; `/dev/dri` passthrough for Quadro P2200 transcoding
 - **Prowlarr, Radarr, Sonarr** — Servarr stack
 - **PhotoPrism** — photo archive
 - **Calibre-Web** — ebook server
@@ -115,7 +113,7 @@ Docker Compose stack for the `machamp-services` VM. This is the main services st
 
 **`traefik/traefik.yml`** — Static Traefik config: entrypoints, Docker provider, file provider pointing at `dynamic/`, and `step` ACME cert resolver.
 
-**`traefik/dynamic/diglett-services.yml`** — Static Traefik routes for Diglett-hosted services (Infisical, Vaultwarden). Since those containers run on `diglett-infisical` (not in Docker on `machamp-services`), they're external backends pointing at `192.168.0.21`.
+**`traefik/dynamic/diglett-services.yml`** — Static Traefik routes for Diglett-hosted services (Infisical, Vaultwarden). Since those containers run on `diglett-infra` (not in Docker on `machamp-services`), they're external backends pointing at `192.168.0.21`.
 
 **`config/radarr.xml`, `sonarr.xml`, `prowlarr.xml`** — Pre-seeded config files mounted read-only into each container. API keys use `${RADARR_API_KEY}` etc., sourced from Infisical at boot via `.env`.
 

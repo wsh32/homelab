@@ -141,8 +141,7 @@ Update `bridge_port` in `network.yml` if needed, then:
 ansible-playbook ansible/network.yml
 ```
 
-For Alakazam and Ditto: Network → Interfaces in TrueNAS UI → set static IPs
-(`192.168.0.4` and `192.168.0.8`).
+For Alakazam: Network → Interfaces in TrueNAS UI → set static IP (`192.168.0.4`).
 
 ---
 
@@ -187,16 +186,16 @@ Create it manually:
    - Network: bridge to the LAN interface
 3. Complete the Ubuntu installer. Set:
    - Username: `ubuntu`
-   - Static IP: `192.168.0.20/24`, gateway `192.168.0.1`, DNS `8.8.8.8`
+   - Static IP: `192.168.0.7/24`, gateway `192.168.0.1`, DNS `8.8.8.8`
    - Install OpenSSH server, import your SSH public key
-4. After first boot, verify SSH access: `ssh ubuntu@192.168.0.20`
+4. After first boot, verify SSH access: `ssh ubuntu@192.168.0.7`
 
 ### 7. Bootstrap the deploy VM
 
 From the operator laptop:
 
 ```bash
-ssh ubuntu@192.168.0.20 \
+ssh ubuntu@192.168.0.7 \
   TAILSCALE_AUTH_KEY=<headscale-preauth-key> \
   bash -s < scripts/bootstrap-alakazam-deploy.sh
 ```
@@ -217,8 +216,8 @@ ansible-playbook deploy-vm.yml --limit alakazam-deploy --connection=local --ask-
 Then copy `terraform.tfvars` to the deploy VM:
 
 ```bash
-scp terraform/diglett/terraform.tfvars ubuntu@192.168.0.20:~/homelab/terraform/diglett/
-scp terraform/machamp/terraform.tfvars ubuntu@192.168.0.20:~/homelab/terraform/machamp/
+scp terraform/diglett/terraform.tfvars ubuntu@192.168.0.7:~/homelab/terraform/diglett/
+scp terraform/machamp/terraform.tfvars ubuntu@192.168.0.7:~/homelab/terraform/machamp/
 ```
 
 ### 7a. Mount the Terraform state NFS share on the deploy VM
@@ -281,7 +280,7 @@ curl https://192.168.0.5:8006  # should connect without certificate errors
 
 SSH to the deploy VM:
 ```bash
-ssh ubuntu@192.168.0.20
+ssh ubuntu@192.168.0.7
 cd ~/homelab
 ```
 
@@ -375,7 +374,7 @@ step-ca is initialized by the `site.yml` Ansible role. Copy the root CA cert to 
 operator laptop and trust it:
 
 ```bash
-scp ubuntu@192.168.0.31:/tmp/homelab-root-ca.crt ~/homelab-root-ca.crt
+scp ubuntu@192.168.0.30:/tmp/homelab-root-ca.crt ~/homelab-root-ca.crt
 
 # macOS
 sudo security add-trusted-cert -d -r trustRoot \
@@ -392,7 +391,7 @@ Repeat on every personal device that will use `*.wsh` services.
 
 From a device on the LAN:
 ```bash
-dig jellyfin.home @192.168.0.2   # should return 192.168.0.31
+dig jellyfin.home @192.168.0.2   # should return 192.168.0.30
 ```
 
 From a device on Tailscale:
@@ -401,9 +400,9 @@ dig jellyfin.wsh                  # should return services VM Tailscale IP
 curl -k https://jellyfin.wsh      # should reach Jellyfin
 ```
 
-Check AdGuard DNS rewrites are active at `http://dns.home` → Filters → DNS rewrites:
+Check AdGuard DNS rewrites are active at `http://diglett-dns.home` → Filters → DNS rewrites:
 - `*.wsh` → CNAME `machamp-services.ts.home`
-- `*.home` → A `192.168.0.31`
+- `*.home` → A `192.168.0.30`
 
 ### 15. Add external API keys to Infisical
 
@@ -445,7 +444,7 @@ At this point:
 
 **Deploy a change:**
 ```bash
-ssh ubuntu@192.168.0.20
+ssh ubuntu@192.168.0.7
 cd ~/homelab && git pull
 ./scripts/deploy.sh           # terraform + ansible for all nodes
 ./scripts/deploy-services.sh  # docker compose only, no terraform
@@ -458,7 +457,7 @@ cd ~/homelab && git pull
 
 **Rebuild a VM from scratch:**
 ```bash
-ssh ubuntu@192.168.0.20
+ssh ubuntu@192.168.0.7
 cd ~/homelab/terraform/<node>
 terraform destroy -target=module.<vm-name>
 cd ~/homelab && ./scripts/deploy.sh <node>
@@ -489,6 +488,6 @@ ssh ubuntu@192.168.0.2 \
 
 **Run Ansible only (no Terraform):**
 ```bash
-ssh ubuntu@192.168.0.20
+ssh ubuntu@192.168.0.7
 cd ~/homelab && ansible-playbook ansible/base.yml
 ```

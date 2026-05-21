@@ -1,6 +1,37 @@
 ---
 # Proxmox-specific configuration for physical Proxmox VE nodes.
 
+- name: Install power monitoring and CPU frequency packages
+  ansible.builtin.apt:
+    name:
+      - lm-sensors
+      - ipmitool
+      - powerstat
+      - linux-cpupower
+      - cpufrequtils
+    state: present
+    update_cache: true
+  become: true
+
+- name: Persist schedutil CPU governor
+  ansible.builtin.copy:
+    content: "GOVERNOR=\"schedutil\"\n"
+    dest: /etc/default/cpufrequtils
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+
+- name: Set CPU governor to schedutil
+  ansible.builtin.command: cpupower frequency-set -g schedutil
+  become: true
+  changed_when: false
+
+- name: Auto-detect hardware sensors
+  ansible.builtin.command: sensors-detect --auto
+  become: true
+  changed_when: false
+
 - name: Install powertop
   ansible.builtin.apt:
     name: powertop

@@ -6,7 +6,7 @@
 # All tool installs (Terraform, Infisical, etc.) happen inside the playbook.
 #
 # Usage:
-#   ssh ubuntu@192.168.0.20 \
+#   ssh ubuntu@192.168.0.7 \
 #     TAILSCALE_AUTH_KEY=<headscale-preauth-key> \
 #     bash -s < scripts/bootstrap-alakazam-deploy.sh
 #

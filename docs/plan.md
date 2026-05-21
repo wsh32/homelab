@@ -38,26 +38,20 @@ DHCP: `192.168.0.100 – 192.168.0.254` (Eero managed)
 
 Physical nodes get DHCP reservations in the Eero app. VMs get static IPs configured via cloud-init, outside the DHCP range.
 
-IP ranges: physical nodes `.2–.19`, Diglett VMs `.20–.29`, Machamp VMs `.30–.49`.
+IP ranges: physical nodes `.4–.19` (`.7` = alakazam-deploy), diglett-dns VM special-cased at `.2`, Diglett VMs `.21–.29`, Machamp VMs `.30–.49`.
 
 | Device | Hostname | IP | Notes |
 |--------|----------|----|-------|
-| diglett-dns VM | dns | 192.168.0.2 | Static (Terraform) — AdGuard Home |
+| diglett-dns VM | diglett-dns | 192.168.0.2 | Static (Terraform) — AdGuard Home; special-cased outside VM range |
 | (future) | dns2 | 192.168.0.3 | Reserved for backup DNS VM |
 | Alakazam | alakazam | 192.168.0.4 | Static (TrueNAS UI) |
 | Machamp | machamp | 192.168.0.5 | Static (Ansible — `/etc/network/interfaces`) |
 | Diglett | diglett | 192.168.0.6 | Static (Ansible — `/etc/network/interfaces`) |
-| Orange Pi | orangepi | 192.168.0.7 | Static (TBD — depends on OS choice) |
-| Ditto | ditto | 192.168.0.8 | Offsite — only reachable via Tailscale |
-| diglett-infisical VM | diglett-infisical | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
+| alakazam-deploy | alakazam-deploy | 192.168.0.7 | Static (TrueNAS UI) — deploy host (TrueNAS KVM) |
+| diglett-infra VM | diglett-infra | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
 | diglett-haos VM | diglett-haos | 192.168.0.22 | Static (Terraform) — Home Assistant OS |
-| alakazam-deploy VM | alakazam-deploy | 192.168.0.20 | Static (TrueNAS UI) — out-of-band deploy host |
-| machamp-ollama VM | machamp-ollama | 192.168.0.30 | Static (Terraform) |
-| machamp-services VM | machamp-services | 192.168.0.31 | Static (Terraform) |
-| machamp-openclaw VM | machamp-openclaw | 192.168.0.32 | Static (Terraform) |
-| machamp-dev VM | machamp-dev | 192.168.0.33 | Static (Terraform) |
-
-Note: Ditto is offsite and not on the local network.
+| machamp-services VM | machamp-services | 192.168.0.30 | Static (Terraform) |
+| machamp-dev VM | machamp-dev | 192.168.0.31 | Static (Terraform) |
 
 ---
 
@@ -74,7 +68,7 @@ Two domains serve different audiences without subnet routing or internet exposur
 | Domain | Path | DNS resolution | Protocol | Audience |
 |--------|------|----------------|----------|----------|
 | `*.wsh` | Tailscale | AdGuard CNAME → `machamp-services.ts.home` | HTTPS (step-ca TLS) | Personal devices on Tailscale |
-| `*.home` | LAN | AdGuard A → `192.168.0.31` | HTTP | Any LAN device (including guests) |
+| `*.home` | LAN | AdGuard A → `192.168.0.30` | HTTP | Any LAN device (including guests) |
 
 **How resolution works:**
 
@@ -85,7 +79,7 @@ Two domains serve different audiences without subnet routing or internet exposur
   peer map to the services VM's Tailscale IP. Traefik answers on port 443 with a valid
   step-ca TLS cert.
 - LAN-only devices (guests, IoT) use AdGuard via the LAN IP `192.168.0.2`. `*.home` resolves
-  to `192.168.0.31` directly. Traefik answers on port 80, plain HTTP.
+  to `192.168.0.30` directly. Traefik answers on port 80, plain HTTP.
 - A device on the LAN with Tailscale uses the `*.wsh` path (Tailscale is preferred);
   `*.home` is the fallback for non-Tailscale LAN clients.
 
@@ -161,15 +155,15 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 ### One-time manual steps (operator laptop)
 
 4. **Configure static IPs on physical nodes** — `ansible-playbook ansible/network.yml`
-   for Machamp and Diglett; set static IPs on Alakazam and Ditto via TrueNAS UI.
+   for Machamp and Diglett; set static IP on Alakazam via TrueNAS UI.
 5. **Write `terraform.tfvars`** — populate with Proxmox API tokens, SSH public key,
    and Cloudflare API token. This is the only manual credential entry in the bootstrap.
 6. **Create `alakazam-deploy` VM in TrueNAS SCALE UI** — create a 1-core/1GB Ubuntu 24.04
-   KVM VM, assign static IP `192.168.0.20` inside the VM. All subsequent steps run from
+   KVM VM, assign static IP `192.168.0.7` inside the VM. All subsequent steps run from
    inside the network.
 7. **Bootstrap the deploy VM** — run the bootstrap script from the operator laptop:
    ```
-   ssh ubuntu@192.168.0.20 \
+   ssh ubuntu@192.168.0.7 \
      TAILSCALE_AUTH_KEY=<headscale-preauth-key> \
      bash -s < scripts/bootstrap-alakazam-deploy.sh
    ```
@@ -209,22 +203,19 @@ services that depend on those external keys.
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
 | Proxmox host | 2GB | — | OS overhead |
-| DNS VM | 2GB | 2 | AdGuard + Tailscale exit node + Headscale + cloudflare-ddns |
-| Home Assistant VM | 4GB | 2 | HAOS |
-| Infisical VM | 6GB | 2 | Infisical + Vaultwarden |
-| alakazam-deploy VM | 1GB | 1 | Terraform + Ansible (TrueNAS KVM, out-of-band) |
-| Headroom | 1GB | — | Buffer / future |
+| diglett-dns | 2GB | 2 | AdGuard + Tailscale exit node + Headscale + cloudflare-ddns |
+| diglett-haos | 4GB | 2 | HAOS |
+| diglett-infra | 6GB | 2 | Infisical + Vaultwarden |
+| Headroom | 2GB | — | Buffer / future |
 
 ### Machamp (128GB ECC RAM, Threadripper 3975WX 32c/64t)
 
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
 | Proxmox host | 4GB | — | OS overhead |
-| Ollama VM | 32GB | 4 | GPU passthrough (RTX 3060) |
-| OpenClaw VM | 8GB | 2 | AI assistant gateway |
-| Personal dev VM | 16GB | 6 | Development workstation |
-| Services VM | 32GB | 8 | All temporary services; GPU passthrough (Quadro P2000) for Jellyfin |
-| Headroom | 40GB | — | Future VMs / workloads |
+| machamp-services | 32GB | 8 | All Docker Compose services; GPU passthrough (Quadro P2200) for Jellyfin |
+| machamp-dev | 16GB | 6 | Development workstation |
+| Headroom | 76GB | — | Future VMs / workloads |
 
 ### Services node (planned — 128GB RAM, Ryzen 7 3700x 8c/16t)
 
@@ -254,7 +245,7 @@ services that depend on those external keys.
 
 ### Diglett (always-on infrastructure)
 
-**DNS VM** (`192.168.0.2`):
+**diglett-dns** (`192.168.0.2`):
 
 | Service | Notes |
 |---------|-------|
@@ -263,7 +254,7 @@ services that depend on those external keys.
 | Headscale | Tailscale coordination server; public HTTPS on port 443 via Eero port forward (TCP 443 → 192.168.0.2). TLS via Let's Encrypt DNS-01 (Cloudflare). |
 | cloudflare-ddns | Keeps the `headscale.wesleysoohoo.me` A record pointed at the current home IP |
 
-**Home Assistant VM** (`192.168.0.22`):
+**diglett-haos** (`192.168.0.22`):
 
 | Service | Notes |
 |---------|-------|
@@ -273,47 +264,30 @@ Terraform downloads the official HAOS `.qcow2` image via `proxmox_virtual_enviro
 and creates a dedicated VM resource. HAOS config is backed up daily via Proxmox vzdump.
 On rebuild, restore from the latest vzdump backup via the HAOS UI or `ha` CLI.
 
-**Infisical VM** (`192.168.0.21`):
+**diglett-infra** (`192.168.0.21`):
 
 | Service | Notes |
 |---------|-------|
 | Infisical | Machine-consumed secrets: service API keys, inter-service tokens, developer API keys |
 | Vaultwarden | Human-consumed secrets: web UI admin passwords, personal credentials |
 
-**alakazam-deploy VM** (`192.168.0.20` — TrueNAS SCALE KVM, out-of-band):
+Infisical stores all machine-read secrets — both service API keys (fetched at VM boot via
+`infisical export`) and developer API keys accessed via `infisical run -- <command>` on the
+operator laptop (Claude, Codex, GitHub tokens, etc.).
+Vaultwarden stores all passwords a human types into a browser. The two stores never overlap.
+
+### Physical deploy host
+
+**alakazam-deploy** (`192.168.0.7` — TrueNAS SCALE KVM, out-of-band):
 
 | Tool | Notes |
 |------|-------|
 | Terraform | Manages Diglett and Machamp VMs; `terraform.tfvars` lives here |
 | Ansible | Runs `base.yml` after Terraform apply; reaches all VMs over Tailscale SSH |
 
-Infisical stores all machine-read secrets — both service API keys (fetched at VM boot via
-`infisical export`) and developer API keys accessed via `infisical run -- <command>` on the
-operator laptop (Claude, Codex, GitHub tokens, etc.).
-Vaultwarden stores all passwords a human types into a browser. The two stores never overlap.
-
 ### Machamp (compute — GPU workloads)
 
-**Ollama VM** (`192.168.0.30`):
-
-| Service | Notes |
-|---------|-------|
-| Ollama | GPU inference via RTX 3060 passthrough |
-| Tailscale exit node (backup) | Secondary exit node |
-
-**OpenClaw VM** (`192.168.0.32`):
-
-| Service | Notes |
-|---------|-------|
-| OpenClaw | Personal AI assistant gateway; permanent on Machamp |
-
-**Personal dev VM** (`192.168.0.33`):
-
-| Service | Notes |
-|---------|-------|
-| Ubuntu Server | Development workstation |
-
-**Services VM** (`192.168.0.31`):
+**machamp-services** (`192.168.0.30`):
 
 | Service | Notes |
 |---------|-------|
@@ -329,6 +303,12 @@ Vaultwarden stores all passwords a human types into a browser. The two stores ne
 | Homepage | Service dashboard |
 | Prometheus + Grafana + Loki | Metrics, logs, dashboards |
 
+**machamp-dev** (`192.168.0.31`):
+
+| Service | Notes |
+|---------|-------|
+| Ubuntu Server | Development workstation |
+
 ### Services node (planned)
 
 Takes over all non-permanent services from Machamp when built. Migration is trivial — all
@@ -338,7 +318,7 @@ persistent data lives on Alakazam NFS, so services redeploy by retargeting Terra
 |---------|-------|
 | Traefik | Reverse proxy; `web` (80, `*.home`) and `websecure` (443, `*.wsh`) |
 | step-ca | Local CA; issues wildcard `*.wsh` cert (migrates with services VM) |
-| Jellyfin | GPU transcoding via P2000 (migrates with services VM) |
+| Jellyfin | GPU transcoding via P2200 (migrates with services VM) |
 | Servarr stack | Radarr, Sonarr, Prowlarr |
 | PhotoPrism | Photo archive and browsing |
 | Calibre-Web | Ebook server |
@@ -366,7 +346,7 @@ a valid config on startup and skips the wizard entirely.
 - Upstream DNS: `8.8.8.8`, `8.8.4.4`
 - DNS rewrites (committed in `AdGuardHome.yaml`):
   - `*.wsh` → CNAME `machamp-services.ts.home` (Tailscale MagicDNS hostname for the services VM)
-  - `*.home` → A record `192.168.0.31` (services VM LAN IP)
+  - `*.home` → A record `192.168.0.30` (services VM LAN IP)
 - Headscale pushes the AdGuard VM's Tailscale IP as the DNS resolver for `.wsh` and `.home`
   to all tailnet members via `dns_config` → `nameservers`
 
@@ -452,7 +432,7 @@ All workspaces use a local file backend on an NFS mount from Alakazam.
 
 ## Reverse Proxy
 
-Single Traefik instance on Machamp (services VM at `192.168.0.31`) serves all services across
+Single Traefik instance on Machamp (services VM at `192.168.0.30`) serves all services across
 all nodes. Diglett-hosted services (Infisical, Vaultwarden) are configured as external backends
 pointing at their local IPs (e.g. `192.168.0.21`). All nodes are on the same LAN so Traefik
 on Machamp reaches them directly.
@@ -671,9 +651,8 @@ NUT clients: Machamp, Diglett, Alakazam (shut down gracefully on power loss)
 | Vaultwarden role | Human-consumed secrets only (web UI admin passwords). Populated by each service's Ansible role after the service is configured. |
 | Vaultwarden account creation | Attempted automatically via `bw register` (Bitwarden CLI) during `ansible/site.yml`. One manual browser registration accepted as fallback if CLI doesn't support it. Account persists on NFS — never repeated. |
 | Diglett RAM headroom | Accept the risk; monitor closely |
-| Tailscale exit node coupling | Accept DNS+exit node coupling on Diglett; Machamp is backup exit node |
+| Tailscale exit node coupling | Accept DNS+exit node coupling on Diglett; diglett-dns is the sole exit node |
 | Monitoring stack | Prometheus + Grafana + Loki only; Mimir/Tempo removed |
-| OpenClaw placement | Permanent on Machamp; not in services node migration list |
 | AdGuard headless config | Pre-seeded `AdGuardHome.yaml`; setup wizard bypassed entirely |
 | Jellyfin headless setup | `/Startup/*` API scripted in `jellyfin-init.sh` |
 | Servarr headless setup | API keys generated by Ansible role, seeded to Infisical, written to pre-seeded `config.xml`; cross-app linking via `servarr-init.sh` |
@@ -687,5 +666,5 @@ NUT clients: Machamp, Diglett, Alakazam (shut down gracefully on power loss)
 | Deployment automation | Manual. Operator SSHes to alakazam-deploy and runs `./scripts/deploy.sh`. No webhook, no CI. Simpler and sufficient for a personal homelab. |
 | DNS domain strategy | Two domains: `*.wsh` (Tailscale/HTTPS, personal devices) and `*.home` (LAN/HTTP, guests). Avoids subnet routing; guests can reach services without Tailscale. Single Traefik instance handles both. |
 | TLS for private TLDs | Let's Encrypt does not issue certs for `.wsh` or `.home`. `*.wsh` uses step-ca (local CA, wildcard cert, Traefik ACME). `*.home` is plain HTTP (LAN only, acceptable). |
-| AdGuard DNS rewrites | `*.wsh` CNAME → `machamp-services.ts.home` (MagicDNS). `*.home` A → `192.168.0.31` (LAN IP). Headscale `dns_config` pushes AdGuard's Tailscale IP as resolver for both TLDs to all tailnet members. |
+| AdGuard DNS rewrites | `*.wsh` CNAME → `machamp-services.ts.home` (MagicDNS). `*.home` A → `192.168.0.30` (LAN IP). Headscale `dns_config` pushes AdGuard's Tailscale IP as resolver for both TLDs to all tailnet members. |
 | Per-service network exposure | Each service defines which domains it exposes via presence/absence of `-wsh` and `-home` Traefik router labels. Default is both. |
