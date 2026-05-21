@@ -117,6 +117,14 @@
       no_log: true
       when: not webui_key_stat.stat.exists
 
+    - name: Ensure webui API key is owned by container user (1000:1000)
+      ansible.builtin.file:
+        path: /mnt/nas/docker/headscale-ui/key.txt
+        owner: "1000"
+        group: "1000"
+        mode: "0600"
+      become: true
+
 - name: Write pre-auth key to terraform.tfvars
   hosts: localhost
   gather_facts: false
