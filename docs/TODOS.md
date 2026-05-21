@@ -19,27 +19,11 @@ in VM cloud-init.
 
 ---
 
-## Proxmox GPU Passthrough for Ollama
-
-**What:** Document and implement IOMMU/VFIO configuration for passing the RTX 3060 through to the Ollama VM on Machamp.
-
-**Why:** GPU passthrough in Proxmox requires specific kernel parameters (`intel_iommu=on`, VFIO module loading) on the host, and correct PCIe device binding. Easy to misconfigure; results in either a broken VM or the GPU not being recognized by Ollama.
-
-**Pros:** Ollama gets full GPU performance. RTX 3060 fully utilized for inference.
-
-**Cons:** VFIO config ties the GPU exclusively to one VM — the GPU can't be shared with other VMs or the host.
-
-**Context:** Machamp is a Lenovo P620 ThinkStation (Threadripper 3975WX, AMD platform) with two GPUs: RTX 3060 and Quadro P2000. Both can be passed through to separate VMs — RTX 3060 → Ollama VM (inference), Quadro P2000 → Services VM (Jellyfin transcoding). After passthrough, the Proxmox host will have no display output. Plan for this: Machamp likely has no monitor attached anyway. Note: AMD Threadripper uses AMD-Vi (IOMMU) rather than Intel VT-d — kernel param is `amd_iommu=on`.
-
-**Depends on:** Terraform module structure (GPU passthrough config goes in the Ollama VM definition).
-
----
-
 ## Backup DNS VM
 
-**What:** Deploy a secondary AdGuard Home instance on the Orange Pi.
+**What:** Deploy a secondary AdGuard Home instance as a backup DNS VM.
 
-**Why:** The primary DNS VM on the Diglett is a single point of failure.
+**Why:** The primary DNS VM on Diglett is a single point of failure.
 Currently mitigated by 8.8.8.8 as fallback, but that bypasses ad-blocking
 and breaks `.home` domain resolution.
 
