@@ -89,6 +89,14 @@
   when: generated_fernet_key is changed
   no_log: true
 
+- name: Ensure Fernet key is owned by ansible_user
+  ansible.builtin.file:
+    path: /mnt/nas/docker/headscale-ui/fernet.key
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0600"
+  become: true
+
 - name: Read Fernet key from NFS
   ansible.builtin.slurp:
     src: /mnt/nas/docker/headscale-ui/fernet.key
