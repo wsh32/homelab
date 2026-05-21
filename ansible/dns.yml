@@ -87,6 +87,7 @@
         content: "{{ headplane_apikey_result.stdout | from_json }}"
         dest: /mnt/nas/docker/headplane/api.key
         mode: "0600"
+      become: true
       no_log: true
       when: not headplane_api_key_stat.stat.exists
 
