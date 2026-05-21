@@ -68,6 +68,13 @@
     - /mnt/nas/docker/headscale-ui
   become: true
 
+- name: Set headscale-ui data directory ownership to container user (1000:1000)
+  ansible.builtin.file:
+    path: /mnt/nas/docker/headscale-ui
+    owner: "1000"
+    group: "1000"
+  become: true
+
 - name: Generate Fernet key for headscale-ui if not present
   ansible.builtin.shell: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
   register: generated_fernet_key

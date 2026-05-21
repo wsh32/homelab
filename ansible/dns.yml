@@ -116,8 +116,8 @@
         content: "{{ encrypted_api_key.stdout }}"
         dest: /mnt/nas/docker/headscale-ui/key.txt
         mode: "0600"
-        owner: root
-        group: root
+        owner: "1000"
+        group: "1000"
       become: true
       no_log: true
       when: not webui_key_stat.stat.exists
