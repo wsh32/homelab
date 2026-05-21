@@ -29,7 +29,7 @@ services:
     command: serve
 
   headscale-ui:
-    image: ghcr.io/ifargle/headscale-webui:latest
+    image: ifargle/headscale-webui:latest
     container_name: headscale-ui
     restart: unless-stopped
     networks:
