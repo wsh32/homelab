@@ -49,4 +49,4 @@ dns:
   base_domain: ts.home
   nameservers:
     global:
-      - 192.168.0.2  # AdGuard Home on diglett-dns
+      - 0.0.0.0  # replaced at deploy time with diglett-dns tailscale IP

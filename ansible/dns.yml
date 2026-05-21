@@ -139,32 +139,33 @@
       no_log: true
       when: not headplane_api_key_stat.stat.exists
 
-    - name: Write headscale API key into headplane config
+    - name: Read headscale API key from NFS
+      ansible.builtin.slurp:
+        src: /mnt/nas/docker/headplane/api.key
+      register: headplane_api_key_nfs
+      become: true
+      no_log: true
+
+    - name: Inject headscale API key into headplane config
       ansible.builtin.lineinfile:
         path: /home/{{ ansible_user }}/homelab/services/dns/headplane/config.yaml
         regexp: '^\s+api_key:'
-        line: "  api_key: \"{{ headplane_apikey_result.stdout | from_json }}\""
+        line: "  api_key: \"{{ headplane_api_key_nfs.content | b64decode | trim }}\""
       no_log: true
-      when: not headplane_api_key_stat.stat.exists
+      register: api_key_injected
 
-    - name: Restart headplane to pick up new API key
+    - name: Restart headplane to pick up API key
       community.docker.docker_container:
         name: headplane
         state: started
         restart: true
       become: true
-      when: not headplane_api_key_stat.stat.exists
-
-    - name: Read headplane login API key from NFS
-      ansible.builtin.slurp:
-        src: /mnt/nas/docker/headplane/api.key
-      register: headplane_login_key
-      become: true
-      no_log: true
+      when: api_key_injected.changed
 
     - name: Display headplane login key for Vaultwarden
       ansible.builtin.debug:
-        msg: "headplane login — navigate to :3001/admin and enter this API key: {{ headplane_login_key.content | b64decode }}"
+        msg: "headplane login — navigate to :3001/admin and enter this API key: {{ headplane_api_key_nfs.content | b64decode | trim }}"
+      when: not headplane_api_key_stat.stat.exists
 
 - name: Write pre-auth key to terraform.tfvars
   hosts: localhost
