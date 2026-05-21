@@ -2,9 +2,13 @@
 # Bootstrap Headscale: create a user and generate a reusable pre-auth key.
 # Writes the key to terraform.tfvars on the machine running this playbook
 # so that subsequent `terraform apply` runs join VMs to this Headscale instance.
+# Also registers the DNS VM itself with Headscale.
 #
 # Run after: ansible-playbook ansible/dns.yml
 # Usage:     ansible-playbook ansible/bootstrap-headscale.yml
+#
+# Requires: HEADSCALE_URL env var (the public URL of the Headscale server), or:
+#   ansible-playbook ansible/bootstrap-headscale.yml -e headscale_url=https://...
 
 - name: Generate Headscale pre-auth key
   hosts: diglett-dns
@@ -65,3 +69,50 @@
     - name: Display pre-auth key
       ansible.builtin.debug:
         msg: "Headscale pre-auth key written to terraform.tfvars: {{ preauth_key }}"
+
+- name: Register DNS VM with Headscale
+  hosts: diglett-dns
+  gather_facts: false
+
+  vars:
+    headscale_url: "{{ lookup('env', 'HEADSCALE_URL') }}"
+    preauth_key: "{{ hostvars['diglett-dns'].headscale_preauth_key }}"
+
+  tasks:
+    - name: Require Headscale URL
+      ansible.builtin.fail:
+        msg: "Set HEADSCALE_URL env var or pass -e headscale_url=https://..."
+      when: headscale_url == ""
+
+    - name: Check Tailscale backend state
+      ansible.builtin.command: tailscale status --json
+      become: true
+      register: ts_status_json
+      changed_when: false
+      failed_when: false
+
+    - name: Set Tailscale connected fact
+      ansible.builtin.set_fact:
+        ts_connected: "{{ (ts_status_json.stdout | from_json).get('BackendState', '') == 'Running' }}"
+
+    - name: Register DNS VM with Headscale
+      ansible.builtin.command:
+        cmd: >
+          tailscale up
+          --login-server={{ headscale_url }}
+          --authkey={{ preauth_key }}
+          --hostname=diglett-dns
+          --accept-routes
+      become: true
+      changed_when: true
+      when: not ts_connected
+
+    - name: Show Tailscale status
+      ansible.builtin.command: tailscale status
+      become: true
+      register: ts_status
+      changed_when: false
+
+    - name: Print Tailscale status
+      ansible.builtin.debug:
+        msg: "{{ ts_status.stdout_lines }}"
