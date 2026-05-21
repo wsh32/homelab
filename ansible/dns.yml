@@ -78,7 +78,7 @@
 
     - name: Parse webui API key
       ansible.builtin.set_fact:
-        headscale_webui_api_key: "{{ (webui_apikey_result.stdout | from_json).key }}"
+        headscale_webui_api_key: "{{ webui_apikey_result.stdout | from_json }}"
       no_log: true
       when: not webui_key_stat.stat.exists
 
