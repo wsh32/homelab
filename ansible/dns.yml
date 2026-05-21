@@ -107,6 +107,17 @@
       become: true
       when: not headplane_api_key_stat.stat.exists
 
+    - name: Read headplane login API key from NFS
+      ansible.builtin.slurp:
+        src: /mnt/nas/docker/headplane/api.key
+      register: headplane_login_key
+      become: true
+      no_log: true
+
+    - name: Display headplane login key for Vaultwarden
+      ansible.builtin.debug:
+        msg: "headplane login — navigate to :3001/admin and enter this API key: {{ headplane_login_key.content | b64decode }}"
+
 - name: Write pre-auth key to terraform.tfvars
   hosts: localhost
   gather_facts: false

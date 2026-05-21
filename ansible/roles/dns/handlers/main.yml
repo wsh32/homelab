@@ -1,8 +1,15 @@
 ---
 - name: Restart dns stack
   community.docker.docker_compose_v2:
-    project_src: /home/ubuntu/homelab/services/dns
+    project_src: /home/{{ ansible_user }}/homelab/services/dns
     state: restarted
+  become: true
+
+- name: Restart headplane
+  community.docker.docker_container:
+    name: headplane
+    state: started
+    restart: true
   become: true
 
 - name: Restart systemd-resolved
