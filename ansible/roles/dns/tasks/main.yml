@@ -65,6 +65,7 @@
   loop:
     - /mnt/nas/docker/adguardhome/work
     - /mnt/nas/docker/headscale
+    - /mnt/nas/docker/headscale-ui
   become: true
 
 - name: Disable systemd-resolved stub listener (frees port 53)

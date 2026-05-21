@@ -62,6 +62,10 @@ module "dns" {
     "echo 'HEADSCALE_SERVER_URL=https://${local.headscale_hostname}' >> /etc/headscale.env",
     "echo 'HEADSCALE_TLS_LETSENCRYPT_HOSTNAME=${local.headscale_hostname}' >> /etc/headscale.env",
     "chmod 600 /etc/headscale.env",
+    # /etc/headscale-ui.env is read by the headscale-webui container.
+    "echo 'HS_SERVER=https://${local.headscale_hostname}' > /etc/headscale-ui.env",
+    "echo 'KEY=${var.headscale_webui_key}' >> /etc/headscale-ui.env",
+    "chmod 600 /etc/headscale-ui.env",
   ]
 }
 

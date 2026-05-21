@@ -43,6 +43,54 @@
       ansible.builtin.set_fact:
         headscale_preauth_key: "{{ (preauthkey_result.stdout | from_json).key }}"
 
+    - name: Generate headscale API key for webui
+      community.docker.docker_container_exec:
+        container: headscale
+        command: "headscale apikeys create --output json"
+      register: webui_apikey_result
+      become: true
+
+    - name: Parse webui API key
+      ansible.builtin.set_fact:
+        headscale_webui_api_key: "{{ (webui_apikey_result.stdout | from_json).key }}"
+      no_log: true
+
+    - name: Read Fernet KEY from headscale-ui env file
+      ansible.builtin.slurp:
+        src: /etc/headscale-ui.env
+      register: webui_env_raw
+      become: true
+      no_log: true
+
+    - name: Parse KEY from env file
+      ansible.builtin.set_fact:
+        headscale_webui_fernet_key: "{{ webui_env_raw.content | b64decode | regex_search('(?m)^KEY=(.+)$', '\\1') | first }}"
+      no_log: true
+
+    - name: Fernet-encrypt API key for webui storage
+      ansible.builtin.shell: |
+        python3 -c "
+        import os
+        from cryptography.fernet import Fernet
+        f = Fernet(os.environ['FERNET_KEY'].encode())
+        print(f.encrypt(os.environ['API_KEY'].encode()).decode())
+        "
+      environment:
+        FERNET_KEY: "{{ headscale_webui_fernet_key }}"
+        API_KEY: "{{ headscale_webui_api_key }}"
+      register: encrypted_api_key
+      no_log: true
+
+    - name: Write encrypted API key to webui data directory
+      ansible.builtin.copy:
+        content: "{{ encrypted_api_key.stdout }}"
+        dest: /mnt/nas/docker/headscale-ui/key.txt
+        mode: "0600"
+        owner: root
+        group: root
+      become: true
+      no_log: true
+
 - name: Write pre-auth key to terraform.tfvars
   hosts: localhost
   gather_facts: false

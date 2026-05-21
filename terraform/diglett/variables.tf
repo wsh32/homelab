@@ -48,3 +48,9 @@ variable "headscale_subdomain" {
   type        = string
   default     = "headscale"
 }
+
+variable "headscale_webui_key" {
+  description = "Fernet encryption key for headscale-webui API key storage. Generate with: python3 -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+  type        = string
+  sensitive   = true
+}

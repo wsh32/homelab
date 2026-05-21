@@ -32,3 +32,9 @@ cloudflare_zone_id = "REPLACE_ME"
 
 # Subdomain for Headscale — will create <headscale_subdomain>.<your-zone> in Cloudflare DNS
 headscale_subdomain = "headscale"
+
+# Fernet encryption key for headscale-webui — encrypts the stored headscale API key at rest.
+# Generate with: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# Must be a 32-byte URL-safe base64 string (44 chars). Do NOT use openssl rand -base64 32 —
+# standard base64 uses +/= which are not URL-safe and will cause a ValueError on startup.
+headscale_webui_key = "REPLACE_ME"
