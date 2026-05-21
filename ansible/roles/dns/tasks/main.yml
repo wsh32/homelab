@@ -17,6 +17,8 @@
     dest: /home/ubuntu/homelab/services/dns/
     delete: true
     recursive: true
+    rsync_opts:
+      - "--chown=ubuntu:ubuntu"
 
 - name: Check current mount source for /mnt/nas/docker
   ansible.builtin.shell: awk '$2 == "/mnt/nas/docker" {print $1}' /proc/mounts
