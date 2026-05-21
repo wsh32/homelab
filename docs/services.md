@@ -29,7 +29,7 @@ TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/boo
 | cloudflared | Cloudflare Tunnel — exposes Headscale publicly without open ports or a static IP |
 | Tailscale exit node | Primary exit node for the tailnet |
 
-### diglett-infisical (`192.168.0.21`)
+### diglett-infra (`192.168.0.21`)
 
 | Service | Notes |
 |---------|-------|

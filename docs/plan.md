@@ -48,7 +48,7 @@ IP ranges: physical nodes `.4–.19` (`.7` = alakazam-deploy), diglett-dns VM sp
 | Machamp | machamp | 192.168.0.5 | Static (Ansible — `/etc/network/interfaces`) |
 | Diglett | diglett | 192.168.0.6 | Static (Ansible — `/etc/network/interfaces`) |
 | alakazam-deploy | alakazam-deploy | 192.168.0.7 | Static (TrueNAS UI) — deploy host (TrueNAS KVM) |
-| diglett-infisical VM | diglett-infisical | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
+| diglett-infra VM | diglett-infra | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
 | diglett-haos VM | diglett-haos | 192.168.0.22 | Static (Terraform) — Home Assistant OS |
 | machamp-services VM | machamp-services | 192.168.0.30 | Static (Terraform) |
 | machamp-dev VM | machamp-dev | 192.168.0.31 | Static (Terraform) |
@@ -205,7 +205,7 @@ services that depend on those external keys.
 | Proxmox host | 2GB | — | OS overhead |
 | diglett-dns | 2GB | 2 | AdGuard + Tailscale exit node + Headscale + cloudflared |
 | diglett-haos | 4GB | 2 | HAOS |
-| diglett-infisical | 6GB | 2 | Infisical + Vaultwarden |
+| diglett-infra | 6GB | 2 | Infisical + Vaultwarden |
 | Headroom | 2GB | — | Buffer / future |
 
 ### Machamp (128GB ECC RAM, Threadripper 3975WX 32c/64t)
@@ -264,7 +264,7 @@ Terraform downloads the official HAOS `.qcow2` image via `proxmox_virtual_enviro
 and creates a dedicated VM resource. HAOS config is backed up daily via Proxmox vzdump.
 On rebuild, restore from the latest vzdump backup via the HAOS UI or `ha` CLI.
 
-**diglett-infisical** (`192.168.0.21`):
+**diglett-infra** (`192.168.0.21`):
 
 | Service | Notes |
 |---------|-------|

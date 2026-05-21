@@ -50,7 +50,7 @@ Root module for the Diglett node. VM ID range 200–299, IP range `192.168.0.21�
 - `proxmox_virtual_environment_download_file.ubuntu_2404` — downloads the Ubuntu 24.04 cloud image once; re-applying is a no-op.
 - `proxmox_virtual_environment_download_file.haos` — downloads the HAOS qcow2 image for the Home Assistant VM.
 - `module.dns` — `diglett-dns` VM (VM 200, `192.168.0.2`, 2 cores, 2GB): AdGuard Home + primary Tailscale exit node.
-- `module.infisical` — `diglett-infisical` VM (VM 201, `192.168.0.21`, 2 cores, 6GB): Infisical + Vaultwarden.
+- `module.infisical` — `diglett-infra` VM (VM 201, `192.168.0.21`, 2 cores, 6GB): Infisical + Vaultwarden.
 - `resource.proxmox_virtual_environment_vm.haos` — `diglett-haos` VM (VM 202, `192.168.0.22`, 2 cores, 4GB): Home Assistant OS. Uses a dedicated resource (not the shared module) because HAOS boots from its own qcow2 image, not cloud-init.
 
 ---
@@ -78,7 +78,7 @@ Docker Compose stack for the `diglett-dns` VM.
 
 ## `services/diglett-infra/`
 
-Docker Compose stack for the `diglett-infisical` VM.
+Docker Compose stack for the `diglett-infra` VM.
 
 **`docker-compose.yml`** — Infisical (+ MongoDB + Redis), Vaultwarden, and a Litestream sidecar that continuously streams the Vaultwarden SQLite WAL to Alakazam NFS. Infisical's MongoDB data lives on local VM disk (not NFS) to avoid soft-mount corruption; backed up every 6 hours via a mongodump container to Alakazam.
 
@@ -113,7 +113,7 @@ Docker Compose stack for the `machamp-services` VM. This is the main services st
 
 **`traefik/traefik.yml`** — Static Traefik config: entrypoints, Docker provider, file provider pointing at `dynamic/`, and `step` ACME cert resolver.
 
-**`traefik/dynamic/diglett-services.yml`** — Static Traefik routes for Diglett-hosted services (Infisical, Vaultwarden). Since those containers run on `diglett-infisical` (not in Docker on `machamp-services`), they're external backends pointing at `192.168.0.21`.
+**`traefik/dynamic/diglett-services.yml`** — Static Traefik routes for Diglett-hosted services (Infisical, Vaultwarden). Since those containers run on `diglett-infra` (not in Docker on `machamp-services`), they're external backends pointing at `192.168.0.21`.
 
 **`config/radarr.xml`, `sonarr.xml`, `prowlarr.xml`** — Pre-seeded config files mounted read-only into each container. API keys use `${RADARR_API_KEY}` etc., sourced from Infisical at boot via `.env`.
 

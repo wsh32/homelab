@@ -60,7 +60,7 @@ nodes:
         ip: 192.168.0.2
         vm_id: 200
         vm_roles: [services]
-      diglett-infisical:
+      diglett-infra:
         ip: 192.168.0.21
         vm_id: 201
         vm_roles: [services]
