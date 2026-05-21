@@ -68,14 +68,6 @@
     - /mnt/nas/docker/headplane
   become: true
 
-- name: Create headscale extra_records.json if absent
-  ansible.builtin.copy:
-    content: "[]"
-    dest: /mnt/nas/docker/headscale/extra_records.json
-    force: false
-    mode: "0644"
-  become: true
-
 - name: Generate headplane cookie secret (32 hex chars, regenerate if wrong length)
   ansible.builtin.shell: |
     target=/mnt/nas/docker/headplane/cookie.secret

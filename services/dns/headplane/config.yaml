@@ -3,7 +3,6 @@ headscale:
   config_path: /etc/headscale/config.yaml
   api_key: ""  # filled in by Ansible during bootstrap
   config_strict: false
-  dns_records_path: /var/lib/headscale/extra_records.json
 
 server:
   host: "0.0.0.0"
