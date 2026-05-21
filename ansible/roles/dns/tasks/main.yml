@@ -86,9 +86,6 @@
     content: "{{ generated_fernet_key.stdout }}"
     dest: /mnt/nas/docker/headscale-ui/fernet.key
     mode: "0600"
-    owner: root
-    group: root
-  become: true
   when: generated_fernet_key is changed
   no_log: true
 
@@ -96,7 +93,6 @@
   ansible.builtin.slurp:
     src: /mnt/nas/docker/headscale-ui/fernet.key
   register: fernet_key_raw
-  become: true
   no_log: true
 
 - name: Read HEADSCALE_SERVER_URL from headscale.env
