@@ -29,17 +29,19 @@ services:
     command: serve
 
   headscale-webui:
-    image: ifargle/headscale-webui:latest
+    image: ernestoyoofi/headscale-ui:latest
     container_name: headscale-webui
     restart: unless-stopped
     networks:
       - dns
     ports:
-      - "5000:5000"
+      - "5000:3050"
     volumes:
-      - ./headscale:/etc/headscale:ro
-      - /mnt/nas/docker/headscale-ui:/data
-    env_file: /etc/headscale-ui.env  # provides HS_SERVER, KEY
+      - /mnt/nas/docker/headscale-ui/database:/app/database
+      - /mnt/nas/docker/headscale-ui/secret:/app/secret
+    environment:
+      SERVER_LISTEN: ":3050"
+    env_file: /etc/headscale-ui.env  # provides HEADSCALE_SERVER
 
   cloudflare-ddns:
     image: favonia/cloudflare-ddns:latest

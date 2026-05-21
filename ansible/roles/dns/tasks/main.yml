@@ -65,43 +65,9 @@
   loop:
     - /mnt/nas/docker/adguardhome/work
     - /mnt/nas/docker/headscale
-    - /mnt/nas/docker/headscale-ui
+    - /mnt/nas/docker/headscale-ui/database
+    - /mnt/nas/docker/headscale-ui/secret
   become: true
-
-- name: Set headscale-ui data directory ownership to container user (1000:1000)
-  ansible.builtin.file:
-    path: /mnt/nas/docker/headscale-ui
-    owner: "1000"
-    group: "1000"
-  become: true
-
-- name: Generate Fernet key for headscale-ui if not present
-  ansible.builtin.shell: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-  register: generated_fernet_key
-  args:
-    creates: /mnt/nas/docker/headscale-ui/fernet.key
-
-- name: Write Fernet key to NFS (persists across VM recreations)
-  ansible.builtin.copy:
-    content: "{{ generated_fernet_key.stdout }}"
-    dest: /mnt/nas/docker/headscale-ui/fernet.key
-    mode: "0600"
-  when: generated_fernet_key is changed
-  no_log: true
-
-- name: Ensure Fernet key is owned by ansible_user
-  ansible.builtin.file:
-    path: /mnt/nas/docker/headscale-ui/fernet.key
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
-    mode: "0600"
-  become: true
-
-- name: Read Fernet key from NFS
-  ansible.builtin.slurp:
-    src: /mnt/nas/docker/headscale-ui/fernet.key
-  register: fernet_key_raw
-  no_log: true
 
 - name: Read HEADSCALE_SERVER_URL from headscale.env
   ansible.builtin.slurp:
@@ -112,14 +78,12 @@
 - name: Write /etc/headscale-ui.env
   ansible.builtin.copy:
     content: |
-      HS_SERVER={{ headscale_env_raw.content | b64decode | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\1') | first }}
-      KEY={{ fernet_key_raw.content | b64decode | trim }}
+      HEADSCALE_SERVER={{ headscale_env_raw.content | b64decode | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\1') | first }}
     dest: /etc/headscale-ui.env
     mode: "0600"
     owner: root
     group: root
   become: true
-  no_log: true
 
 - name: Disable systemd-resolved stub listener (frees port 53)
   ansible.builtin.lineinfile:
