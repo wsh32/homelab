@@ -35,7 +35,7 @@ services:
     networks:
       - dns
     ports:
-      - "3001:3001"
+      - "3001:3000"
     volumes:
       - ./headplane:/etc/headplane:ro
       - ./headscale:/etc/headscale:ro
