@@ -54,9 +54,14 @@ module "dns" {
 
   extra_runcmd = [
     "tailscale set --advertise-exit-node",
-    "echo 'TUNNEL_TOKEN=${cloudflare_zero_trust_tunnel_cloudflared.headscale.tunnel_token}' > /etc/cloudflared.env",
-    "echo 'HEADSCALE_SERVER_URL=https://${local.headscale_hostname}' >> /etc/cloudflared.env",
-    "chmod 600 /etc/cloudflared.env",
+    # /etc/headscale.env is read by both the headscale and cloudflare-ddns containers.
+    # CF_API_TOKEN / DOMAINS / PROXIED: used by the cloudflare-ddns sidecar.
+    "echo 'CF_API_TOKEN=${var.cloudflare_api_token}' > /etc/headscale.env",
+    "echo 'DOMAINS=${local.headscale_hostname}' >> /etc/headscale.env",
+    "echo 'PROXIED=false' >> /etc/headscale.env",
+    "echo 'HEADSCALE_SERVER_URL=https://${local.headscale_hostname}' >> /etc/headscale.env",
+    "echo 'HEADSCALE_TLS_LETSENCRYPT_HOSTNAME=${local.headscale_hostname}' >> /etc/headscale.env",
+    "chmod 600 /etc/headscale.env",
   ]
 }
 

@@ -55,6 +55,7 @@ Role groups (`dev`, etc.) are created dynamically — any `vm_roles` value in
 | `deploy-vm.yml` | `alakazam-deploy` | Deploy VM tooling (Terraform, Infisical, Ansible) |
 | `dev.yml` | `dev` | Developer tooling for dev VMs |
 | `tailscale.yml` | `physical` | Bootstrap Tailscale (requires `TAILSCALE_AUTH_KEY`) |
+| `dns.yml` | `diglett-dns` | Deploy AdGuard Home + Headscale (HTTPS/443, Let's Encrypt DNS-01) + cloudflare-ddns |
 
 ## Roles
 
@@ -65,6 +66,7 @@ Role groups (`dev`, etc.) are created dynamically — any `vm_roles` value in
 | `deploy` | `deploy-vm.yml` | Terraform, Infisical CLI, Ansible via pipx |
 | `docker` | _(not yet wired up)_ | Docker CE + compose plugin |
 | `dev` | `dev.yml` | Dev tooling — see below |
+| `headscale` | `dns.yml` | Headscale + cloudflare-ddns Docker Compose stack on the DNS VM |
 
 ### dev role
 

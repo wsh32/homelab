@@ -1,9 +1,17 @@
-# server_url is set via HEADSCALE_SERVER_URL env var (written to /etc/cloudflared.env
-# by cloud-init from the Cloudflare tunnel URL output in Terraform).
+# server_url and tls_letsencrypt_hostname are set via env vars written by cloud-init:
+#   HEADSCALE_SERVER_URL=https://<hostname>
+#   HEADSCALE_TLS_LETSENCRYPT_HOSTNAME=<hostname>
 server_url: ""
+tls_letsencrypt_hostname: ""
 
-listen_addr: 0.0.0.0:8080
+listen_addr: 0.0.0.0:443
 metrics_listen_addr: 127.0.0.1:9090
+
+# TLS-ALPN-01 validates over port 443 using a special TLS handshake extension.
+# No port 80 needed — port 443 (Eero port forward) is sufficient.
+tls_letsencrypt_cache_dir: /var/lib/headscale/cache
+tls_letsencrypt_challenge_type: TLS-ALPN-01
+acme_email: wesoohoo@gmail.com
 
 private_key_path: /var/lib/headscale/private.key
 noise:

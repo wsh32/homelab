@@ -4,19 +4,21 @@
 
 - name: Create services directory
   ansible.builtin.file:
-    path: /home/ubuntu/homelab/services/dns
+    path: /home/{{ ansible_user }}/homelab/services/dns
     state: directory
-    owner: ubuntu
-    group: ubuntu
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
     mode: "0755"
   become: true
 
 - name: Sync services/dns/ from deploy VM
   ansible.posix.synchronize:
     src: "{{ playbook_dir }}/../services/dns/"
-    dest: /home/ubuntu/homelab/services/dns/
+    dest: /home/{{ ansible_user }}/homelab/services/dns/
     delete: true
     recursive: true
+    rsync_opts:
+      - "--chown={{ ansible_user }}:{{ ansible_user }}"
 
 - name: Check current mount source for /mnt/nas/docker
   ansible.builtin.shell: awk '$2 == "/mnt/nas/docker" {print $1}' /proc/mounts
@@ -65,19 +67,6 @@
     - /mnt/nas/docker/headscale
   become: true
 
-- name: Read HEADSCALE_SERVER_URL from cloudflared.env
-  ansible.builtin.shell: grep '^HEADSCALE_SERVER_URL=' /etc/cloudflared.env | cut -d= -f2-
-  register: headscale_server_url
-  become: true
-  changed_when: false
-
-- name: Write server_url into headscale config
-  ansible.builtin.lineinfile:
-    path: /home/ubuntu/homelab/services/dns/headscale/config.yaml
-    regexp: '^server_url:'
-    line: "server_url: {{ headscale_server_url.stdout }}"
-  notify: Restart dns stack
-
 - name: Disable systemd-resolved stub listener (frees port 53)
   ansible.builtin.lineinfile:
     path: /etc/systemd/resolved.conf
@@ -88,12 +77,12 @@
 
 - name: Pull Docker images
   community.docker.docker_compose_v2_pull:
-    project_src: /home/ubuntu/homelab/services/dns
+    project_src: /home/{{ ansible_user }}/homelab/services/dns
   become: true
 
 - name: Start DNS stack
   community.docker.docker_compose_v2:
-    project_src: /home/ubuntu/homelab/services/dns
+    project_src: /home/{{ ansible_user }}/homelab/services/dns
     state: present
     pull: never
   become: true

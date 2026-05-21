@@ -14,7 +14,7 @@ Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Te
 │  │  GPU compute +   │            │  Always-on       │           │
 │  │  all services    │            │  infrastructure  │           │
 │  └──────────────────┘            └────────┬─────────┘           │
-│                                           │ Cloudflare Tunnel   │
+│                                           │ port 443 (Eero fwd) │
 │  ┌──────────────────┐            ┌────────▼─────────┐           │
 │  │   Ditto      │            │    Alakazam     │           │
 │  │  (offsite NAS)   │◄──replicate│  TrueNAS NAS      │           │
@@ -26,7 +26,7 @@ Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Te
 | Node | Role |
 |------|------|
 | **Machamp** | Proxmox compute node. Hosts all VMs: development workstation and all Docker Compose services (Traefik, Jellyfin, Servarr, etc.) |
-| **Diglett** | Always-on Proxmox infrastructure node. Hosts DNS (AdGuard Home), Tailscale coordination (Headscale behind Cloudflare Tunnel), and secrets (Infisical + Vaultwarden) |
+| **Diglett** | Always-on Proxmox infrastructure node. Hosts DNS (AdGuard Home), Tailscale coordination (Headscale on port 443, Let's Encrypt DNS-01 TLS, DDNS via cloudflare-ddns), and secrets (Infisical + Vaultwarden) |
 | **Alakazam** | TrueNAS NAS. Provides NFS mounts for all persistent Docker volumes and Terraform state; runs alakazam-deploy (TrueNAS KVM deploy host) |
 
 See [`docs/services.md`](docs/services.md) for the full per-VM service list.
@@ -53,7 +53,7 @@ ansible/
   tailscale.yml           # one-time Tailscale install on physical nodes
   network.yml             # static IP config for Proxmox nodes
 services/
-  dns/                    # AdGuard + Headscale + cloudflared (pre-seeded, no wizards)
+  dns/                    # AdGuard + Headscale + cloudflare-ddns (pre-seeded, no wizards)
   diglett-infra/         # Infisical + Vaultwarden + Litestream
   diglett-deploy/        # (not yet created)
   machamp/                  # Docker Compose — all Machamp/services workloads
@@ -122,7 +122,7 @@ cd ~/homelab
 
 # DNS VM first (Headscale must be running before other VMs register)
 cd terraform/diglett && terraform init && terraform apply -target=module.dns
-ansible-playbook ansible/dns.yml                  # deploys AdGuard + Headscale + cloudflared
+ansible-playbook ansible/dns.yml                  # deploys AdGuard + Headscale + cloudflare-ddns
 ansible-playbook ansible/bootstrap-headscale.yml  # generates + writes Headscale pre-auth key
 
 # All remaining VMs
@@ -142,7 +142,7 @@ ansible-playbook ansible/site.yml
 
 | Store | What | How populated |
 |---|---|---|
-| **`terraform.tfvars`** | Infrastructure credentials (Proxmox tokens, SSH key, Cloudflare API token, Headscale pre-auth key) | Manually; `bootstrap-headscale.yml` writes the pre-auth key automatically |
+| **`terraform.tfvars`** | Infrastructure credentials (Proxmox tokens, SSH key, Cloudflare API token with Zone>DNS>Edit, Headscale pre-auth key) | Manually; `bootstrap-headscale.yml` writes the pre-auth key automatically |
 | **Infisical** | Machine-consumed secrets: service API keys, inter-service tokens, developer API keys | Auto-seeded per service by `ansible/site.yml`; external keys added via UI |
 | **Vaultwarden** | Human-consumed secrets: web UI admin passwords, personal credentials | Written by each service's Ansible role after configuration |
 
