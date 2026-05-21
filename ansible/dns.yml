@@ -64,7 +64,7 @@
 
     - name: Wait for headplane to be ready
       ansible.builtin.wait_for:
-        port: 3000
+        port: 3001
         host: "{{ ansible_host }}"
         timeout: 60
 
