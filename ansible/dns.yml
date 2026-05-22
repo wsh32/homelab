@@ -72,6 +72,51 @@
       ansible.builtin.set_fact:
         headscale_server_url: "{{ headscale_env_bootstrap.content | b64decode | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\\1') | first }}"
 
+    - name: Write tailscale auth key to disk for boot-time reconnect
+      ansible.builtin.copy:
+        content: "{{ headscale_preauth_key }}"
+        dest: /etc/tailscale-auth.key
+        mode: "0600"
+        owner: root
+        group: root
+      become: true
+      no_log: true
+
+    - name: Install tailscale-join-headscale systemd service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/tailscale-join-headscale.service
+        mode: "0644"
+        owner: root
+        group: root
+        content: |
+          [Unit]
+          Description=Join diglett-dns to headscale after headscale is ready
+          After=docker.service
+          Requires=docker.service
+
+          [Service]
+          Type=oneshot
+          RemainAfterExit=yes
+          ExecStartPre=/bin/bash -c 'until nc -z localhost 443; do sleep 2; done'
+          ExecStart=/bin/bash -c '. /etc/headscale.env && tailscale up --login-server=$HEADSCALE_SERVER_URL --auth-key-file=/etc/tailscale-auth.key --advertise-exit-node --hostname=diglett-dns'
+
+          [Install]
+          WantedBy=multi-user.target
+      become: true
+      register: ts_service_installed
+
+    - name: Reload systemd after service file change
+      ansible.builtin.systemd:
+        daemon_reload: true
+      become: true
+      when: ts_service_installed.changed
+
+    - name: Enable tailscale-join-headscale service
+      ansible.builtin.systemd:
+        name: tailscale-join-headscale
+        enabled: true
+      become: true
+
     - name: Check if diglett-dns has a tailscale IP
       ansible.builtin.command: tailscale ip -4
       register: tailscale_ip_check

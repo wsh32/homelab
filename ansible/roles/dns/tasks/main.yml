@@ -100,6 +100,18 @@
     line: "  base_url: \"http://{{ ansible_host }}:3001\""
   notify: Restart dns stack
 
+- name: Enable IP forwarding (required for tailscale exit node)
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: "1"
+    sysctl_set: true
+    state: present
+    reload: true
+  loop:
+    - net.ipv4.ip_forward
+    - net.ipv6.conf.all.forwarding
+  become: true
+
 - name: Disable systemd-resolved stub listener (frees port 53)
   ansible.builtin.lineinfile:
     path: /etc/systemd/resolved.conf
