@@ -98,7 +98,7 @@
           Type=oneshot
           RemainAfterExit=yes
           ExecStartPre=/bin/bash -c 'until nc -z localhost 443; do sleep 2; done'
-          ExecStart=/bin/bash -c '. /etc/headscale.env && tailscale up --login-server=$HEADSCALE_SERVER_URL --auth-key-file=/etc/tailscale-auth.key --advertise-exit-node --hostname=diglett-dns'
+          ExecStart=/bin/bash -c '. /etc/headscale.env && tailscale up --login-server=$HEADSCALE_SERVER_URL --auth-key=$(cat /etc/tailscale-auth.key) --advertise-exit-node --hostname=diglett-dns'
 
           [Install]
           WantedBy=multi-user.target
