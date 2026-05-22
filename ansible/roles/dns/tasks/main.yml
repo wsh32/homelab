@@ -100,6 +100,29 @@
     line: "  base_url: \"http://{{ ansible_host }}:3001\""
   notify: Restart dns stack
 
+- name: Check if headplane API key is provisioned
+  ansible.builtin.stat:
+    path: /mnt/nas/docker/headplane/api.key
+  register: headplane_api_key_stat_role
+  become: true
+
+- name: Read headplane API key for config injection
+  ansible.builtin.slurp:
+    src: /mnt/nas/docker/headplane/api.key
+  register: headplane_api_key_role
+  become: true
+  no_log: true
+  when: headplane_api_key_stat_role.stat.exists
+
+- name: Inject headplane API key into config
+  ansible.builtin.lineinfile:
+    path: /home/{{ ansible_user }}/homelab/services/dns/headplane/config.yaml
+    regexp: '^\s+api_key:'
+    line: "  api_key: \"{{ headplane_api_key_role.content | b64decode | trim }}\""
+  no_log: true
+  notify: Restart dns stack
+  when: headplane_api_key_stat_role.stat.exists
+
 - name: Enable IP forwarding (required for tailscale exit node)
   ansible.posix.sysctl:
     name: "{{ item }}"

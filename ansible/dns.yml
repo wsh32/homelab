@@ -51,16 +51,37 @@
       ansible.builtin.set_fact:
         headscale_user_id: "{{ (users_result.stdout | from_json) | selectattr('name', 'equalto', 'infra') | map(attribute='id') | first }}"
 
+    - name: Check if tailscale auth key is already provisioned
+      ansible.builtin.stat:
+        path: /etc/tailscale-auth.key
+      register: tailscale_auth_key_stat
+      become: true
+
     - name: Generate reusable pre-auth key (1 year expiry)
       community.docker.docker_container_exec:
         container: headscale
         command: "headscale preauthkeys create --user {{ headscale_user_id }} --reusable --expiration 8760h --output json"
       register: preauthkey_result
       become: true
+      when: not tailscale_auth_key_stat.stat.exists
 
     - name: Parse pre-auth key
       ansible.builtin.set_fact:
         headscale_preauth_key: "{{ (preauthkey_result.stdout | from_json).key }}"
+      when: not tailscale_auth_key_stat.stat.exists
+
+    - name: Read existing pre-auth key from disk
+      ansible.builtin.slurp:
+        src: /etc/tailscale-auth.key
+      register: tailscale_auth_key_raw
+      become: true
+      no_log: true
+      when: tailscale_auth_key_stat.stat.exists
+
+    - name: Set pre-auth key fact from existing key on disk
+      ansible.builtin.set_fact:
+        headscale_preauth_key: "{{ tailscale_auth_key_raw.content | b64decode | trim }}"
+      when: tailscale_auth_key_stat.stat.exists
 
     - name: Read headscale server URL
       ansible.builtin.slurp:
@@ -81,6 +102,7 @@
         group: root
       become: true
       no_log: true
+      when: not tailscale_auth_key_stat.stat.exists
 
     - name: Install tailscale-join-headscale systemd service
       ansible.builtin.copy:
@@ -97,6 +119,7 @@
           [Service]
           Type=oneshot
           RemainAfterExit=yes
+          TimeoutStartSec=300
           ExecStartPre=/bin/bash -c 'until nc -z localhost 443; do sleep 2; done'
           ExecStartPre=ethtool -K eth0 rx-udp-gro-forwarding on rx-gro-list off
           ExecStart=/bin/bash -c '. /etc/headscale.env && tailscale up --login-server=$HEADSCALE_SERVER_URL --auth-key=$(cat /etc/tailscale-auth.key) --advertise-exit-node --hostname=diglett-dns --force-reauth'
@@ -112,17 +135,17 @@
       become: true
       when: ts_service_installed.changed
 
+    - name: Restart tailscale-join-headscale to apply updated unit
+      ansible.builtin.systemd:
+        name: tailscale-join-headscale
+        state: restarted
+      become: true
+      when: ts_service_installed.changed
+
     - name: Enable tailscale-join-headscale service
       ansible.builtin.systemd:
         name: tailscale-join-headscale
         enabled: true
-      become: true
-
-    - name: Check if diglett-dns has a tailscale IP
-      ansible.builtin.command: tailscale ip -4
-      register: tailscale_ip_check
-      changed_when: false
-      failed_when: false
       become: true
 
     - name: Join diglett-dns to headscale
@@ -132,8 +155,8 @@
         --auth-key={{ headscale_preauth_key }}
         --advertise-exit-node
         --hostname=diglett-dns
+        --force-reauth
       become: true
-      when: tailscale_ip_check.rc != 0
 
     - name: Get diglett-dns tailscale IP
       ansible.builtin.command: tailscale ip -4
@@ -176,9 +199,18 @@
       no_log: true
       when: not headplane_api_key_stat.stat.exists
 
+    - name: Extract headscale API key from result
+      ansible.builtin.set_fact:
+        headplane_apikey: >-
+          {{ (headplane_apikey_result.stdout | from_json).key
+             if (headplane_apikey_result.stdout | from_json) is mapping
+             else headplane_apikey_result.stdout | from_json }}
+      when: not headplane_api_key_stat.stat.exists
+      no_log: true
+
     - name: Write headscale API key to NFS (idempotency marker)
       ansible.builtin.copy:
-        content: "{{ headplane_apikey_result.stdout | from_json }}"
+        content: "{{ headplane_apikey }}"
         dest: /mnt/nas/docker/headplane/api.key
         mode: "0600"
       become: true
