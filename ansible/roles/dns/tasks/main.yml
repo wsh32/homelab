@@ -112,6 +112,11 @@
     - net.ipv6.conf.all.forwarding
   become: true
 
+- name: Configure UDP GRO forwarding for tailscale performance
+  ansible.builtin.command: ethtool -K eth0 rx-udp-gro-forwarding on rx-gro-list off
+  become: true
+  changed_when: false
+
 - name: Disable systemd-resolved stub listener (frees port 53)
   ansible.builtin.lineinfile:
     path: /etc/systemd/resolved.conf
