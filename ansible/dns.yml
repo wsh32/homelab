@@ -98,6 +98,7 @@
           Type=oneshot
           RemainAfterExit=yes
           ExecStartPre=/bin/bash -c 'until nc -z localhost 443; do sleep 2; done'
+          ExecStartPre=ethtool -K eth0 rx-udp-gro-forwarding on rx-gro-list off
           ExecStart=/bin/bash -c '. /etc/headscale.env && tailscale up --login-server=$HEADSCALE_SERVER_URL --auth-key=$(cat /etc/tailscale-auth.key) --advertise-exit-node --hostname=diglett-dns --force-reauth'
 
           [Install]
