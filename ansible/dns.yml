@@ -1,9 +1,11 @@
 ---
-# Deploy the DNS stack (AdGuard Home + Headscale + cloudflared) to diglett-dns.
+# Deploy the DNS stack (AdGuard Home + Headscale + cloudflared) to diglett-dns,
+# then bootstrap Headscale (create infra user, pre-auth key, webui API key).
+# Idempotent: safe to re-run.
 #
 # Prerequisites:
 #   - diglett-dns VM must be up and cloud-init must have completed
-#   - /etc/cloudflared.env must exist on the VM (written by Terraform cloud-init)
+#   - /etc/headscale.env must exist (written by Terraform cloud-init)
 #   - Alakazam NFS must be reachable at 192.168.0.4:/mnt/apps/docker
 #
 # Usage:
@@ -19,3 +21,249 @@
 
   roles:
     - role: dns
+
+- name: Bootstrap Headscale
+  hosts: diglett-dns
+  gather_facts: false
+
+  tasks:
+    - name: Wait for Headscale to be ready
+      ansible.builtin.wait_for:
+        port: 443
+        host: "{{ ansible_host }}"
+        timeout: 60
+
+    - name: Create Headscale infra user
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale users create infra
+      failed_when: false  # idempotent: no-op if user already exists
+      become: true
+
+    - name: Get infra user ID
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale users list --output json
+      register: users_result
+      become: true
+
+    - name: Parse infra user ID
+      ansible.builtin.set_fact:
+        headscale_user_id: "{{ (users_result.stdout | from_json) | selectattr('name', 'equalto', 'infra') | map(attribute='id') | first }}"
+
+    - name: Check if tailscale auth key is already provisioned
+      ansible.builtin.stat:
+        path: /etc/tailscale-auth.key
+      register: tailscale_auth_key_stat
+      become: true
+
+    - name: Generate reusable pre-auth key (1 year expiry)
+      community.docker.docker_container_exec:
+        container: headscale
+        command: "headscale preauthkeys create --user {{ headscale_user_id }} --reusable --expiration 8760h --output json"
+      register: preauthkey_result
+      become: true
+      when: not tailscale_auth_key_stat.stat.exists
+
+    - name: Parse pre-auth key
+      ansible.builtin.set_fact:
+        headscale_preauth_key: "{{ (preauthkey_result.stdout | from_json).key }}"
+      when: not tailscale_auth_key_stat.stat.exists
+
+    - name: Read existing pre-auth key from disk
+      ansible.builtin.slurp:
+        src: /etc/tailscale-auth.key
+      register: tailscale_auth_key_raw
+      become: true
+      no_log: true
+      when: tailscale_auth_key_stat.stat.exists
+
+    - name: Set pre-auth key fact from existing key on disk
+      ansible.builtin.set_fact:
+        headscale_preauth_key: "{{ tailscale_auth_key_raw.content | b64decode | trim }}"
+      when: tailscale_auth_key_stat.stat.exists
+
+    - name: Read headscale server URL
+      ansible.builtin.slurp:
+        src: /etc/headscale.env
+      register: headscale_env_bootstrap
+      become: true
+
+    - name: Set headscale URL fact
+      ansible.builtin.set_fact:
+        headscale_server_url: "{{ headscale_env_bootstrap.content | b64decode | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\\1') | first }}"
+
+    - name: Write tailscale auth key to disk for boot-time reconnect
+      ansible.builtin.copy:
+        content: "{{ headscale_preauth_key }}"
+        dest: /etc/tailscale-auth.key
+        mode: "0600"
+        owner: root
+        group: root
+      become: true
+      no_log: true
+      when: not tailscale_auth_key_stat.stat.exists
+
+    - name: Install tailscale-join-headscale systemd service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/tailscale-join-headscale.service
+        mode: "0644"
+        owner: root
+        group: root
+        content: |
+          [Unit]
+          Description=Join diglett-dns to headscale after headscale is ready
+          After=docker.service
+          Requires=docker.service
+
+          [Service]
+          Type=oneshot
+          RemainAfterExit=yes
+          TimeoutStartSec=300
+          ExecStartPre=/bin/bash -c 'until nc -z localhost 443; do sleep 2; done'
+          ExecStartPre=ethtool -K eth0 rx-udp-gro-forwarding on rx-gro-list off
+          ExecStart=/bin/bash -c '. /etc/headscale.env && tailscale up --login-server=$HEADSCALE_SERVER_URL --auth-key=$(cat /etc/tailscale-auth.key) --advertise-exit-node --hostname=diglett-dns --force-reauth'
+
+          [Install]
+          WantedBy=multi-user.target
+      become: true
+      register: ts_service_installed
+
+    - name: Reload systemd after service file change
+      ansible.builtin.systemd:
+        daemon_reload: true
+      become: true
+      when: ts_service_installed.changed
+
+    - name: Restart tailscale-join-headscale to apply updated unit
+      ansible.builtin.systemd:
+        name: tailscale-join-headscale
+        state: restarted
+      become: true
+      when: ts_service_installed.changed
+
+    - name: Enable tailscale-join-headscale service
+      ansible.builtin.systemd:
+        name: tailscale-join-headscale
+        enabled: true
+      become: true
+
+    - name: Join diglett-dns to headscale
+      ansible.builtin.command: >-
+        tailscale up
+        --login-server={{ headscale_server_url }}
+        --auth-key={{ headscale_preauth_key }}
+        --advertise-exit-node
+        --hostname=diglett-dns
+        --force-reauth
+      become: true
+
+    - name: Get diglett-dns tailscale IP
+      ansible.builtin.command: tailscale ip -4
+      register: diglett_ts_ip
+      changed_when: false
+      become: true
+
+    - name: Update headscale DNS nameserver to diglett-dns tailscale IP
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/dns/headscale/config.yaml
+        regexp: '^\s+- \d+\.\d+\.\d+\.\d+'
+        line: "      - {{ diglett_ts_ip.stdout | trim }}  # AdGuard Home on diglett-dns"
+      register: nameserver_update
+
+    - name: Restart headscale to apply updated nameserver
+      community.docker.docker_container:
+        name: headscale
+        state: started
+        restart: true
+      become: true
+      when: nameserver_update.changed
+
+    - name: Wait for headplane to be ready
+      ansible.builtin.wait_for:
+        port: 3001
+        host: "{{ ansible_host }}"
+        timeout: 60
+
+    - name: Check if headplane API key is already provisioned
+      ansible.builtin.stat:
+        path: /mnt/nas/docker/headplane/api.key
+      register: headplane_api_key_stat
+
+    - name: Generate headscale API key for headplane
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale apikeys create --output json
+      register: headplane_apikey_result
+      become: true
+      no_log: true
+      when: not headplane_api_key_stat.stat.exists
+
+    - name: Extract headscale API key from result
+      ansible.builtin.set_fact:
+        headplane_apikey: >-
+          {{ (headplane_apikey_result.stdout | from_json).key
+             if (headplane_apikey_result.stdout | from_json) is mapping
+             else headplane_apikey_result.stdout | from_json }}
+      when: not headplane_api_key_stat.stat.exists
+      no_log: true
+
+    - name: Write headscale API key to NFS (idempotency marker)
+      ansible.builtin.copy:
+        content: "{{ headplane_apikey }}"
+        dest: /mnt/nas/docker/headplane/api.key
+        mode: "0600"
+      become: true
+      no_log: true
+      when: not headplane_api_key_stat.stat.exists
+
+    - name: Read headscale API key from NFS
+      ansible.builtin.slurp:
+        src: /mnt/nas/docker/headplane/api.key
+      register: headplane_api_key_nfs
+      become: true
+      no_log: true
+
+    - name: Inject headscale API key into headplane config
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/dns/headplane/config.yaml
+        regexp: '^\s+api_key:'
+        line: "  api_key: \"{{ headplane_api_key_nfs.content | b64decode | trim }}\""
+      no_log: true
+      register: api_key_injected
+
+    - name: Restart headplane to pick up API key
+      community.docker.docker_container:
+        name: headplane
+        state: started
+        restart: true
+      become: true
+      when: api_key_injected.changed
+
+    - name: Display headplane login key for Vaultwarden
+      ansible.builtin.debug:
+        msg: "headplane login — navigate to :3001/admin and enter this API key: {{ headplane_api_key_nfs.content | b64decode | trim }}"
+      when: not headplane_api_key_stat.stat.exists
+
+- name: Write pre-auth key to terraform.tfvars
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    preauth_key: "{{ hostvars['diglett-dns'].headscale_preauth_key }}"
+    tfvars_files:
+      - "{{ playbook_dir }}/../terraform/diglett/terraform.tfvars"
+      - "{{ playbook_dir }}/../terraform/machamp/terraform.tfvars"
+
+  tasks:
+    - name: Write tailscale_auth_key to terraform.tfvars
+      ansible.builtin.lineinfile:
+        path: "{{ item }}"
+        regexp: '^tailscale_auth_key'
+        line: 'tailscale_auth_key = "{{ preauth_key }}"'
+        state: present
+      loop: "{{ tfvars_files }}"
+
+    - name: Display pre-auth key
+      ansible.builtin.debug:
+        msg: "Headscale pre-auth key written to terraform.tfvars: {{ preauth_key }}"

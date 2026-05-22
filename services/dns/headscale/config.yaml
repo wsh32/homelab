@@ -37,6 +37,10 @@ database:
   sqlite:
     path: /var/lib/headscale/db.sqlite
 
+policy:
+  mode: file
+  path: /etc/headscale/acls.hujson
+
 log:
   level: info
 
@@ -45,4 +49,4 @@ dns:
   base_domain: ts.home
   nameservers:
     global:
-      - 1.1.1.1
+      - 0.0.0.0  # replaced at deploy time with diglett-dns tailscale IP

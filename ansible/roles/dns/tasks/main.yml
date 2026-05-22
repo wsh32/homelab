@@ -65,6 +65,74 @@
   loop:
     - /mnt/nas/docker/adguardhome/work
     - /mnt/nas/docker/headscale
+    - /mnt/nas/docker/headplane
+  become: true
+
+- name: Generate headplane cookie secret (32 hex chars, regenerate if wrong length)
+  ansible.builtin.shell: |
+    target=/mnt/nas/docker/headplane/cookie.secret
+    if [ ! -f "$target" ] || [ "$(tr -d '\n' < "$target" | wc -c)" -ne 32 ]; then
+      openssl rand -hex 16 > "$target"
+      chmod 600 "$target"
+      echo changed
+    fi
+  register: cookie_result
+  changed_when: "'changed' in cookie_result.stdout"
+  become: true
+
+- name: Read HEADSCALE_SERVER_URL from headscale.env
+  ansible.builtin.slurp:
+    src: /etc/headscale.env
+  register: headscale_env_raw
+  become: true
+
+- name: Set headscale URL in headplane config
+  ansible.builtin.lineinfile:
+    path: /home/{{ ansible_user }}/homelab/services/dns/headplane/config.yaml
+    regexp: '^\s+url:'
+    line: "  url: \"{{ headscale_env_raw.content | b64decode | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\\1') | first }}\""
+  notify: Restart dns stack
+
+- name: Set headplane base_url in config
+  ansible.builtin.lineinfile:
+    path: /home/{{ ansible_user }}/homelab/services/dns/headplane/config.yaml
+    regexp: '^\s+base_url:'
+    line: "  base_url: \"http://{{ ansible_host }}:3001\""
+  notify: Restart dns stack
+
+- name: Check if headplane API key is provisioned
+  ansible.builtin.stat:
+    path: /mnt/nas/docker/headplane/api.key
+  register: headplane_api_key_stat_role
+  become: true
+
+- name: Read headplane API key for config injection
+  ansible.builtin.slurp:
+    src: /mnt/nas/docker/headplane/api.key
+  register: headplane_api_key_role
+  become: true
+  no_log: true
+  when: headplane_api_key_stat_role.stat.exists
+
+- name: Inject headplane API key into config
+  ansible.builtin.lineinfile:
+    path: /home/{{ ansible_user }}/homelab/services/dns/headplane/config.yaml
+    regexp: '^\s+api_key:'
+    line: "  api_key: \"{{ headplane_api_key_role.content | b64decode | trim }}\""
+  no_log: true
+  notify: Restart dns stack
+  when: headplane_api_key_stat_role.stat.exists
+
+- name: Enable IP forwarding (required for tailscale exit node)
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: "1"
+    sysctl_set: true
+    state: present
+    reload: true
+  loop:
+    - net.ipv4.ip_forward
+    - net.ipv6.conf.all.forwarding
   become: true
 
 - name: Disable systemd-resolved stub listener (frees port 53)

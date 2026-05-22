@@ -28,6 +28,19 @@ services:
     env_file: /etc/headscale.env  # provides HEADSCALE_SERVER_URL, HEADSCALE_TLS_LETSENCRYPT_HOSTNAME
     command: serve
 
+  headplane:
+    image: ghcr.io/tale/headplane:latest
+    container_name: headplane
+    restart: unless-stopped
+    networks:
+      - dns
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./headplane:/etc/headplane:ro
+      - ./headscale:/etc/headscale:ro
+      - /mnt/nas/docker/headplane:/var/lib/headplane
+
   cloudflare-ddns:
     image: favonia/cloudflare-ddns:latest
     container_name: cloudflare-ddns

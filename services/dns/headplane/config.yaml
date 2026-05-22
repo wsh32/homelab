@@ -1,0 +1,11 @@
+headscale:
+  url: ""  # filled in by Ansible from /etc/headscale.env
+  config_path: /etc/headscale/config.yaml
+  api_key: ""  # filled in by Ansible during bootstrap
+  config_strict: false
+
+server:
+  base_url: ""  # filled in by Ansible
+  cookie_secret_path: /var/lib/headplane/cookie.secret
+  cookie_secure: false
+  data_path: /var/lib/headplane

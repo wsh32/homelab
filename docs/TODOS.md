@@ -1,5 +1,26 @@
 # TODOs
 
+## OIDC with Authentik
+
+**What:** Deploy Authentik on `machamp-services` as the homelab OIDC identity provider, then wire headplane (and future services) to use it for SSO.
+
+**Why:** headplane currently requires pasting a headscale API key at every login. OIDC gives a proper login flow and a single credential to manage. Authentik is the standard homelab choice — widely used, well documented, large library of pre-built integrations.
+
+**Work:**
+1. Add `authentik-server`, `authentik-worker`, `postgres`, and `redis` to `services/machamp/docker-compose.yml`; mount persistent data to `/mnt/nas/docker/authentik`
+2. Add Traefik labels for `authentik.wsh` and `authentik.home`
+3. Headless bootstrap via Ansible: use Authentik's API to create the headplane OAuth2 provider and application (client ID + secret), write credentials to Infisical
+4. Add `oidc:` block to `services/dns/headplane/config.yaml`; pull client secret from Infisical at deploy time
+5. Optional: configure headscale itself to use Authentik OIDC for node registration
+
+**Secret management:**
+- Authentik secret key and postgres password → Infisical
+- headplane OIDC client secret → Infisical, injected into headplane config by Ansible
+
+**Depends on:** `machamp-services` VM deployed, Traefik + step-ca running.
+
+---
+
 ## NFS Export Strategy
 
 **What:** Define which Alakazam datasets get NFS-exported, to what
