@@ -158,33 +158,6 @@
         --force-reauth
       become: true
 
-    - name: Wait for exit node routes to appear in headscale
-      community.docker.docker_container_exec:
-        container: headscale
-        command: headscale routes list --output json
-      register: routes_result
-      become: true
-      retries: 10
-      delay: 3
-      until: >-
-        (routes_result.stdout | from_json)
-        | selectattr('prefix', 'in', ['0.0.0.0/0', '::/0'])
-        | selectattr('advertised', 'equalto', true)
-        | list | length > 0
-
-    - name: Approve exit node routes for diglett-dns
-      community.docker.docker_container_exec:
-        container: headscale
-        command: "headscale routes enable -r {{ item }}"
-      become: true
-      loop: >-
-        {{ (routes_result.stdout | from_json)
-           | selectattr('prefix', 'in', ['0.0.0.0/0', '::/0'])
-           | selectattr('advertised', 'equalto', true)
-           | rejectattr('enabled', 'equalto', true)
-           | map(attribute='id')
-           | list }}
-
     - name: Get diglett-dns tailscale IP
       ansible.builtin.command: tailscale ip -4
       register: diglett_ts_ip
