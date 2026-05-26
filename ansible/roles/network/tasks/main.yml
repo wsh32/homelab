@@ -12,6 +12,13 @@
     state: present
   become: true
 
+- name: Ensure ethtool is installed
+  ansible.builtin.apt:
+    name: ethtool
+    state: present
+  become: true
+  when: disable_nic_offload | default(false)
+
 - name: Configure /etc/network/interfaces
   ansible.builtin.template:
     src: interfaces.j2
@@ -22,3 +29,9 @@
     backup: true
   become: true
   notify: Reload network
+
+- name: Disable TSO/GSO/GRO on physical NIC (e1000e/I219 hang workaround)
+  ansible.builtin.command: ethtool -K {{ proxmox_bridge_port }} tso off gso off gro off
+  become: true
+  when: disable_nic_offload | default(false)
+  changed_when: false

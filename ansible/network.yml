@@ -29,6 +29,7 @@
     - name: Set network facts from network.yml
       ansible.builtin.set_fact:
         proxmox_bridge_port: "{{ nodes[inventory_hostname].bridge_port }}"
+        disable_nic_offload: "{{ nodes[inventory_hostname].get('disable_nic_offload', false) }}"
 
   roles:
     - role: network

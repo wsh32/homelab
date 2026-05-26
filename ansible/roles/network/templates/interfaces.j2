@@ -14,3 +14,6 @@ iface vmbr0 inet static
         bridge-stp off
         bridge-fd 0
         bridge-vlan-aware yes
+{% if disable_nic_offload | default(false) %}
+        post-up ethtool -K {{ proxmox_bridge_port }} tso off gso off gro off
+{% endif %}
