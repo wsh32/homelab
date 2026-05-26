@@ -50,3 +50,4 @@ dns:
   nameservers:
     global:
       - 0.0.0.0  # replaced at deploy time with diglett-dns tailscale IP
+      - 8.8.8.8
