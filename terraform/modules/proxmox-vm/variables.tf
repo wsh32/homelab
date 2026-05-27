@@ -105,3 +105,9 @@ variable "tags" {
   type        = list(string)
   default     = []
 }
+
+variable "hostpci_devices" {
+  description = "List of PCI device IDs to pass through to the VM (e.g. [\"0000:01:00\"]). Find addresses with: lspci on the Proxmox host."
+  type        = list(string)
+  default     = []
+}

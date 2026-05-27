@@ -36,14 +36,17 @@ services:
     image: jellyfin/jellyfin:latest
     container_name: jellyfin
     restart: unless-stopped
+    runtime: nvidia
     volumes:
       - /mnt/nas/docker/jellyfin:/config
-      - /mnt/nas/media:/media:ro
+      - /mnt/nas/media:/data:ro
+      - ./config/jellyfin-encoding.xml:/config/config/encoding.xml:ro
     environment:
       JELLYFIN_PublishedServerUrl: https://jellyfin.wsh
-    # GPU transcoding: Quadro P2200 passed through to VM; expose via /dev/dri
-    devices:
-      - /dev/dri:/dev/dri
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,video,utility
+    ports:
+      - "127.0.0.1:8096:8096"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.jellyfin-wsh.rule=Host(`jellyfin.wsh`)"
@@ -60,10 +63,12 @@ services:
     restart: unless-stopped
     volumes:
       - /mnt/nas/docker/prowlarr:/config
-      - ./config/prowlarr.xml:/config/config.xml:ro   # pre-seeded; copied on first start
+      - ./config/prowlarr.xml:/config/config.xml:ro
     environment:
       PUID: "1000"
       PGID: "1000"
+    ports:
+      - "127.0.0.1:9696:9696"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.prowlarr-wsh.rule=Host(`prowlarr.wsh`)"
@@ -78,11 +83,12 @@ services:
     volumes:
       - /mnt/nas/docker/radarr:/config
       - ./config/radarr.xml:/config/config.xml:ro
-      - /mnt/nas/media/movies:/movies
-      - /mnt/nas/media/downloads:/downloads
+      - /mnt/nas/media:/data
     environment:
       PUID: "1000"
       PGID: "1000"
+    ports:
+      - "127.0.0.1:7878:7878"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.radarr-wsh.rule=Host(`radarr.wsh`)"
@@ -97,17 +103,120 @@ services:
     volumes:
       - /mnt/nas/docker/sonarr:/config
       - ./config/sonarr.xml:/config/config.xml:ro
-      - /mnt/nas/media/tv:/tv
-      - /mnt/nas/media/downloads:/downloads
+      - /mnt/nas/media:/data
     environment:
       PUID: "1000"
       PGID: "1000"
+    ports:
+      - "127.0.0.1:8989:8989"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.sonarr-wsh.rule=Host(`sonarr.wsh`)"
       - "traefik.http.routers.sonarr-wsh.entrypoints=websecure"
       - "traefik.http.routers.sonarr-wsh.tls=true"
       - "traefik.http.services.sonarr-svc.loadbalancer.server.port=8989"
+
+  # ── VPN + Torrent ──────────────────────────────────────────────────────────
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      VPN_SERVICE_PROVIDER: private internet access
+      VPN_TYPE: openvpn
+      OPENVPN_USER: ${PIA_USERNAME}
+      OPENVPN_PASSWORD: ${PIA_PASSWORD}
+      SERVER_REGIONS: US East
+    healthcheck:
+      test: ["CMD", "/gluetun-entrypoint", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    ports:
+      - "8080:8080"   # qBittorrent WebUI — also used by Traefik backend routing
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.qbittorrent-wsh.rule=Host(`qbittorrent.wsh`)"
+      - "traefik.http.routers.qbittorrent-wsh.entrypoints=websecure"
+      - "traefik.http.routers.qbittorrent-wsh.tls=true"
+      - "traefik.http.services.qbittorrent-svc.loadbalancer.server.port=8080"
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    volumes:
+      - /mnt/nas/docker/qbittorrent:/config
+      - /mnt/nas/media:/data
+      - /var/lib/qbittorrent/incomplete:/incomplete
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      WEBUI_PORT: "8080"
+    # No ports or labels — network is shared with gluetun
+
+  # ── Subtitles ──────────────────────────────────────────────────────────────
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    restart: unless-stopped
+    volumes:
+      - /mnt/nas/docker/bazarr:/config
+      - /mnt/nas/media:/data
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+    ports:
+      - "127.0.0.1:6767:6767"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bazarr-wsh.rule=Host(`bazarr.wsh`)"
+      - "traefik.http.routers.bazarr-wsh.entrypoints=websecure"
+      - "traefik.http.routers.bazarr-wsh.tls=true"
+      - "traefik.http.services.bazarr-svc.loadbalancer.server.port=6767"
+
+  # ── Media Requests ─────────────────────────────────────────────────────────
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    restart: unless-stopped
+    volumes:
+      - /mnt/nas/docker/jellyseerr:/app/config
+    ports:
+      - "127.0.0.1:5055:5055"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.jellyseerr-wsh.rule=Host(`jellyseerr.wsh`)"
+      - "traefik.http.routers.jellyseerr-wsh.entrypoints=websecure"
+      - "traefik.http.routers.jellyseerr-wsh.tls=true"
+      - "traefik.http.routers.jellyseerr-home.rule=Host(`jellyseerr.home`)"
+      - "traefik.http.routers.jellyseerr-home.entrypoints=web"
+      - "traefik.http.services.jellyseerr-svc.loadbalancer.server.port=5055"
+
+  # ── Archive Extraction ─────────────────────────────────────────────────────
+  unpackerr:
+    image: golift/unpackerr:latest
+    container_name: unpackerr
+    restart: unless-stopped
+    volumes:
+      - /mnt/nas/media:/data
+    environment:
+      UN_SONARR_0_URL: http://sonarr:8989
+      UN_SONARR_0_API_KEY: ${SONARR_API_KEY}
+      UN_SONARR_0_PATHS: /data/downloads/complete
+      UN_RADARR_0_URL: http://radarr:7878
+      UN_RADARR_0_API_KEY: ${RADARR_API_KEY}
+      UN_RADARR_0_PATHS: /data/downloads/complete
+    # No ports or labels — background daemon with no UI
 
   # ── PhotoPrism ─────────────────────────────────────────────────────────────
   photoprism:

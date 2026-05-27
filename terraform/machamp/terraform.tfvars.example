@@ -19,3 +19,7 @@ vm_password = "REPLACE_ME"
 
 # Tailscale reusable auth key — generate at https://login.tailscale.com/admin/settings/keys
 tailscale_auth_key = "tskey-auth-REPLACE_ME"
+
+# Quadro P2200 PCI passthrough address(es) — find via: ssh root@machamp lspci | grep -i quadro
+# Example: ["0000:01:00.0"] or ["0000:01:00.0", "0000:01:00.1"] for GPU + audio function
+services_gpu_pci_ids = []

@@ -1,0 +1,11 @@
+---
+- name: Restart docker
+  ansible.builtin.service:
+    name: docker
+    state: restarted
+  become: true
+
+- name: Reboot for NVIDIA driver
+  ansible.builtin.reboot:
+    reboot_timeout: 300
+  become: true

@@ -1,0 +1,60 @@
+---
+# NVIDIA driver + container toolkit for GPU-enabled VMs.
+# Run after the docker role (daemon.json must already exist).
+
+- name: Add NVIDIA driver PPA
+  ansible.builtin.apt_repository:
+    repo: ppa:graphics-drivers/ppa
+    state: present
+    update_cache: true
+  become: true
+
+- name: Install NVIDIA driver
+  ansible.builtin.apt:
+    name: nvidia-driver-550-server
+    state: present
+  become: true
+  notify: Reboot for NVIDIA driver
+
+- name: Add NVIDIA container toolkit GPG key
+  ansible.builtin.shell:
+    cmd: |
+      curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+        | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+    creates: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+  become: true
+
+- name: Add NVIDIA container toolkit apt repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg]
+      https://nvidia.github.io/libnvidia-container/stable/deb/$(ARCH) /
+    state: present
+    update_cache: true
+  become: true
+
+- name: Install nvidia-container-toolkit
+  ansible.builtin.apt:
+    name: nvidia-container-toolkit
+    state: present
+  become: true
+
+- name: Read existing Docker daemon.json
+  ansible.builtin.slurp:
+    src: /etc/docker/daemon.json
+  become: true
+  register: daemon_json_raw
+
+- name: Merge NVIDIA runtime into Docker daemon.json
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    content: "{{ daemon_json_raw.content | b64decode | from_json | combine(nvidia_runtime_config, recursive=True) | to_nice_json }}\n"
+    mode: "0644"
+  become: true
+  notify: Restart docker
+  vars:
+    nvidia_runtime_config:
+      runtimes:
+        nvidia:
+          path: nvidia-container-runtime
+          runtimeArgs: []
