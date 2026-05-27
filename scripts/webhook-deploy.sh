@@ -24,10 +24,10 @@ fi
 exec {LOCK_FD}>"$LOCK_FILE"
 flock "$LOCK_FD"
 
-# Pull latest code.
+# Pull latest code (fast-forward only — fails loudly if local commits exist).
 cd "$REPO_ROOT"
 git fetch origin main
-git reset --hard origin/main
+git merge --ff-only origin/main
 
 # Detect changed paths since last deploy.
 PREV=$(git rev-parse HEAD~1 2>/dev/null || echo "")
