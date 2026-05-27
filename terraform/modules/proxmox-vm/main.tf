@@ -104,8 +104,10 @@ resource "proxmox_virtual_environment_vm" "vm" {
   }
 
   lifecycle {
+    prevent_destroy = true
     ignore_changes = [
-      # Don't recreate VM if the source image is re-downloaded
+      # Don't recreate VM if the source image is re-downloaded.
+      # disk[0] is stable as long as the root disk remains first in the config.
       disk[0].file_id,
     ]
   }

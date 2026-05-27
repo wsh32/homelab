@@ -52,6 +52,8 @@ module "dns" {
   timezone           = var.timezone
   tailscale_auth_key = var.tailscale_auth_key
 
+  # TODO(C1): ideally write CF_API_TOKEN via Infisical machine identity at boot;
+  # kept as echo for now since Infisical may not be online during cloud-init.
   extra_runcmd = [
     "tailscale set --advertise-exit-node",
     # /etc/headscale.env is read by both the headscale and cloudflare-ddns containers.
@@ -87,8 +89,6 @@ module "infisical" {
   vm_password        = var.vm_password
   timezone           = var.timezone
   tailscale_auth_key = var.tailscale_auth_key
-
-  extra_runcmd = []
 }
 
 # HAOS uses a dedicated VM resource — no cloud-init, restored from vzdump backup.
@@ -129,6 +129,7 @@ resource "proxmox_virtual_environment_vm" "haos" {
   }
 
   lifecycle {
-    ignore_changes = [disk[0].file_id]
+    prevent_destroy = true
+    ignore_changes  = [disk[0].file_id]
   }
 }
