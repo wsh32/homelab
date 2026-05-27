@@ -1,7 +1,7 @@
 services:
   # ── Traefik ────────────────────────────────────────────────────────────────
   traefik:
-    image: traefik:v3
+    image: traefik:v3.3.6
     container_name: traefik
     restart: unless-stopped
     ports:
@@ -12,10 +12,22 @@ services:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
       - /mnt/nas/docker/traefik/acme:/acme
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
 
   # ── step-ca (local CA) ─────────────────────────────────────────────────────
   step-ca:
-    image: smallstep/step-ca:latest
+    image: smallstep/step-ca:0.27.5
     container_name: step-ca
     restart: unless-stopped
     volumes:
@@ -30,10 +42,16 @@ services:
       - "traefik.http.routers.step-ca-wsh.entrypoints=websecure"
       - "traefik.http.routers.step-ca-wsh.tls=true"
       - "traefik.http.services.step-ca-svc.loadbalancer.server.port=9000"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
 
   # ── Jellyfin ───────────────────────────────────────────────────────────────
   jellyfin:
-    image: jellyfin/jellyfin:latest
+    image: jellyfin/jellyfin:10.10.7
     container_name: jellyfin
     restart: unless-stopped
     volumes:
@@ -52,10 +70,22 @@ services:
       - "traefik.http.routers.jellyfin-home.rule=Host(`jellyfin.home`)"
       - "traefik.http.routers.jellyfin-home.entrypoints=web"
       - "traefik.http.services.jellyfin-svc.loadbalancer.server.port=8096"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8096/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 512M
 
   # ── Servarr ────────────────────────────────────────────────────────────────
   prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest
+    image: lscr.io/linuxserver/prowlarr:1.37.0
     container_name: prowlarr
     restart: unless-stopped
     volumes:
@@ -70,9 +100,15 @@ services:
       - "traefik.http.routers.prowlarr-wsh.entrypoints=websecure"
       - "traefik.http.routers.prowlarr-wsh.tls=true"
       - "traefik.http.services.prowlarr-svc.loadbalancer.server.port=9696"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 128M
 
   radarr:
-    image: lscr.io/linuxserver/radarr:latest
+    image: lscr.io/linuxserver/radarr:5.26.2
     container_name: radarr
     restart: unless-stopped
     volumes:
@@ -89,9 +125,15 @@ services:
       - "traefik.http.routers.radarr-wsh.entrypoints=websecure"
       - "traefik.http.routers.radarr-wsh.tls=true"
       - "traefik.http.services.radarr-svc.loadbalancer.server.port=7878"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 128M
 
   sonarr:
-    image: lscr.io/linuxserver/sonarr:latest
+    image: lscr.io/linuxserver/sonarr:4.0.15
     container_name: sonarr
     restart: unless-stopped
     volumes:
@@ -108,10 +150,16 @@ services:
       - "traefik.http.routers.sonarr-wsh.entrypoints=websecure"
       - "traefik.http.routers.sonarr-wsh.tls=true"
       - "traefik.http.services.sonarr-svc.loadbalancer.server.port=8989"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 128M
 
   # ── PhotoPrism ─────────────────────────────────────────────────────────────
   photoprism:
-    image: photoprism/photoprism:latest
+    image: photoprism/photoprism:250528-ce
     container_name: photoprism
     restart: unless-stopped
     volumes:
@@ -128,10 +176,16 @@ services:
       - "traefik.http.routers.photos-wsh.entrypoints=websecure"
       - "traefik.http.routers.photos-wsh.tls=true"
       - "traefik.http.services.photos-svc.loadbalancer.server.port=2342"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 256M
 
   # ── Calibre-Web ────────────────────────────────────────────────────────────
   calibre-web:
-    image: lscr.io/linuxserver/calibre-web:latest
+    image: lscr.io/linuxserver/calibre-web:0.6.24
     container_name: calibre-web
     restart: unless-stopped
     volumes:
@@ -146,10 +200,16 @@ services:
       - "traefik.http.routers.books-wsh.entrypoints=websecure"
       - "traefik.http.routers.books-wsh.tls=true"
       - "traefik.http.services.books-svc.loadbalancer.server.port=8083"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 128M
 
   # ── n8n ────────────────────────────────────────────────────────────────────
   n8n:
-    image: n8nio/n8n:latest
+    image: n8nio/n8n:1.93.0
     container_name: n8n
     restart: unless-stopped
     volumes:
@@ -165,10 +225,22 @@ services:
       - "traefik.http.routers.n8n-wsh.entrypoints=websecure"
       - "traefik.http.routers.n8n-wsh.tls=true"
       - "traefik.http.services.n8n-svc.loadbalancer.server.port=5678"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 128M
 
   # ── Obsidian LiveSync (CouchDB) ────────────────────────────────────────────
   couchdb:
-    image: couchdb:3
+    image: couchdb:3.4.3
     container_name: couchdb
     restart: unless-stopped
     volumes:
@@ -182,9 +254,15 @@ services:
       - "traefik.http.routers.couchdb-wsh.entrypoints=websecure"
       - "traefik.http.routers.couchdb-wsh.tls=true"
       - "traefik.http.services.couchdb-svc.loadbalancer.server.port=5984"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 128M
 
   couchdb-init:
-    image: curlimages/curl:latest
+    image: curlimages/curl:8.13.0
     container_name: couchdb-init
     restart: on-failure
     depends_on:
@@ -195,10 +273,16 @@ services:
     environment:
       COUCHDB_USER: ${COUCHDB_USER}
       COUCHDB_PASSWORD: ${COUCHDB_PASSWORD}
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 16M
 
   # ── Quartz (Obsidian vault publishing) ─────────────────────────────────────
   quartz:
-    image: ghcr.io/jackyzha0/quartz:v4
+    image: ghcr.io/jackyzha0/quartz:v4.5.0
     container_name: quartz
     restart: unless-stopped
     volumes:
@@ -209,10 +293,16 @@ services:
       - "traefik.http.routers.notes-wsh.entrypoints=websecure"
       - "traefik.http.routers.notes-wsh.tls=true"
       - "traefik.http.services.notes-svc.loadbalancer.server.port=8080"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 64M
 
   # ── Homepage dashboard ─────────────────────────────────────────────────────
   homepage:
-    image: ghcr.io/gethomepage/homepage:latest
+    image: ghcr.io/gethomepage/homepage:v0.10.9
     container_name: homepage
     restart: unless-stopped
     volumes:
@@ -226,14 +316,21 @@ services:
       - "traefik.http.routers.home-home.rule=Host(`home.home`)"
       - "traefik.http.routers.home-home.entrypoints=web"
       - "traefik.http.services.home-svc.loadbalancer.server.port=3000"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
 
   # ── Monitoring: Prometheus ─────────────────────────────────────────────────
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.4.1
     container_name: prometheus
     restart: unless-stopped
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/targets:/etc/prometheus/targets:ro
       - /mnt/nas/docker/prometheus:/prometheus
     labels:
       - "traefik.enable=true"
@@ -241,10 +338,22 @@ services:
       - "traefik.http.routers.prometheus-wsh.entrypoints=websecure"
       - "traefik.http.routers.prometheus-wsh.tls=true"
       - "traefik.http.services.prometheus-svc.loadbalancer.server.port=9090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 128M
 
   # ── Monitoring: Grafana ────────────────────────────────────────────────────
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:12.0.1
     container_name: grafana
     restart: unless-stopped
     volumes:
@@ -260,21 +369,45 @@ services:
       - "traefik.http.routers.grafana-home.rule=Host(`grafana.home`)"
       - "traefik.http.routers.grafana-home.entrypoints=web"
       - "traefik.http.services.grafana-svc.loadbalancer.server.port=3000"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 128M
 
   # ── Monitoring: Loki ───────────────────────────────────────────────────────
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:3.5.1
     container_name: loki
     restart: unless-stopped
     volumes:
       - ./loki/loki.yml:/etc/loki/local-config.yaml:ro
       - /mnt/nas/docker/loki:/loki
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 64M
 
   promtail:
-    image: grafana/promtail:latest
+    image: grafana/promtail:3.5.1
     container_name: promtail
     restart: unless-stopped
     volumes:
       - ./loki/promtail.yml:/etc/promtail/config.yml:ro
       - /var/log:/var/log:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 64M

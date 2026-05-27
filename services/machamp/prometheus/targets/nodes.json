@@ -1,0 +1,14 @@
+[
+  {
+    "targets": [
+      "diglett-infra:9100",
+      "alakazam-deploy:9100",
+      "diglett-dns:9100",
+      "machamp-services:9100",
+      "machamp-dev:9100"
+    ],
+    "labels": {
+      "job": "node"
+    }
+  }
+]

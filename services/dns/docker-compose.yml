@@ -4,7 +4,7 @@ networks:
 
 services:
   adguardhome:
-    image: adguard/adguardhome:latest
+    image: adguard/adguardhome:v0.107.63
     container_name: adguardhome
     restart: unless-stopped
     network_mode: host  # needs port 53 on host IP
@@ -13,9 +13,21 @@ services:
       - /mnt/nas/docker/adguardhome/work:/opt/adguardhome/work
     # Pre-seeded AdGuardHome.yaml in ./adguard/ bypasses the setup wizard.
     # Admin password (bcrypt) and DNS rewrites are committed in AdGuardHome.yaml.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
 
   headscale:
-    image: headscale/headscale:latest
+    image: headscale/headscale:0.23.0
     container_name: headscale
     restart: unless-stopped
     networks:
@@ -27,9 +39,21 @@ services:
       - /mnt/nas/docker/headscale:/var/lib/headscale
     env_file: /etc/headscale.env  # provides HEADSCALE_SERVER_URL, HEADSCALE_TLS_LETSENCRYPT_HOSTNAME
     command: serve
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
 
   headplane:
-    image: ghcr.io/tale/headplane:latest
+    image: ghcr.io/juanfont/headplane:0.0.14
     container_name: headplane
     restart: unless-stopped
     networks:
@@ -40,9 +64,21 @@ services:
       - ./headplane:/etc/headplane:ro
       - ./headscale:/etc/headscale:ro
       - /mnt/nas/docker/headplane:/var/lib/headplane
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
 
   cloudflare-ddns:
-    image: favonia/cloudflare-ddns:latest
+    image: favonia/cloudflare-ddns:1.15.0
     container_name: cloudflare-ddns
     restart: unless-stopped
     network_mode: host  # needs host networking to detect the real public IP
@@ -50,3 +86,9 @@ services:
     cap_drop:
       - ALL
     env_file: /etc/headscale.env  # provides CF_API_TOKEN, DOMAINS, PROXIED
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 16M

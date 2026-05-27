@@ -1,7 +1,7 @@
 services:
   # ── Infisical ─────────────────────────────────────────────────────────────
   infisical-db:
-    image: mongo:7
+    image: mongo:7.0.21
     container_name: infisical-db
     restart: unless-stopped
     volumes:
@@ -9,14 +9,38 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand({ping:1})", "--quiet"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
 
   infisical-redis:
-    image: redis:7-alpine
+    image: redis:7.4.5-alpine
     container_name: infisical-redis
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
 
   infisical:
-    image: infisical/infisical:latest
+    image: infisical/infisical:v0.93.1
     container_name: infisical
     restart: unless-stopped
     depends_on:
@@ -30,10 +54,22 @@ services:
       AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
       ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
       SITE_URL: https://infisical.wsh
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
 
   # ── MongoDB backup ─────────────────────────────────────────────────────────
   infisical-backup:
-    image: mongo:7
+    image: mongo:7.0.21
     container_name: infisical-backup
     restart: unless-stopped
     depends_on:
@@ -52,7 +88,7 @@ services:
 
   # ── Vaultwarden ────────────────────────────────────────────────────────────
   vaultwarden:
-    image: vaultwarden/server:latest
+    image: vaultwarden/server:1.32.7
     container_name: vaultwarden
     restart: unless-stopped
     volumes:
@@ -70,10 +106,22 @@ services:
       - "traefik.http.routers.vault-home.rule=Host(`vault.home`)"
       - "traefik.http.routers.vault-home.entrypoints=web"
       - "traefik.http.services.vault-svc.loadbalancer.server.port=80"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost/alive"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
 
   # Litestream — continuous WAL streaming for Vaultwarden SQLite to NFS.
   litestream:
-    image: litestream/litestream:latest
+    image: litestream/litestream:0.3.13
     container_name: litestream
     restart: unless-stopped
     depends_on:
@@ -83,3 +131,9 @@ services:
       - /mnt/nas/docker/vaultwarden-backup:/backup
       - ./litestream.yml:/etc/litestream.yml:ro
     command: replicate
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 32M
