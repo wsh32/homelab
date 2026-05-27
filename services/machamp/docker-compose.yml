@@ -12,6 +12,8 @@ services:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
       - /mnt/nas/docker/traefik/acme:/acme
+    environment:
+      TRAEFIK_ACME_EMAIL: ${TRAEFIK_ACME_EMAIL}
 
   # ── step-ca (local CA) ─────────────────────────────────────────────────────
   step-ca:

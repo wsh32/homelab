@@ -37,8 +37,16 @@ packages:
   - qemu-guest-agent
 
 runcmd:
-  - curl -fsSL https://tailscale.com/install.sh | sh
-  - tailscale up --authkey=${tailscale_auth_key} --hostname=${name}
+  # Install Tailscale via apt (GPG-verified) instead of curl|sh.
+  - curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg | gpg --dearmor -o /usr/share/keyrings/tailscale-archive-keyring.gpg
+  - echo "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/ubuntu noble main" | tee /etc/apt/sources.list.d/tailscale.list
+  - apt-get update -qq
+  - apt-get install -y tailscale
+  # Write authkey to a temp file so it doesn't appear in process list (ps aux).
+  - install -m 600 /dev/null /tmp/ts-auth.key
+  - printf '%s' '${tailscale_auth_key}' > /tmp/ts-auth.key
+  - tailscale up --authkey=file:///tmp/ts-auth.key --hostname=${name}
+  - shred -u /tmp/ts-auth.key
   - systemctl enable --now qemu-guest-agent
 %{ for cmd in extra_runcmd ~}
   - ${cmd}

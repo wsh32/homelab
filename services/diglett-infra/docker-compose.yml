@@ -40,10 +40,13 @@ services:
       - infisical-db
     volumes:
       - /mnt/nas/docker/infisical-backups:/backups
+    environment:
+      MONGO_ROOT_USER: ${MONGO_ROOT_USER}
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
     entrypoint: >
       /bin/sh -c "
         while true; do
-          mongodump --uri='mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@infisical-db:27017/infisical?authSource=admin'
+          mongodump --uri=\"mongodb://$$MONGO_ROOT_USER:$$MONGO_ROOT_PASSWORD@infisical-db:27017/infisical?authSource=admin\"
             --out=/backups/$$(date +%Y%m%d-%H%M%S);
           find /backups -maxdepth 1 -mtime +7 -exec rm -rf {} +;
           sleep 21600;

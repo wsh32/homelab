@@ -4,6 +4,8 @@ http:
 users:
   - name: admin
     # bcrypt hash — plaintext in Vaultwarden. Generate with: htpasswd -bnBC 10 "" <password> | tr -d ':\n'
+    # TODO(C3): move to env var injection at deploy time; remove hash from version control.
+    # Generate replacement: htpasswd -bnBC 10 "" <password> | tr -d ':\n'
     password: $2y$10$AJQxn6NM9IXJAxjmQyrD8Og87JDDyrMTkEg4F.E.U5vqFrwhsLiIK
 
 dns:
