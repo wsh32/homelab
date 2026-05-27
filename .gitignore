@@ -20,5 +20,8 @@ services/vps/headscale/noise_private.key
 # ACME certs
 services/anton/traefik/acme/
 
+# Claude Code internal worktrees
+.claude/
+
 # OS
 .DS_Store
