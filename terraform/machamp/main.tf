@@ -72,7 +72,7 @@ module "services" {
   node_name     = local.node
   vm_id         = local.vms["machamp-services"].vm_id
   name          = "machamp-services"
-  description   = "Services VM — Traefik, Jellyfin, Servarr, Monitoring, etc. (Quadro P2000 passthrough)"
+  description   = "Services VM — Traefik, Jellyfin, Servarr, Monitoring, etc. (Quadro P2200 passthrough)"
   tags          = ["machamp", "gpu", "services"]
   image_file_id = proxmox_download_file.ubuntu_2404.id
 
@@ -90,6 +90,8 @@ module "services" {
 
   extra_runcmd = []
 
-  # TODO: GPU passthrough — add hostpci block after verifying Quadro P2000 PCI address on Machamp.
-  # Run: ssh root@machamp lspci | grep -i quadro
+  hostpci_devices = var.services_gpu_pci_ids
+  # Fill in services_gpu_pci_ids in terraform.tfvars after running:
+  #   ssh root@machamp lspci | grep -i quadro
+  # Applying this to a running VM requires a full VM restart.
 }

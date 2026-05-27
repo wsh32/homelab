@@ -28,3 +28,7 @@ cloudflare_zone_id = "REPLACE_ME"
 
 # Subdomain for the public Authentik OIDC endpoint (creates auth.<your-domain>)
 authentik_subdomain = "auth"
+
+# Quadro P2200 PCI passthrough address(es) — find via: ssh root@machamp lspci | grep -i quadro
+# Example: ["0000:01:00.0"] or ["0000:01:00.0", "0000:01:00.1"] for GPU + audio function
+services_gpu_pci_ids = []
