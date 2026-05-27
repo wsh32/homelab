@@ -33,12 +33,21 @@
         host: "{{ ansible_host }}"
         timeout: 60
 
+    - name: Check if Headscale infra user already exists
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale users list --output json
+      register: headscale_users_json
+      changed_when: false
+      become: true
+
     - name: Create Headscale infra user
       community.docker.docker_container_exec:
         container: headscale
         command: headscale users create infra
-      failed_when: false  # idempotent: no-op if user already exists
       become: true
+      when: >
+        (headscale_users_json.stdout | from_json | selectattr('name', 'equalto', 'infra') | list | length) == 0
 
     - name: Get infra user ID
       community.docker.docker_container_exec:
@@ -164,6 +173,8 @@
       changed_when: false
       become: true
 
+    # TODO(M6): convert headscale/config.yaml to a Jinja2 template rendered at deploy
+    # time; this lineinfile is a stopgap that causes git dirty state on every run.
     - name: Update headscale DNS nameserver to diglett-dns tailscale IP
       ansible.builtin.lineinfile:
         path: /home/{{ ansible_user }}/homelab/services/dns/headscale/config.yaml
@@ -240,9 +251,12 @@
       become: true
       when: api_key_injected.changed
 
+    # TODO(H4): remove this debug task — it defeats no_log on the slurp task above
+    # and exposes the key in logs. Retrieve the key from NFS directly if needed.
     - name: Display headplane login key for Vaultwarden
       ansible.builtin.debug:
         msg: "headplane login — navigate to :3001/admin and enter this API key: {{ headplane_api_key_nfs.content | b64decode | trim }}"
+      no_log: true
       when: not headplane_api_key_stat.stat.exists
 
 - name: Write pre-auth key to terraform.tfvars

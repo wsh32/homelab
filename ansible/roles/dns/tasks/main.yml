@@ -114,14 +114,15 @@
   no_log: true
   when: headplane_api_key_stat_role.stat.exists
 
-- name: Inject headplane API key into config
-  ansible.builtin.lineinfile:
-    path: /home/{{ ansible_user }}/homelab/services/dns/headplane/config.yaml
-    regexp: '^\s+api_key:'
-    line: "  api_key: \"{{ headplane_api_key_role.content | b64decode | trim }}\""
+- name: Write headplane API key to env file
+  ansible.builtin.copy:
+    dest: /home/{{ ansible_user }}/homelab/services/dns/headplane/headplane.env
+    content: "HEADPLANE_OIDC_CLIENT_SECRET={{ headplane_api_key_role.content | b64decode | trim }}\n"
+    owner: "{{ ansible_user }}"
+    mode: "0600"
   no_log: true
-  notify: Restart dns stack
   when: headplane_api_key_stat_role.stat.exists
+  notify: Restart dns stack
 
 - name: Enable IP forwarding (required for tailscale exit node)
   ansible.posix.sysctl:
