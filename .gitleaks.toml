@@ -1,0 +1,6 @@
+[allowlist]
+  description = "Ignore example/template files"
+  paths = [
+    '''.env\.example$''',
+    '''\.tfvars\.example$''',
+  ]
