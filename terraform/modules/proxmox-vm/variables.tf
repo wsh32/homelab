@@ -56,8 +56,8 @@ variable "ip_address" {
   description = "Static IP address with CIDR (e.g. 192.168.0.21/24)"
   type        = string
   validation {
-    condition     = can(regex("^\\d+\\.\\d+\\.\\d+\\.\\d+/\\d+$", var.ip_address))
-    error_message = "ip_address must be in CIDR notation (e.g. 192.168.0.21/24)."
+    condition     = can(cidrhost(var.ip_address, 0))
+    error_message = "ip_address must be a valid CIDR notation address (e.g. 192.168.0.21/24)."
   }
 }
 
