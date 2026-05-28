@@ -1,14 +1,7 @@
 [
-  {
-    "targets": [
-      "diglett-infra:9100",
-      "alakazam-deploy:9100",
-      "diglett-dns:9100",
-      "machamp-services:9100",
-      "machamp-dev:9100"
-    ],
-    "labels": {
-      "job": "node"
-    }
-  }
+  {"targets": ["192.168.0.21:9100"], "labels": {"job": "node", "instance": "diglett-infra"}},
+  {"targets": ["192.168.0.7:9100"],  "labels": {"job": "node", "instance": "alakazam-deploy"}},
+  {"targets": ["192.168.0.2:9100"],  "labels": {"job": "node", "instance": "diglett-dns"}},
+  {"targets": ["192.168.0.30:9100"], "labels": {"job": "node", "instance": "machamp-services"}},
+  {"targets": ["192.168.0.31:9100"], "labels": {"job": "node", "instance": "machamp-dev"}}
 ]

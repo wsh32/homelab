@@ -2,6 +2,8 @@ api:
   dashboard: true
   insecure: false
 
+ping: {}
+
 entryPoints:
   web:
     address: ":80"
