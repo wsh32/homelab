@@ -8,6 +8,7 @@
 
 # Secrets
 **/.env
+services/dns/headplane/headplane.env
 **/*.pem
 **/*.key
 
