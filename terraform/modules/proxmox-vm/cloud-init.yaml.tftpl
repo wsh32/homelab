@@ -46,7 +46,7 @@ runcmd:
   - install -m 600 /dev/null /tmp/ts-auth.key
   - printf '%s' '${tailscale_auth_key}' > /tmp/ts-auth.key
   - tailscale up --authkey=file:///tmp/ts-auth.key --hostname=${name}
-  - shred -u /tmp/ts-auth.key
+  - rm -f /tmp/ts-auth.key
   - systemctl enable --now qemu-guest-agent
 %{ for cmd in extra_runcmd ~}
   - ${cmd}
