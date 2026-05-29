@@ -13,7 +13,7 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
   - Machine-consumed secrets (service API keys, inter-service tokens) → Infisical. Fetched at VM boot via `infisical export` to generate an ephemeral `.env` file. Seeded by each service's Ansible role at bring-up time. Never hardcoded, never in `terraform.tfvars`.
   - Human-consumed secrets (web UI admin passwords) → Vaultwarden. Stored by each service's Ansible role after configuration. Never in Infisical.
   - Infrastructure credentials (Proxmox API tokens, SSH key, Cloudflare API token) → `var.*` from `terraform.tfvars`, gitignored. Lives on the deploy VM.
-  - Infisical bootstrap secrets (MongoDB password, auth/encryption keys, Vaultwarden token) → `/etc/homelab.env` on diglett-infra (root:root, 0600). Generated once by the `infra` Ansible role; NFS-persisted at `/mnt/nas/docker/infisical-backups/.secrets.env` for rebuild safety. Deploy + bootstrap: `INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`.
+  - Infisical bootstrap secrets (MongoDB password, auth/encryption keys, Vaultwarden token, Authentik keys) → `/etc/homelab.env` on machamp-infra (root:root, 0600). Generated once by the `infra` Ansible role; NFS-persisted at `/mnt/nas/docker/infisical-backups/.secrets.env` for rebuild safety. Deploy + bootstrap: `INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`.
   - Developer API keys (Claude, Codex, GitHub) → Infisical, entered manually via UI, accessed via `infisical run --` on the operator laptop.
 - **VM IDs**: Diglett VMs use 200–299, Machamp VMs use 100–199.
 - **IP addresses**: physical nodes use 192.168.0.4–19 (`.7` = alakazam-deploy), diglett-dns VM is special-cased at `.2`, Diglett VMs use 192.168.0.21–29, Machamp VMs use 192.168.0.30–49.
@@ -34,12 +34,12 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
 
 ```
 terraform/modules/proxmox-vm/  — shared VM module, edit here for VM-level changes
-terraform/diglett/            — Diglett VMs (DNS, HAOS, Infisical, Deploy)
-terraform/machamp/               — Machamp VMs (Ollama, OpenClaw, Dev, Services)
-services/dns/                  — AdGuard Home + Headscale + cloudflared
-services/diglett-infra/       — Infisical + Vaultwarden + Litestream
+terraform/diglett/            — Diglett VMs (DNS, HAOS)
+terraform/machamp/            — Machamp VMs (Infra, Services, Dev)
+services/dns/                 — AdGuard Home + Headscale + cloudflared
+services/machamp-infra/       — Infisical + Vaultwarden + Authentik + Litestream
 services/diglett-deploy/      — (not yet created)
-services/machamp/                — all Docker Compose services (Traefik, Jellyfin, etc.)
+services/machamp/             — all Docker Compose services (Traefik, Jellyfin, etc.)
 scripts/                       — bootstrap and init scripts (headless service setup)
 ansible/                       — push-only config management for VMs and physical devices
 docs/                          — architecture docs, plan, TODOs

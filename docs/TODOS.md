@@ -1,23 +1,21 @@
 # TODOs
 
-## OIDC with Authentik
+## OIDC Client Configuration for Authentik
 
-**What:** Deploy Authentik on `machamp-services` as the homelab OIDC identity provider, then wire headplane (and future services) to use it for SSO.
+**What:** Wire up OIDC clients in Authentik for Grafana, n8n, Headplane, and Headscale. Authentik itself is already deployed on `machamp-infra`.
 
-**Why:** headplane currently requires pasting a headscale API key at every login. OIDC gives a proper login flow and a single credential to manage. Authentik is the standard homelab choice — widely used, well documented, large library of pre-built integrations.
+**Why:** headplane currently requires pasting a headscale API key at every login. OIDC gives a proper login flow and a single credential to manage. Grafana and n8n also benefit from unified SSO.
 
 **Work:**
-1. Add `authentik-server`, `authentik-worker`, `postgres`, and `redis` to `services/machamp/docker-compose.yml`; mount persistent data to `/mnt/nas/docker/authentik`
-2. Add Traefik labels for `authentik.wsh` and `authentik.home`
-3. Headless bootstrap via Ansible: use Authentik's API to create the headplane OAuth2 provider and application (client ID + secret), write credentials to Infisical
-4. Add `oidc:` block to `services/dns/headplane/config.yaml`; pull client secret from Infisical at deploy time
-5. Optional: configure headscale itself to use Authentik OIDC for node registration
+1. Headless Authentik bootstrap via Ansible: use Authentik's API to create OAuth2 providers and applications for each service (client ID + secret), write credentials to Infisical
+2. Add `oidc:` block to `services/dns/headplane/config.yaml`; pull client secret from Infisical at deploy time
+3. Add OIDC environment variables to Grafana and n8n in `services/machamp/docker-compose.yml`
+4. Optional: configure headscale itself to use Authentik OIDC for node registration
 
 **Secret management:**
-- Authentik secret key and postgres password → Infisical
-- headplane OIDC client secret → Infisical, injected into headplane config by Ansible
+- headplane / Grafana / n8n OIDC client secrets → Infisical, injected by Ansible
 
-**Depends on:** `machamp-services` VM deployed, Traefik + step-ca running.
+**Depends on:** `machamp-infra` VM deployed and Authentik bootstrapped, `machamp-services` VM deployed, Traefik + step-ca running.
 
 ---
 
@@ -63,7 +61,7 @@ and breaks `.home` domain resolution.
 - `services` VMs: allow Docker bridge traffic
 - `diglett-dns`: allow DNS (53 TCP/UDP), AdGuard UI (3000 TCP) from LAN
 - `machamp-services`: allow Traefik (80, 443) from LAN and Tailscale
-- `diglett-infra`: allow Infisical (8080) and Vaultwarden (8083) from LAN/Tailscale
+- `machamp-infra`: allow Infisical (8080), Vaultwarden (80), and Authentik (9000) from LAN/Tailscale
 
 **Note:** Add UFW tasks back to `ansible/roles/base/tasks/main.yml` and per-role allowlists to each service role. The base role previously had UFW enabled — removed to unblock initial bring-up.
 

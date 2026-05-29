@@ -66,7 +66,7 @@ services:
       SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
       ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
     # No Traefik labels — routing handled by machamp Traefik file provider:
-    # services/machamp/traefik/dynamic/diglett-services.yml
+    # services/machamp/traefik/dynamic/infra-services.yml
 
   # Litestream — continuous WAL streaming for Vaultwarden SQLite to NFS.
   litestream:
@@ -80,3 +80,85 @@ services:
       - /mnt/nas/docker/vaultwarden-backup:/backup
       - ./litestream.yml:/etc/litestream.yml:ro
     command: replicate
+
+  # ── Authentik ──────────────────────────────────────────────────────────────
+  authentik-db:
+    # TODO: check https://hub.docker.com/_/postgres for latest stable 16.x tag
+    image: postgres:16-alpine
+    container_name: authentik-db
+    restart: unless-stopped
+    volumes:
+      - /var/lib/authentik/pg:/var/lib/postgresql/data   # local disk — not NFS
+    environment:
+      POSTGRES_USER: ${AUTHENTIK_DB_USER}
+      POSTGRES_PASSWORD: ${AUTHENTIK_DB_PASSWORD}
+      POSTGRES_DB: ${AUTHENTIK_DB_NAME}
+
+  authentik-redis:
+    image: redis:7.2-alpine
+    container_name: authentik-redis
+    restart: unless-stopped
+    command: --save 60 1 --loglevel warning
+
+  authentik-server:
+    # TODO: check https://github.com/goauthentik/authentik/releases for latest stable tag
+    image: ghcr.io/goauthentik/server:2024.12.3
+    container_name: authentik-server
+    restart: unless-stopped
+    command: server
+    depends_on:
+      - authentik-db
+      - authentik-redis
+    ports:
+      - "9000:9000"
+    environment:
+      AUTHENTIK_REDIS__HOST: authentik-redis
+      AUTHENTIK_POSTGRESQL__HOST: authentik-db
+      AUTHENTIK_POSTGRESQL__USER: ${AUTHENTIK_DB_USER}
+      AUTHENTIK_POSTGRESQL__NAME: ${AUTHENTIK_DB_NAME}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+    volumes:
+      - /mnt/nas/docker/authentik/media:/media
+      - /mnt/nas/docker/authentik/custom-templates:/templates
+
+  authentik-worker:
+    image: ghcr.io/goauthentik/server:2024.12.3
+    container_name: authentik-worker
+    restart: unless-stopped
+    command: worker
+    depends_on:
+      - authentik-db
+      - authentik-redis
+    environment:
+      AUTHENTIK_REDIS__HOST: authentik-redis
+      AUTHENTIK_POSTGRESQL__HOST: authentik-db
+      AUTHENTIK_POSTGRESQL__USER: ${AUTHENTIK_DB_USER}
+      AUTHENTIK_POSTGRESQL__NAME: ${AUTHENTIK_DB_NAME}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /mnt/nas/docker/authentik/media:/media
+      - /mnt/nas/docker/authentik/custom-templates:/templates
+
+  # ── Authentik PostgreSQL backup ────────────────────────────────────────────
+  authentik-backup:
+    image: postgres:16-alpine
+    container_name: authentik-backup
+    restart: unless-stopped
+    depends_on:
+      - authentik-db
+    volumes:
+      - /mnt/nas/docker/authentik-backups:/backups
+    environment:
+      PGPASSWORD: ${AUTHENTIK_DB_PASSWORD}
+    entrypoint: >
+      /bin/sh -c "
+        while true; do
+          pg_dump -h authentik-db -U ${AUTHENTIK_DB_USER} ${AUTHENTIK_DB_NAME}
+            > /backups/$$(date +%Y%m%d-%H%M%S).sql;
+          find /backups -maxdepth 1 -mtime +7 -name '*.sql' -delete;
+          sleep 21600;
+        done
+      "

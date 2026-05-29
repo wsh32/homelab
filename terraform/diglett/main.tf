@@ -65,32 +65,6 @@ module "dns" {
   ]
 }
 
-module "infra" {
-  source = "../modules/proxmox-vm"
-
-  node_name     = local.node
-  vm_id         = local.vms["diglett-infra"].vm_id
-  name          = "diglett-infra"
-  description   = "Infisical (secrets manager) + Vaultwarden (password manager)"
-  tags          = ["diglett", "infra", "infisical"]
-  image_file_id = proxmox_download_file.ubuntu_2404.id
-
-  cores        = 2
-  memory_mb    = 6144
-  disk_size_gb = 20
-  swap_size_gb = 2
-
-  ip_address         = "${local.vms["diglett-infra"].ip}/24"
-  gateway            = local.net.gateway
-  dns_servers        = local.net.dns
-  ssh_public_key     = var.ssh_public_key
-  vm_password        = var.vm_password
-  timezone           = var.timezone
-  tailscale_auth_key = var.tailscale_auth_key
-
-  extra_runcmd = []
-}
-
 # HAOS uses a dedicated VM resource — no cloud-init, restored from vzdump backup.
 resource "proxmox_virtual_environment_vm" "haos" {
   node_name   = local.node

@@ -1,5 +1,5 @@
-# External backends for Diglett-hosted services routed through Machamp's Traefik.
-# Traefik on Machamp reaches Diglett services directly via LAN.
+# External backends for machamp-infra services routed through Machamp's Traefik.
+# machamp-infra runs on 192.168.0.32 — a separate VM on the same node.
 
 http:
   routers:
@@ -23,12 +23,26 @@ http:
       entryPoints: [web]
       service: vault-svc
 
+    authentik-wsh:
+      rule: Host(`authentik.wsh`)
+      entryPoints: [websecure]
+      tls: true
+      service: authentik-svc
+    authentik-home:
+      rule: Host(`authentik.home`)
+      entryPoints: [web]
+      service: authentik-svc
+
   services:
     infisical-svc:
       loadBalancer:
         servers:
-          - url: http://192.168.0.21:8080
+          - url: http://192.168.0.32:8080
     vault-svc:
       loadBalancer:
         servers:
-          - url: http://192.168.0.21:80
+          - url: http://192.168.0.32:80
+    authentik-svc:
+      loadBalancer:
+        servers:
+          - url: http://192.168.0.32:9000

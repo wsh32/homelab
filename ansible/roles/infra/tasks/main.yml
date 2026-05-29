@@ -1,20 +1,20 @@
 ---
-# Infra role — deploys the services/diglett-infra/ Docker Compose stack to diglett-infra.
+# Infra role — deploys the services/machamp-infra/ Docker Compose stack to machamp-infra.
 # Requires: base role (already run), Docker installed via cloud-init at VM creation.
 
 - name: Create services directory
   ansible.builtin.file:
-    path: /home/{{ ansible_user }}/homelab/services/diglett-infra
+    path: /home/{{ ansible_user }}/homelab/services/machamp-infra
     state: directory
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: "0755"
   become: true
 
-- name: Sync services/diglett-infra/ from deploy VM
+- name: Sync services/machamp-infra/ from deploy VM
   ansible.posix.synchronize:
-    src: "{{ playbook_dir }}/../services/diglett-infra/"
-    dest: /home/{{ ansible_user }}/homelab/services/diglett-infra/
+    src: "{{ playbook_dir }}/../services/machamp-infra/"
+    dest: /home/{{ ansible_user }}/homelab/services/machamp-infra/
     delete: true
     recursive: true
     rsync_opts:
@@ -35,12 +35,13 @@
     group: "{{ item.group }}"
     mode: "{{ item.mode }}"
   loop:
-    # MongoDB runs as uid 999; directory must be writable by that user.
+    # MongoDB and PostgreSQL both run as uid 999 in their official images.
     - { path: /var/lib/infisical/mongo, owner: "999", group: "999", mode: "0750" }
+    - { path: /var/lib/authentik/pg,    owner: "999", group: "999", mode: "0750" }
     - { path: /var/lib/vaultwarden,     owner: "0",   group: "0",   mode: "0755" }
   become: true
 
-- name: Create NFS backup directories
+- name: Create NFS backup and media directories
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
@@ -48,6 +49,9 @@
   loop:
     - /mnt/nas/docker/infisical-backups
     - /mnt/nas/docker/vaultwarden-backup
+    - /mnt/nas/docker/authentik-backups
+    - /mnt/nas/docker/authentik/media
+    - /mnt/nas/docker/authentik/custom-templates
   become: true
 
 - name: Generate bootstrap secrets (idempotent — skipped if NFS sentinel exists)
@@ -62,6 +66,10 @@
       printf "INFISICAL_ENCRYPTION_KEY=%s\n" "$(openssl rand -hex 16)" >> "$tmp"
       printf "VAULTWARDEN_ADMIN_TOKEN=%s\n" "$(openssl rand -hex 32)"  >> "$tmp"
       printf "VAULTWARDEN_SIGNUPS_ALLOWED=true\n"                   >> "$tmp"
+      printf "AUTHENTIK_DB_USER=authentik\n"                        >> "$tmp"
+      printf "AUTHENTIK_DB_NAME=authentik\n"                        >> "$tmp"
+      printf "AUTHENTIK_DB_PASSWORD=%s\n" "$(openssl rand -hex 16)" >> "$tmp"
+      printf "AUTHENTIK_SECRET_KEY=%s\n" "$(openssl rand -hex 32)"  >> "$tmp"
       chmod 600 "$tmp"
       cp "$tmp" "$nfs_secrets"
       mv "$tmp" "$local_env"
@@ -87,7 +95,7 @@
 - name: Link /etc/homelab.env as compose .env for variable substitution
   ansible.builtin.file:
     src: /etc/homelab.env
-    dest: /home/{{ ansible_user }}/homelab/services/diglett-infra/.env
+    dest: /home/{{ ansible_user }}/homelab/services/machamp-infra/.env
     state: link
     force: true
   become: true
@@ -95,4 +103,4 @@
 - name: Deploy infra stack
   ansible.builtin.include_tasks: ../../../tasks/compose-deploy.yml
   vars:
-    compose_project_src: /home/{{ ansible_user }}/homelab/services/diglett-infra
+    compose_project_src: /home/{{ ansible_user }}/homelab/services/machamp-infra

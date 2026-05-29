@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Bootstrap Infisical on a freshly provisioned diglett-infra VM.
+# Bootstrap Infisical on a freshly provisioned machamp-infra VM.
 # Creates admin user, organization, workspace, and machine identity.
 # Run once after Terraform + cloud-init completes.
 #
 # Usage:
-#   INFISICAL_HOST=http://192.168.0.21:8080 ./scripts/infisical-bootstrap.sh
+#   INFISICAL_HOST=http://192.168.0.32:8080 ./scripts/infisical-bootstrap.sh
 #
 # Outputs workspace_id, client_id, client_secret — add to terraform.tfvars.
 
 set -euo pipefail
 
-INFISICAL_HOST="${INFISICAL_HOST:-http://192.168.0.21:8080}"
+INFISICAL_HOST="${INFISICAL_HOST:-http://192.168.0.32:8080}"
 ADMIN_EMAIL="${INFISICAL_ADMIN_EMAIL:-admin@homelab.local}"
 ADMIN_PASSWORD="${INFISICAL_ADMIN_PASSWORD:-}"
 

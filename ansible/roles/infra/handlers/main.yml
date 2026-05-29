@@ -1,6 +1,6 @@
 ---
-- name: Restart diglett-infra stack
+- name: Restart machamp-infra stack
   community.docker.docker_compose_v2:
-    project_src: /home/{{ ansible_user }}/homelab/services/diglett-infra
+    project_src: /home/{{ ansible_user }}/homelab/services/machamp-infra
     state: restarted
   become: true

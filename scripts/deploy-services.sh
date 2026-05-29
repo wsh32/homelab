@@ -23,8 +23,8 @@ if echo "$CHANGED" | grep -q "^services/dns/"; then
   deploy_service "diglett-dns" "services/dns"
 fi
 
-if echo "$CHANGED" | grep -q "^services/diglett-infra/"; then
-  deploy_service "diglett-infra" "services/diglett-infra"
+if echo "$CHANGED" | grep -q "^services/machamp-infra/"; then
+  deploy_service "machamp-infra" "services/machamp-infra"
 fi
 
 if echo "$CHANGED" | grep -q "^services/diglett-deploy/"; then

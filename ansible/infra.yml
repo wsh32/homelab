@@ -1,10 +1,10 @@
 ---
-# Deploy the diglett-infra stack (Infisical + Vaultwarden + MongoDB + Redis + Litestream)
+# Deploy the machamp-infra stack (Infisical + Vaultwarden + MongoDB + Redis + Litestream)
 # and bootstrap Infisical on first run.
 # Idempotent: safe to re-run; bootstrap is skipped after first successful run.
 #
 # Prerequisites:
-#   - diglett-infra VM must be up and cloud-init must have completed
+#   - machamp-infra VM must be up and cloud-init must have completed
 #   - Alakazam NFS must be reachable at 192.168.0.4:/mnt/apps/docker
 #   - Infisical CLI must be installed on alakazam-deploy (ansible/roles/deploy)
 #
@@ -15,7 +15,7 @@
 #   ansible-playbook ansible/infra.yml
 
 - name: Deploy infra stack
-  hosts: diglett-infra
+  hosts: machamp-infra
   gather_facts: true
 
   vars:
@@ -33,7 +33,7 @@
     - name: Check if Infisical is already bootstrapped
       ansible.builtin.stat:
         path: /var/lib/infisical/.bootstrapped
-      delegate_to: diglett-infra
+      delegate_to: machamp-infra
       become: true
       register: bootstrap_done
 
@@ -44,7 +44,7 @@
 
     - name: Wait for Infisical to be ready
       ansible.builtin.wait_for:
-        host: 192.168.0.21
+        host: 192.168.0.32
         port: 8080
         timeout: 120
       when: not bootstrap_done.stat.exists
@@ -53,7 +53,7 @@
       ansible.builtin.shell:
         cmd: "{{ playbook_dir }}/../scripts/infisical-bootstrap.sh"
       environment:
-        INFISICAL_HOST: http://192.168.0.21:8080
+        INFISICAL_HOST: http://192.168.0.32:8080
         INFISICAL_ADMIN_EMAIL: admin@homelab.local
         INFISICAL_ADMIN_PASSWORD: "{{ lookup('env', 'INFISICAL_ADMIN_PASSWORD') }}"
       register: bootstrap_result
@@ -65,13 +65,13 @@
         msg: "{{ bootstrap_result.stdout_lines }}"
       when: not bootstrap_done.stat.exists
 
-    - name: Write bootstrap marker on diglett-infra
+    - name: Write bootstrap marker on machamp-infra
       ansible.builtin.file:
         path: /var/lib/infisical/.bootstrapped
         state: touch
         mode: "0600"
         owner: root
         group: root
-      delegate_to: diglett-infra
+      delegate_to: machamp-infra
       become: true
       when: not bootstrap_done.stat.exists
