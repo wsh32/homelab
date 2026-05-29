@@ -6,6 +6,10 @@ variable "node_name" {
 variable "vm_id" {
   description = "Proxmox VM ID"
   type        = number
+  validation {
+    condition     = var.vm_id >= 100 && var.vm_id <= 299
+    error_message = "vm_id must be in the homelab range 100–299 (Machamp: 100–199, Diglett: 200–299)."
+  }
 }
 
 variable "name" {
@@ -51,23 +55,29 @@ variable "image_file_id" {
 variable "ip_address" {
   description = "Static IP address with CIDR (e.g. 192.168.0.21/24)"
   type        = string
+  validation {
+    condition     = can(cidrhost(var.ip_address, 0))
+    error_message = "ip_address must be a valid CIDR notation address (e.g. 192.168.0.21/24)."
+  }
 }
 
 variable "gateway" {
   description = "Default gateway"
   type        = string
-  default     = "192.168.0.1"
 }
 
 variable "dns_servers" {
   description = "DNS servers for the VM"
   type        = list(string)
-  default     = ["192.168.0.2", "8.8.8.8"]
 }
 
 variable "ssh_public_key" {
   description = "SSH public key for the default user"
   type        = string
+  validation {
+    condition     = length(var.ssh_public_key) > 0
+    error_message = "ssh_public_key must not be empty."
+  }
 }
 
 variable "timezone" {
@@ -92,6 +102,10 @@ variable "tailscale_auth_key" {
   description = "Tailscale one-time auth key for this VM"
   type        = string
   sensitive   = true
+  validation {
+    condition     = length(var.tailscale_auth_key) > 0
+    error_message = "tailscale_auth_key must not be empty."
+  }
 }
 
 variable "extra_runcmd" {

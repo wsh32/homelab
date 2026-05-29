@@ -2,7 +2,7 @@ terraform {
   required_providers {
     proxmox = {
       source  = "bpg/proxmox"
-      version = "~> 0.73"
+      version = "~> 0.73.0"
     }
   }
 }
@@ -104,8 +104,10 @@ resource "proxmox_virtual_environment_vm" "vm" {
   }
 
   lifecycle {
+    # To protect a specific VM from accidental destruction, use an inline resource
+    # instead of this module (see proxmox_virtual_environment_vm.haos in diglett/main.tf).
     ignore_changes = [
-      # Don't recreate VM if the source image is re-downloaded
+      # disk[0] is stable as long as the root disk remains first in the config
       disk[0].file_id,
     ]
   }
