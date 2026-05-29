@@ -35,10 +35,10 @@
     group: "{{ item.group }}"
     mode: "{{ item.mode }}"
   loop:
-    # MongoDB and PostgreSQL both run as uid 999 in their official images.
-    - { path: /var/lib/infisical/mongo, owner: "999", group: "999", mode: "0750" }
-    - { path: /var/lib/authentik/pg,    owner: "999", group: "999", mode: "0750" }
-    - { path: /var/lib/vaultwarden,     owner: "0",   group: "0",   mode: "0755" }
+    # PostgreSQL official image runs as uid 999 (postgres user).
+    - { path: /var/lib/infisical/pg,  owner: "999", group: "999", mode: "0750" }
+    - { path: /var/lib/authentik/pg,  owner: "999", group: "999", mode: "0750" }
+    - { path: /var/lib/vaultwarden,   owner: "0",   group: "0",   mode: "0755" }
   become: true
 
 - name: Create NFS backup directories
@@ -71,9 +71,10 @@
     local_env=/etc/homelab.env
     if [ ! -f "$nfs_secrets" ]; then
       tmp=$(mktemp)
-      printf "MONGO_ROOT_USER=infisical\n"                          > "$tmp"
-      printf "MONGO_ROOT_PASSWORD=%s\n" "$(openssl rand -hex 16)"  >> "$tmp"
-      printf "INFISICAL_AUTH_SECRET=%s\n" "$(openssl rand -hex 32)"  >> "$tmp"
+      printf "INFISICAL_DB_USER=infisical\n"                          > "$tmp"
+      printf "INFISICAL_DB_NAME=infisical\n"                         >> "$tmp"
+      printf "INFISICAL_DB_PASSWORD=%s\n" "$(openssl rand -hex 16)" >> "$tmp"
+      printf "INFISICAL_AUTH_SECRET=%s\n" "$(openssl rand -hex 32)" >> "$tmp"
       printf "INFISICAL_ENCRYPTION_KEY=%s\n" "$(openssl rand -hex 16)" >> "$tmp"
       printf "VAULTWARDEN_ADMIN_TOKEN=%s\n" "$(openssl rand -hex 32)"  >> "$tmp"
       printf "VAULTWARDEN_SIGNUPS_ALLOWED=true\n"                   >> "$tmp"
