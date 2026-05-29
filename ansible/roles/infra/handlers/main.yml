@@ -1,0 +1,6 @@
+---
+- name: Restart diglett-infra stack
+  community.docker.docker_compose_v2:
+    project_src: /home/{{ ansible_user }}/homelab/services/diglett-infra
+    state: restarted
+  become: true

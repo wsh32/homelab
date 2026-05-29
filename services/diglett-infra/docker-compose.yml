@@ -1,7 +1,7 @@
 services:
   # ── Infisical ─────────────────────────────────────────────────────────────
   infisical-db:
-    image: mongo:7
+    image: mongo:7.0
     container_name: infisical-db
     restart: unless-stopped
     volumes:
@@ -11,11 +11,14 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
 
   infisical-redis:
-    image: redis:7-alpine
+    image: redis:7.2-alpine
     container_name: infisical-redis
     restart: unless-stopped
 
   infisical:
+    # TODO: pin to a specific version tag. Check https://hub.docker.com/r/infisical/infisical/tags
+    # before pinning — verify the tag still supports MongoDB (DB_CONNECTION_URI mongo://...).
+    # Infisical began a PostgreSQL migration in late 2023; newer tags may drop MongoDB support.
     image: infisical/infisical:latest
     container_name: infisical
     restart: unless-stopped
@@ -33,7 +36,7 @@ services:
 
   # ── MongoDB backup ─────────────────────────────────────────────────────────
   infisical-backup:
-    image: mongo:7
+    image: mongo:7.0
     container_name: infisical-backup
     restart: unless-stopped
     depends_on:
@@ -52,28 +55,22 @@ services:
 
   # ── Vaultwarden ────────────────────────────────────────────────────────────
   vaultwarden:
-    image: vaultwarden/server:latest
+    image: vaultwarden/server:1.32.0
     container_name: vaultwarden
     restart: unless-stopped
     volumes:
       - /var/lib/vaultwarden:/data   # local disk — backed up continuously by litestream
     environment:
       DOMAIN: https://vault.wsh
-      # SIGNUPS_ALLOWED=true on first boot; set to false after registering your account.
+      # SIGNUPS_ALLOWED=true on first boot; set to false in .secrets.env after registering.
       SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
       ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.vault-wsh.rule=Host(`vault.wsh`)"
-      - "traefik.http.routers.vault-wsh.entrypoints=websecure"
-      - "traefik.http.routers.vault-wsh.tls=true"
-      - "traefik.http.routers.vault-home.rule=Host(`vault.home`)"
-      - "traefik.http.routers.vault-home.entrypoints=web"
-      - "traefik.http.services.vault-svc.loadbalancer.server.port=80"
+    # No Traefik labels — routing handled by machamp Traefik file provider:
+    # services/machamp/traefik/dynamic/diglett-services.yml
 
   # Litestream — continuous WAL streaming for Vaultwarden SQLite to NFS.
   litestream:
-    image: litestream/litestream:latest
+    image: litestream/litestream:v0.3.13
     container_name: litestream
     restart: unless-stopped
     depends_on:

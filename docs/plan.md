@@ -180,9 +180,11 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
     deploy VM.
 11. **`terraform apply`** — provisions all remaining VMs. Cloud-init handles Docker
     install and NFS mounts. VMs do not yet have Infisical credentials.
-12. **`ansible-playbook ansible/bootstrap-infisical.yml`** — bootstraps Infisical (admin
-    user, org, workspace), creates a scoped machine identity per VM, writes credentials
-    to `/etc/infisical.env` (root-owned, mode 0600) on each VM that needs secrets.
+12. **`INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`** — deploys the
+    diglett-infra stack (Infisical, Vaultwarden, MongoDB, Redis, Litestream) and bootstraps
+    Infisical on first run (admin user `admin@homelab.local`, org, workspace). Outputs
+    `workspace_id`, `client_id`, `client_secret` — add these to `terraform.tfvars`. Idempotent
+    on re-run (bootstrap skipped after first successful run).
 13. **`ansible-playbook ansible/site.yml`** — brings up all services. Each service role
     generates its own secrets, seeds them to Infisical, writes config, and starts the
     container. Vaultwarden account creation attempted via the Bitwarden CLI (`bw register`);
@@ -355,10 +357,10 @@ a valid config on startup and skips the wizard entirely.
 
 Bootstrapped via `infisical bootstrap` CLI (requires Infisical CLI ≥ 0.28) after first start.
 
-- Playbook: `ansible/bootstrap-infisical.yml`
-- Creates: admin user, organization, workspace, one scoped machine identity per VM
-- Distributes credentials to each VM at `/etc/infisical.env` (root-owned, mode 0600)
-- Idempotent via `--ignore-if-bootstrapped` flag
+- Playbook: `ansible/infra.yml` (Bootstrap Infisical play)
+- Creates: admin user (`admin@homelab.local`), organization, workspace
+- Idempotent: skipped after first run via marker at `/var/lib/infisical/.bootstrapped` on diglett-infra
+- Run: `INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`
 
 ### Jellyfin
 
@@ -495,9 +497,14 @@ At VM boot, a systemd unit runs `infisical export --format dotenv > /etc/homelab
 before Docker Compose starts. Services read `/etc/homelab.env` via `env_file:`. The file
 is ephemeral and regenerated on each boot.
 
-Infisical credentials (`client_id`, `client_secret`, `workspace_id`) are distributed to
-each VM by `ansible/bootstrap-infisical.yml`, written to `/etc/infisical.env` (root-owned,
-mode 0600). This file is the only persistent secret on each VM and is the key that unlocks
+Bootstrap secrets for diglett-infra itself (`MONGO_ROOT_PASSWORD`, `INFISICAL_AUTH_SECRET`,
+`INFISICAL_ENCRYPTION_KEY`, `VAULTWARDEN_ADMIN_TOKEN`) are generated once by the `infra`
+Ansible role, written to `/etc/homelab.env` (root:root, 0600) on diglett-infra, and
+NFS-persisted at `/mnt/nas/docker/infisical-backups/.secrets.env` so they survive VM
+rebuilds without requiring vzdump restore.
+
+Machine identity credentials for other VMs (`client_id`, `client_secret`, `workspace_id`) are
+written to `/etc/infisical.env` (root-owned, mode 0600) on each VM. This file is the only persistent secret on each VM and is the key that unlocks
 all others.
 
 Service secrets are seeded to Infisical by each service's Ansible role at bring-up time —
@@ -647,7 +654,7 @@ NUT clients: Machamp, Diglett, Alakazam (shut down gracefully on power loss)
 | HAOS provisioning | Terraform provisions VM via qcow2 image download; config restored from Proxmox vzdump backup |
 | Reverse proxy for Diglett services | Single Traefik on Machamp; Diglett services as external backends by local IP |
 | Vaultwarden/Infisical DB location | Local VM disk; Vaultwarden via Litestream (continuous), Infisical via mongodump every 6h |
-| Infisical bootstrap | `ansible/bootstrap-infisical.yml` runs after VMs are provisioned. Creates admin, org, workspace, and per-VM machine identities. Credentials written to `/etc/infisical.env` on each VM by Ansible — not via Terraform/cloud-init. |
+| Infisical bootstrap | `ansible/infra.yml` deploys diglett-infra stack and bootstraps Infisical (admin, org, workspace) on first run. Run as: `INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`. Idempotent on re-run. |
 | Infisical role | Single source of truth for all machine-consumed secrets. VMs fetch via `infisical export` at boot using credentials in `/etc/infisical.env`. Service secrets seeded by each service's Ansible role at bring-up time; external API keys added manually. |
 | Vaultwarden role | Human-consumed secrets only (web UI admin passwords). Populated by each service's Ansible role after the service is configured. |
 | Vaultwarden account creation | Attempted automatically via `bw register` (Bitwarden CLI) during `ansible/site.yml`. One manual browser registration accepted as fallback if CLI doesn't support it. Account persists on NFS — never repeated. |

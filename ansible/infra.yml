@@ -1,0 +1,77 @@
+---
+# Deploy the diglett-infra stack (Infisical + Vaultwarden + MongoDB + Redis + Litestream)
+# and bootstrap Infisical on first run.
+# Idempotent: safe to re-run; bootstrap is skipped after first successful run.
+#
+# Prerequisites:
+#   - diglett-infra VM must be up and cloud-init must have completed
+#   - Alakazam NFS must be reachable at 192.168.0.4:/mnt/apps/docker
+#   - Infisical CLI must be installed on alakazam-deploy (ansible/roles/deploy)
+#
+# Usage (first run — prompts for bootstrap password):
+#   INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml
+#
+# Usage (subsequent runs — bootstrap skipped, env var still required but unused):
+#   ansible-playbook ansible/infra.yml
+
+- name: Deploy infra stack
+  hosts: diglett-infra
+  gather_facts: true
+
+  vars:
+    network: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
+    nas_ip: "{{ network.nodes.alakazam.ip }}"
+
+  roles:
+    - role: infra
+
+- name: Bootstrap Infisical
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Check if Infisical is already bootstrapped
+      ansible.builtin.stat:
+        path: /var/lib/infisical/.bootstrapped
+      delegate_to: diglett-infra
+      become: true
+      register: bootstrap_done
+
+    - name: Fail if INFISICAL_ADMIN_PASSWORD not set (needed only for first bootstrap)
+      ansible.builtin.fail:
+        msg: "Set INFISICAL_ADMIN_PASSWORD env var for initial Infisical bootstrap."
+      when: not bootstrap_done.stat.exists and lookup('env', 'INFISICAL_ADMIN_PASSWORD') == ''
+
+    - name: Wait for Infisical to be ready
+      ansible.builtin.wait_for:
+        host: 192.168.0.21
+        port: 8080
+        timeout: 120
+      when: not bootstrap_done.stat.exists
+
+    - name: Run infisical-bootstrap.sh
+      ansible.builtin.shell:
+        cmd: "{{ playbook_dir }}/../scripts/infisical-bootstrap.sh"
+      environment:
+        INFISICAL_HOST: http://192.168.0.21:8080
+        INFISICAL_ADMIN_EMAIL: admin@homelab.local
+        INFISICAL_ADMIN_PASSWORD: "{{ lookup('env', 'INFISICAL_ADMIN_PASSWORD') }}"
+      register: bootstrap_result
+      no_log: true
+      when: not bootstrap_done.stat.exists
+
+    - name: Display bootstrap credentials (add to terraform.tfvars)
+      ansible.builtin.debug:
+        msg: "{{ bootstrap_result.stdout_lines }}"
+      when: not bootstrap_done.stat.exists
+
+    - name: Write bootstrap marker on diglett-infra
+      ansible.builtin.file:
+        path: /var/lib/infisical/.bootstrapped
+        state: touch
+        mode: "0600"
+        owner: root
+        group: root
+      delegate_to: diglett-infra
+      become: true
+      when: not bootstrap_done.stat.exists
