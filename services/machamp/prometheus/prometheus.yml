@@ -8,11 +8,7 @@ scrape_configs:
       - targets: [localhost:9090]
 
   - job_name: node
-    static_configs:
-      # Add node_exporter targets as VMs are stood up.
-      - targets:
-          - diglett-infra:9100
-          - alakazam-deploy:9100
-          - diglett-dns:9100
-          - machamp-services:9100
-          - machamp-dev:9100
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/*.json
+        refresh_interval: 60s
