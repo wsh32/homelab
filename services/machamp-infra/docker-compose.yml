@@ -70,7 +70,7 @@ services:
 
   # Litestream — continuous WAL streaming for Vaultwarden SQLite to NFS.
   litestream:
-    image: litestream/litestream:v0.3.13
+    image: litestream/litestream:0.5.11
     container_name: litestream
     restart: unless-stopped
     depends_on:
