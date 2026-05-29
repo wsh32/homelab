@@ -1,16 +1,14 @@
 # Terraform
-**/.terraform/
-**/*.tfstate
-**/*.tfstate.backup
-**/*.tfstate.*.backup
-**/*.tfvars
-**/.terraform.lock.hcl
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+*.tfvars
 
 # Secrets
-**/.env
-services/dns/headplane/headplane.env
-**/*.pem
-**/*.key
+*.env
+*.pem
+*.key
 
 # Headscale runtime state
 services/vps/headscale/*.pem
