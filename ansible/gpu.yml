@@ -1,0 +1,12 @@
+---
+# Install NVIDIA drivers and container toolkit on GPU-enabled VMs.
+# Run after services.yml (Docker must be installed first).
+#
+# Usage: ansible-playbook ansible/gpu.yml
+
+- name: Configure GPU VMs
+  hosts: gpu
+  gather_facts: true
+
+  roles:
+    - role: nvidia

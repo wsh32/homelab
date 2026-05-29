@@ -103,6 +103,16 @@ resource "proxmox_virtual_environment_vm" "vm" {
     user_data_file_id = proxmox_virtual_environment_file.user_data.id
   }
 
+  dynamic "hostpci" {
+    for_each = var.hostpci_devices
+    content {
+      device = "hostpci${hostpci.key}"
+      id     = hostpci.value
+      pcie   = true
+      rombar = true
+    }
+  }
+
   lifecycle {
     ignore_changes = [
       # Don't recreate VM if the source image is re-downloaded

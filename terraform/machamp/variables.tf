@@ -31,3 +31,9 @@ variable "tailscale_auth_key" {
   type        = string
   sensitive   = true
 }
+
+variable "services_gpu_pci_ids" {
+  description = "PCI IDs for Quadro P2200 GPU passthrough to machamp-services. Find via: ssh root@machamp lspci | grep -i quadro"
+  type        = list(string)
+  default     = []
+}

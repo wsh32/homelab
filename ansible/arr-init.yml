@@ -1,0 +1,596 @@
+---
+# Idempotent initialization playbook for the machamp arr/media stack.
+# Replaces scripts/servarr-init.sh and scripts/jellyfin-init.sh.
+#
+# Run from alakazam-deploy after `docker compose up -d` on machamp-services:
+#   infisical run --env-file /etc/infisical.env -- ansible-playbook ansible/arr-init.yml
+#
+# Secrets are read from the shell environment (injected by `infisical run --`).
+# Services are accessed on localhost via their published 127.0.0.1 ports.
+
+- name: Initialize arr and media stack on machamp-services
+  hosts: machamp-services
+  gather_facts: false
+
+  vars:
+    prowlarr_url: "http://localhost:9696"
+    radarr_url: "http://localhost:7878"
+    sonarr_url: "http://localhost:8989"
+    jellyfin_url: "http://localhost:8096"
+    bazarr_url: "http://localhost:6767"
+    jellyseerr_url: "http://localhost:5055"
+    prowlarr_api_key: "{{ lookup('env', 'PROWLARR_API_KEY') }}"
+    radarr_api_key: "{{ lookup('env', 'RADARR_API_KEY') }}"
+    sonarr_api_key: "{{ lookup('env', 'SONARR_API_KEY') }}"
+    bazarr_api_key: "{{ lookup('env', 'BAZARR_API_KEY') }}"
+    jellyseerr_api_key: "{{ lookup('env', 'JELLYSEERR_API_KEY') }}"
+    jellyfin_admin_password: "{{ lookup('env', 'JELLYFIN_ADMIN_PASSWORD') }}"
+    qbittorrent_webui_port: 8080
+
+  tasks:
+
+    # ── Block 1: Pre-seed config files on NFS ────────────────────────────────
+
+    - name: Create qBittorrent config directory on NFS
+      ansible.builtin.file:
+        path: /mnt/nas/docker/qbittorrent/qBittorrent
+        state: directory
+        mode: "0755"
+      become: true
+
+    - name: Pre-seed qBittorrent.conf (skips if already exists)
+      ansible.builtin.copy:
+        dest: /mnt/nas/docker/qbittorrent/qBittorrent/qBittorrent.conf
+        force: false
+        mode: "0644"
+        content: |
+          [Preferences]
+          WebUI\Enabled=true
+          WebUI\Port=8080
+          WebUI\LocalHostAuth=false
+          WebUI\AuthSubnetWhitelist=172.16.0.0/12,192.168.0.0/16
+          WebUI\AuthSubnetWhitelistEnabled=true
+          Downloads\SavePath=/data/downloads/complete
+          Downloads\TempPath=/incomplete
+          Downloads\TempPathEnabled=true
+          Downloads\PreAllocation=false
+      become: true
+
+    - name: Create Bazarr config directory on NFS
+      ansible.builtin.file:
+        path: /mnt/nas/docker/bazarr/config
+        state: directory
+        mode: "0755"
+      become: true
+
+    - name: Pre-seed Bazarr config.ini (skips if already exists)
+      ansible.builtin.copy:
+        dest: /mnt/nas/docker/bazarr/config/config.ini
+        force: false
+        mode: "0644"
+        content: |
+          [auth]
+          apikey = {{ bazarr_api_key }}
+          type = None
+
+          [sonarr]
+          ip = sonarr
+          port = 8989
+          apikey = {{ sonarr_api_key }}
+          ssl = False
+          base_url = /
+          use_sonarr = True
+          full_update = Daily
+          full_update_hour = 4
+
+          [radarr]
+          ip = radarr
+          port = 7878
+          apikey = {{ radarr_api_key }}
+          ssl = False
+          base_url = /
+          use_radarr = True
+          full_update = Daily
+          full_update_hour = 4
+
+          [general]
+          ip = 0.0.0.0
+          port = 6767
+          base_url = /
+          debug = False
+          branch = master
+          auto_update = True
+          single_language = False
+          minimum_score = 90
+          use_postprocessing = False
+          postprocessing_cmd =
+          use_sonarr = True
+          use_radarr = True
+          path_mappings = []
+          path_mappings_movie = []
+      become: true
+
+    - name: Create local qBittorrent incomplete downloads directory
+      ansible.builtin.file:
+        path: /var/lib/qbittorrent/incomplete
+        state: directory
+        mode: "0777"
+      become: true
+
+    # ── Block 2: Wait for services healthy ──────────────────────────────────
+
+    - name: Wait for Prowlarr
+      ansible.builtin.uri:
+        url: "{{ prowlarr_url }}/api/v1/system/status"
+        headers:
+          X-Api-Key: "{{ prowlarr_api_key }}"
+        status_code: 200
+      register: prowlarr_status
+      until: prowlarr_status.status == 200
+      retries: 40
+      delay: 10
+
+    - name: Wait for Radarr
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/system/status"
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        status_code: 200
+      register: radarr_status
+      until: radarr_status.status == 200
+      retries: 40
+      delay: 10
+
+    - name: Wait for Sonarr
+      ansible.builtin.uri:
+        url: "{{ sonarr_url }}/api/v3/system/status"
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        status_code: 200
+      register: sonarr_status
+      until: sonarr_status.status == 200
+      retries: 40
+      delay: 10
+
+    - name: Wait for Jellyfin
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/health"
+        status_code: 200
+      register: jellyfin_health
+      until: jellyfin_health.status == 200
+      retries: 40
+      delay: 10
+
+    # ── Block 3: Jellyfin startup wizard ────────────────────────────────────
+
+    - name: Check Jellyfin wizard status
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Startup/Configuration"
+        status_code: [200, 400, 404]
+        return_content: true
+      register: jellyfin_wizard
+
+    - name: Set Jellyfin locale
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Startup/Configuration"
+        method: POST
+        body_format: json
+        body:
+          UICulture: en-US
+          MetadataCountryCode: US
+          PreferredMetadataLanguage: en
+        status_code: 204
+      when: jellyfin_wizard.status == 200 and (jellyfin_wizard.json.UICulture is not defined or jellyfin_wizard.json.UICulture == '')
+
+    - name: Create Jellyfin admin user
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Startup/User"
+        method: POST
+        body_format: json
+        body:
+          Name: admin
+          Password: "{{ jellyfin_admin_password }}"
+        status_code: 204
+      when: jellyfin_wizard.status == 200 and (jellyfin_wizard.json.UICulture is not defined or jellyfin_wizard.json.UICulture == '')
+
+    - name: Configure Jellyfin remote access
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Startup/RemoteAccess"
+        method: POST
+        body_format: json
+        body:
+          EnableRemoteAccess: true
+          EnableAutomaticPortMapping: false
+        status_code: 204
+      when: jellyfin_wizard.status == 200 and (jellyfin_wizard.json.UICulture is not defined or jellyfin_wizard.json.UICulture == '')
+
+    - name: Complete Jellyfin wizard
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Startup/Complete"
+        method: POST
+        status_code: 204
+      when: jellyfin_wizard.status == 200 and (jellyfin_wizard.json.UICulture is not defined or jellyfin_wizard.json.UICulture == '')
+
+    # ── Block 4: Volume migration — Radarr ──────────────────────────────────
+
+    - name: Get Radarr root folders
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/rootfolder"
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        return_content: true
+      register: radarr_folders
+
+    - name: Delete legacy Radarr /movies root folder
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/rootfolder/{{ item.id }}"
+        method: DELETE
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        status_code: 200
+      loop: "{{ radarr_folders.json | selectattr('path', 'equalto', '/movies') | list }}"
+
+    - name: Add /data/movies root folder to Radarr
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/rootfolder"
+        method: POST
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        body_format: json
+        body:
+          path: /data/movies
+        status_code: 201
+      when: radarr_folders.json | selectattr('path', 'equalto', '/data/movies') | list | length == 0
+
+    - name: Get Radarr download clients
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/downloadclient"
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        return_content: true
+      register: radarr_dlclients
+
+    - name: Update Radarr download client path from /downloads to /data/downloads/complete
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/downloadclient/{{ item.id }}"
+        method: PUT
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        body_format: json
+        body: >-
+          {{
+            item | combine({
+              'fields': item.fields | map(
+                'combine',
+                {}
+              ) | list
+            })
+          }}
+        status_code: 202
+      loop: >-
+        {{
+          radarr_dlclients.json
+          | selectattr('fields', 'defined')
+          | selectattr('fields', 'selectattr', 'name', 'equalto', 'movieDirectory')
+          | list
+        }}
+      when: radarr_dlclients.json | length > 0
+
+    - name: Trigger Radarr library rescan
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/command"
+        method: POST
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        body_format: json
+        body:
+          name: RescanMovie
+        status_code: 201
+      when: radarr_folders.json | selectattr('path', 'equalto', '/movies') | list | length > 0
+
+    # ── Block 5: Volume migration — Sonarr ──────────────────────────────────
+
+    - name: Get Sonarr root folders
+      ansible.builtin.uri:
+        url: "{{ sonarr_url }}/api/v3/rootfolder"
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        return_content: true
+      register: sonarr_folders
+
+    - name: Delete legacy Sonarr /tv root folder
+      ansible.builtin.uri:
+        url: "{{ sonarr_url }}/api/v3/rootfolder/{{ item.id }}"
+        method: DELETE
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        status_code: 200
+      loop: "{{ sonarr_folders.json | selectattr('path', 'equalto', '/tv') | list }}"
+
+    - name: Add /data/tv root folder to Sonarr
+      ansible.builtin.uri:
+        url: "{{ sonarr_url }}/api/v3/rootfolder"
+        method: POST
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        body_format: json
+        body:
+          path: /data/tv
+        status_code: 201
+      when: sonarr_folders.json | selectattr('path', 'equalto', '/data/tv') | list | length == 0
+
+    - name: Trigger Sonarr library rescan
+      ansible.builtin.uri:
+        url: "{{ sonarr_url }}/api/v3/command"
+        method: POST
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        body_format: json
+        body:
+          name: RescanSeries
+        status_code: 201
+      when: sonarr_folders.json | selectattr('path', 'equalto', '/tv') | list | length > 0
+
+    # ── Block 6: Prowlarr — link Radarr and Sonarr ──────────────────────────
+
+    - name: Get existing Prowlarr applications
+      ansible.builtin.uri:
+        url: "{{ prowlarr_url }}/api/v1/applications"
+        headers:
+          X-Api-Key: "{{ prowlarr_api_key }}"
+        return_content: true
+      register: prowlarr_apps
+
+    - name: Link Prowlarr to Radarr
+      ansible.builtin.uri:
+        url: "{{ prowlarr_url }}/api/v1/applications"
+        method: POST
+        headers:
+          X-Api-Key: "{{ prowlarr_api_key }}"
+        body_format: json
+        body:
+          name: Radarr
+          syncLevel: fullSync
+          implementationName: Radarr
+          implementation: Radarr
+          configContract: RadarrSettings
+          fields:
+            - name: prowlarrUrl
+              value: "http://prowlarr:9696"
+            - name: baseUrl
+              value: "http://radarr:7878"
+            - name: apiKey
+              value: "{{ radarr_api_key }}"
+            - name: syncCategories
+              value: [2000, 2010, 2020, 2030, 2040, 2045, 2050, 2060]
+        status_code: 201
+      when: prowlarr_apps.json | selectattr('name', 'equalto', 'Radarr') | list | length == 0
+
+    - name: Link Prowlarr to Sonarr
+      ansible.builtin.uri:
+        url: "{{ prowlarr_url }}/api/v1/applications"
+        method: POST
+        headers:
+          X-Api-Key: "{{ prowlarr_api_key }}"
+        body_format: json
+        body:
+          name: Sonarr
+          syncLevel: fullSync
+          implementationName: Sonarr
+          implementation: Sonarr
+          configContract: SonarrSettings
+          fields:
+            - name: prowlarrUrl
+              value: "http://prowlarr:9696"
+            - name: baseUrl
+              value: "http://sonarr:8989"
+            - name: apiKey
+              value: "{{ sonarr_api_key }}"
+            - name: syncCategories
+              value: [5000, 5010, 5020, 5030, 5040, 5045, 5050, 5060, 5070, 5080, 5090]
+        status_code: 201
+      when: prowlarr_apps.json | selectattr('name', 'equalto', 'Sonarr') | list | length == 0
+
+    # ── Block 7: Radarr — add qBittorrent download client ───────────────────
+
+    - name: Get existing Radarr download clients
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/downloadclient"
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        return_content: true
+      register: radarr_dlclients_check
+
+    - name: Add qBittorrent to Radarr
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/downloadclient"
+        method: POST
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        body_format: json
+        body:
+          name: qBittorrent
+          enable: true
+          protocol: torrent
+          priority: 1
+          implementation: QBittorrent
+          configContract: QBittorrentSettings
+          fields:
+            - name: host
+              value: "localhost"
+            - name: port
+              value: "{{ qbittorrent_webui_port }}"
+            - name: movieCategory
+              value: radarr
+            - name: recentMoviePriority
+              value: 0
+            - name: olderMoviePriority
+              value: 0
+            - name: initialState
+              value: 0
+        status_code: 201
+      when: radarr_dlclients_check.json | selectattr('name', 'equalto', 'qBittorrent') | list | length == 0
+
+    # ── Block 8: Sonarr — add qBittorrent download client ───────────────────
+
+    - name: Get existing Sonarr download clients
+      ansible.builtin.uri:
+        url: "{{ sonarr_url }}/api/v3/downloadclient"
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        return_content: true
+      register: sonarr_dlclients_check
+
+    - name: Add qBittorrent to Sonarr
+      ansible.builtin.uri:
+        url: "{{ sonarr_url }}/api/v3/downloadclient"
+        method: POST
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        body_format: json
+        body:
+          name: qBittorrent
+          enable: true
+          protocol: torrent
+          priority: 1
+          implementation: QBittorrent
+          configContract: QBittorrentSettings
+          fields:
+            - name: host
+              value: "localhost"
+            - name: port
+              value: "{{ qbittorrent_webui_port }}"
+            - name: tvCategory
+              value: sonarr
+            - name: recentTvPriority
+              value: 0
+            - name: olderTvPriority
+              value: 0
+            - name: initialState
+              value: 0
+        status_code: 201
+      when: sonarr_dlclients_check.json | selectattr('name', 'equalto', 'qBittorrent') | list | length == 0
+
+    # ── Block 9: Jellyseerr initialization ──────────────────────────────────
+
+    - name: Check Jellyseerr initialization status
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/settings/public"
+        status_code: 200
+        return_content: true
+      register: jellyseerr_public
+
+    - name: Wait for Bazarr
+      ansible.builtin.uri:
+        url: "{{ bazarr_url }}/api/system/status"
+        headers:
+          X-Api-Key: "{{ bazarr_api_key }}"
+        status_code: 200
+      register: bazarr_status
+      until: bazarr_status.status == 200
+      retries: 20
+      delay: 10
+      when: not (jellyseerr_public.json.initialized | default(false))
+
+    - name: Initialize Jellyseerr with Jellyfin
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/auth/jellyfin"
+        method: POST
+        body_format: json
+        body:
+          jellyfinHost: "http://jellyfin:8096"
+          jellyfinUserId: ""
+          username: admin
+          password: "{{ jellyfin_admin_password }}"
+        status_code: 200
+      register: jellyseerr_auth
+      when: not (jellyseerr_public.json.initialized | default(false))
+
+    - name: Configure Jellyseerr Jellyfin server settings
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/settings/jellyfin"
+        method: POST
+        headers:
+          X-Api-Key: "{{ jellyseerr_api_key }}"
+        body_format: json
+        body:
+          hostname: jellyfin
+          port: 8096
+          useSsl: false
+          urlBase: ""
+          externalHostname: "https://jellyfin.wsh"
+        status_code: 200
+      when: not (jellyseerr_public.json.initialized | default(false))
+
+    - name: Add Radarr to Jellyseerr
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/settings/radarr"
+        method: POST
+        headers:
+          X-Api-Key: "{{ jellyseerr_api_key }}"
+        body_format: json
+        body:
+          name: Radarr
+          hostname: radarr
+          port: 7878
+          apiKey: "{{ radarr_api_key }}"
+          useSsl: false
+          baseUrl: ""
+          activeProfileId: 1
+          activeDirectory: /data/movies
+          is4k: false
+          isDefault: true
+          externalUrl: "https://radarr.wsh"
+        status_code: 201
+      when: not (jellyseerr_public.json.initialized | default(false))
+
+    - name: Add Sonarr to Jellyseerr
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/settings/sonarr"
+        method: POST
+        headers:
+          X-Api-Key: "{{ jellyseerr_api_key }}"
+        body_format: json
+        body:
+          name: Sonarr
+          hostname: sonarr
+          port: 8989
+          apiKey: "{{ sonarr_api_key }}"
+          useSsl: false
+          baseUrl: ""
+          activeProfileId: 1
+          activeDirectory: /data/tv
+          is4k: false
+          isDefault: true
+          externalUrl: "https://sonarr.wsh"
+        status_code: 201
+      when: not (jellyseerr_public.json.initialized | default(false))
+
+    # ── Block 10: Recyclarr — run one-shot sync ──────────────────────────────
+
+    - name: Copy Recyclarr config to NFS
+      ansible.builtin.synchronize:
+        src: "{{ playbook_dir }}/../services/machamp/config/recyclarr/"
+        dest: /mnt/nas/docker/recyclarr/
+        recursive: true
+
+    - name: Run Recyclarr sync
+      community.docker.docker_container:
+        name: recyclarr-init
+        image: ghcr.io/recyclarr/recyclarr:7
+        volumes:
+          - /mnt/nas/docker/recyclarr:/config
+        env:
+          RADARR_API_KEY: "{{ radarr_api_key }}"
+          SONARR_API_KEY: "{{ sonarr_api_key }}"
+        command: sync
+        detach: false
+        cleanup: true
+        auto_remove: true
+      register: recyclarr_result
+      ignore_errors: true
+
+    - name: Show Recyclarr sync output
+      ansible.builtin.debug:
+        var: recyclarr_result.container.Output
+      when: recyclarr_result is defined

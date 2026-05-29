@@ -79,7 +79,7 @@ nodes:
       machamp-services:
         ip: 192.168.0.30
         vm_id: 100
-        vm_roles: [services]
+        vm_roles: [services, gpu]
       machamp-dev:
         ip: 192.168.0.31
         vm_id: 101
