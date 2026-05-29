@@ -55,6 +55,7 @@ nodes:
     type: proxmox
     ansible_user: root
     bridge_port: nic0
+    disable_nic_offload: true  # e1000e/I219 TSO/GSO/GRO hang workaround; see ansible/roles/network
     vms:
       diglett-dns:
         ip: 192.168.0.2

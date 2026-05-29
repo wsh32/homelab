@@ -2,6 +2,15 @@ locals {
   node = "diglett"
   net  = yamldecode(file("${path.module}/../../network.yml"))
   vms  = local.net.nodes[local.node].vms
+
+  # Shared VM defaults — keep in sync with modules/proxmox-vm/main.tf
+  vm_defaults = {
+    cpu_type  = "x86-64-v2-AES"
+    bridge    = "vmbr0"
+    nic_model = "virtio"
+    os_type   = "l26"
+    datastore = "local-lvm"
+  }
 }
 
 # Download Ubuntu 24.04 (Noble) cloud image to Diglett once.
@@ -65,7 +74,9 @@ module "dns" {
   ]
 }
 
-# HAOS uses a dedicated VM resource — no cloud-init, restored from vzdump backup.
+# HAOS uses a dedicated VM resource (not the proxmox-vm module) because it boots
+# directly from the HAOS qcow2 image with no cloud-init. Configuration is restored
+# from a Proxmox vzdump backup after first boot.
 resource "proxmox_virtual_environment_vm" "haos" {
   node_name   = local.node
   vm_id       = local.vms["diglett-haos"].vm_id
@@ -77,7 +88,7 @@ resource "proxmox_virtual_environment_vm" "haos" {
 
   cpu {
     cores = 2
-    type  = "x86-64-v2-AES"
+    type  = local.vm_defaults.cpu_type
   }
 
   memory {
@@ -85,7 +96,7 @@ resource "proxmox_virtual_environment_vm" "haos" {
   }
 
   disk {
-    datastore_id = "local-lvm"
+    datastore_id = local.vm_defaults.datastore
     file_id      = proxmox_download_file.haos.id
     interface    = "virtio0"
     size         = 32
@@ -94,15 +105,16 @@ resource "proxmox_virtual_environment_vm" "haos" {
   }
 
   network_device {
-    bridge = "vmbr0"
-    model  = "virtio"
+    bridge = local.vm_defaults.bridge
+    model  = local.vm_defaults.nic_model
   }
 
   operating_system {
-    type = "l26"
+    type = local.vm_defaults.os_type
   }
 
   lifecycle {
-    ignore_changes = [disk[0].file_id]
+    prevent_destroy = true
+    ignore_changes  = [disk[0].file_id]
   }
 }
