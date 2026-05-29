@@ -50,7 +50,7 @@ Root module for the Diglett node. VM ID range 200–299, IP range `192.168.0.21�
 - `proxmox_virtual_environment_download_file.ubuntu_2404` — downloads the Ubuntu 24.04 cloud image once; re-applying is a no-op.
 - `proxmox_virtual_environment_download_file.haos` — downloads the HAOS qcow2 image for the Home Assistant VM.
 - `module.dns` — `diglett-dns` VM (VM 200, `192.168.0.2`, 2 cores, 2GB): AdGuard Home + primary Tailscale exit node.
-- `module.infisical` — `diglett-infra` VM (VM 201, `192.168.0.21`, 2 cores, 6GB): Infisical + Vaultwarden.
+- `module.infra` — `diglett-infra` VM (VM 201, `192.168.0.21`, 2 cores, 6GB): Infisical + Vaultwarden.
 - `resource.proxmox_virtual_environment_vm.haos` — `diglett-haos` VM (VM 202, `192.168.0.22`, 2 cores, 4GB): Home Assistant OS. Uses a dedicated resource (not the shared module) because HAOS boots from its own qcow2 image, not cloud-init.
 
 ---

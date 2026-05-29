@@ -65,7 +65,7 @@ module "dns" {
   ]
 }
 
-module "infisical" {
+module "infra" {
   source = "../modules/proxmox-vm"
 
   node_name     = local.node
