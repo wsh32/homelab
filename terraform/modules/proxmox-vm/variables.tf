@@ -100,6 +100,12 @@ variable "extra_runcmd" {
   default     = []
 }
 
+variable "cpu_type" {
+  description = "QEMU CPU type. Use 'host' to pass through host CPU flags (required for AVX-dependent workloads like MongoDB 5+)."
+  type        = string
+  default     = "x86-64-v2-AES"
+}
+
 variable "tags" {
   description = "List of Proxmox tags"
   type        = list(string)

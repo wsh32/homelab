@@ -31,6 +31,7 @@ module "infra" {
   memory_mb    = 12288
   disk_size_gb = 40
   swap_size_gb = 2
+  cpu_type     = "host"   # MongoDB 7 requires AVX; host passthrough exposes it
 
   ip_address         = "${local.vms["machamp-infra"].ip}/24"
   gateway            = local.net.gateway
