@@ -30,6 +30,7 @@ terraform_apply() {
   echo "==> Terraform: applying $node"
   cd "$REPO_ROOT/terraform/$node"
   terraform init -upgrade -input=false
+  # TODO(H8): require terraform plan review before apply; -auto-approve is unsafe for production.
   terraform apply -input=false -auto-approve
   cd "$REPO_ROOT"
 }

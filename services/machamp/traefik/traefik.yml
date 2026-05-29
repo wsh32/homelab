@@ -19,7 +19,6 @@ providers:
 certificatesResolvers:
   step:
     acme:
-      email: wesoohoo@gmail.com
       storage: /acme/acme.json
       caServer: https://step-ca.wsh/acme/acme/directory
       httpChallenge:
