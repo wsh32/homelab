@@ -22,10 +22,17 @@
     mode: "0644"
   become: true
 
+- name: Check current CPU governor
+  ansible.builtin.command: cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+  register: current_governor
+  changed_when: false
+  become: true
+  failed_when: false
+
 - name: Set CPU governor to schedutil
   ansible.builtin.command: cpupower frequency-set -g schedutil
   become: true
-  changed_when: false
+  when: current_governor.stdout | trim != "schedutil"
 
 - name: Auto-detect hardware sensors
   ansible.builtin.command: sensors-detect --auto
