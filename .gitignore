@@ -1,14 +1,14 @@
 # Terraform
-**/.terraform/
-**/*.tfstate
-**/*.tfstate.backup
-**/*.tfstate.*.backup
-**/*.tfvars
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+*.tfvars
 
 # Secrets
-**/.env
-**/*.pem
-**/*.key
+*.env
+*.pem
+*.key
 
 # Headscale runtime state
 services/vps/headscale/*.pem
@@ -18,6 +18,9 @@ services/vps/headscale/noise_private.key
 
 # ACME certs
 services/anton/traefik/acme/
+
+# Claude Code internal worktrees
+.claude/
 
 # OS
 .DS_Store
