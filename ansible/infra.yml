@@ -30,6 +30,12 @@
   gather_facts: false
 
   tasks:
+    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      failed_when: false
+      no_log: true
+
     - name: Check if Infisical is already bootstrapped
       ansible.builtin.stat:
         path: /var/lib/infisical/.bootstrapped
@@ -37,10 +43,14 @@
       become: true
       register: bootstrap_done
 
-    - name: Fail if INFISICAL_ADMIN_PASSWORD not set (needed only for first bootstrap)
+    - name: Fail if no admin password available (needed only for first bootstrap)
       ansible.builtin.fail:
-        msg: "Set INFISICAL_ADMIN_PASSWORD env var for initial Infisical bootstrap."
-      when: not bootstrap_done.stat.exists and lookup('env', 'INFISICAL_ADMIN_PASSWORD') == ''
+        msg: >
+          Set infisical_admin_password in ansible/secrets.yml
+          or pass INFISICAL_ADMIN_PASSWORD=<pass> as an env var.
+      when: >
+        not bootstrap_done.stat.exists and
+        (infisical_admin_password | default(lookup('env', 'INFISICAL_ADMIN_PASSWORD'))) == ''
 
     - name: Wait for Infisical to be ready
       ansible.builtin.wait_for:
@@ -55,7 +65,7 @@
       environment:
         INFISICAL_HOST: http://192.168.0.32:8080
         INFISICAL_ADMIN_EMAIL: admin@homelab.local
-        INFISICAL_ADMIN_PASSWORD: "{{ lookup('env', 'INFISICAL_ADMIN_PASSWORD') }}"
+        INFISICAL_ADMIN_PASSWORD: "{{ infisical_admin_password | default(lookup('env', 'INFISICAL_ADMIN_PASSWORD')) }}"
       register: bootstrap_result
       no_log: true
       when: not bootstrap_done.stat.exists
