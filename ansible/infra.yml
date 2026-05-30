@@ -10,6 +10,7 @@
 #
 # Usage (first run or re-run):
 #   ansible-playbook ansible/infra.yml
+#   ansible-playbook ansible/site.yml --limit machamp-infra
 
 - name: Deploy infra stack
   hosts: machamp-infra
@@ -24,7 +25,7 @@
 
 # ── Phase 1: Bootstrap Infisical ──────────────────────────────────────────────
 - name: Bootstrap Infisical
-  hosts: localhost
+  hosts: machamp-infra
   gather_facts: false
 
   tasks:
@@ -43,7 +44,6 @@
     - name: Check if Infisical is already bootstrapped
       ansible.builtin.stat:
         path: /var/lib/infisical/.bootstrapped
-      delegate_to: machamp-infra
       become: true
       register: bootstrap_done
 
@@ -63,20 +63,18 @@
           --organization teamrocket \
           --ignore-if-bootstrapped \
           --output json
-      delegate_to: machamp-infra
       become: true
       register: bootstrap_result
       no_log: true
       when: not bootstrap_done.stat.exists
 
-    - name: Create /var/lib/infisical on machamp-infra
+    - name: Create /var/lib/infisical
       ansible.builtin.file:
         path: /var/lib/infisical
         state: directory
         mode: "0700"
         owner: root
         group: root
-      delegate_to: machamp-infra
       become: true
       when: not bootstrap_done.stat.exists
 
@@ -87,7 +85,6 @@
         mode: "0600"
         owner: root
         group: root
-      delegate_to: machamp-infra
       become: true
       no_log: true
       when: not bootstrap_done.stat.exists
@@ -99,13 +96,12 @@
         mode: "0600"
         owner: root
         group: root
-      delegate_to: machamp-infra
       become: true
       when: not bootstrap_done.stat.exists
 
 # ── Phase 2: Wire Authentik OIDC → Infisical ──────────────────────────────────
 - name: Configure Authentik OIDC for Infisical
-  hosts: localhost
+  hosts: machamp-infra
   gather_facts: false
 
   tasks:
@@ -118,23 +114,20 @@
     - name: Check if OIDC is already configured
       ansible.builtin.stat:
         path: /var/lib/infisical/.oidc-configured
-      delegate_to: machamp-infra
       become: true
       register: oidc_done
 
-    - name: Read Authentik bootstrap token from machamp-infra
+    - name: Read Authentik bootstrap token
       ansible.builtin.shell: grep '^AUTHENTIK_BOOTSTRAP_TOKEN=' /etc/homelab.env | cut -d= -f2
-      delegate_to: machamp-infra
       become: true
       register: _authentik_token_raw
       no_log: true
       changed_when: false
       when: not oidc_done.stat.exists
 
-    - name: Read bootstrap JSON from machamp-infra
+    - name: Read bootstrap JSON
       ansible.builtin.slurp:
         src: /var/lib/infisical/bootstrap.json
-      delegate_to: machamp-infra
       become: true
       register: _bootstrap_json_raw
       no_log: true
@@ -152,7 +145,7 @@
 
     - name: Wait for Authentik to be ready
       ansible.builtin.uri:
-        url: "http://192.168.0.32:9000/-/health/ready/"
+        url: "http://localhost:9000/-/health/ready/"
         status_code: 200
       register: authentik_ready
       retries: 60
@@ -164,7 +157,7 @@
 
     - name: Check if user already exists in Authentik
       ansible.builtin.uri:
-        url: "http://192.168.0.32:9000/api/v3/core/users/?search={{ _admin_email | urlencode }}"
+        url: "http://localhost:9000/api/v3/core/users/?search={{ _admin_email | urlencode }}"
         headers:
           Authorization: "Bearer {{ _authentik_token }}"
       register: _existing_user
@@ -172,7 +165,7 @@
 
     - name: Create base user in Authentik
       ansible.builtin.uri:
-        url: "http://192.168.0.32:9000/api/v3/core/users/"
+        url: "http://localhost:9000/api/v3/core/users/"
         method: POST
         headers:
           Authorization: "Bearer {{ _authentik_token }}"
@@ -190,7 +183,7 @@
 
     - name: Set password for Authentik user
       ansible.builtin.uri:
-        url: "http://192.168.0.32:9000/api/v3/core/users/{{ _new_user.json.pk }}/set_password/"
+        url: "http://localhost:9000/api/v3/core/users/{{ _new_user.json.pk }}/set_password/"
         method: POST
         headers:
           Authorization: "Bearer {{ _authentik_token }}"
@@ -205,7 +198,7 @@
 
     - name: Get Authentik authorization flow UUID
       ansible.builtin.uri:
-        url: "http://192.168.0.32:9000/api/v3/flows/instances/?slug=default-provider-authorization-explicit-consent"
+        url: "http://localhost:9000/api/v3/flows/instances/?slug=default-provider-authorization-explicit-consent"
         headers:
           Authorization: "Bearer {{ _authentik_token }}"
       register: _flow_result
@@ -213,7 +206,7 @@
 
     - name: Get Authentik invalidation flow UUID
       ansible.builtin.uri:
-        url: "http://192.168.0.32:9000/api/v3/flows/instances/?slug=default-invalidation-flow"
+        url: "http://localhost:9000/api/v3/flows/instances/?slug=default-invalidation-flow"
         headers:
           Authorization: "Bearer {{ _authentik_token }}"
       register: _inval_flow_result
@@ -221,7 +214,7 @@
 
     - name: Check if OIDC provider already exists in Authentik
       ansible.builtin.uri:
-        url: "http://192.168.0.32:9000/api/v3/providers/oauth2/?name=infisical"
+        url: "http://localhost:9000/api/v3/providers/oauth2/?name=infisical"
         headers:
           Authorization: "Bearer {{ _authentik_token }}"
       register: _existing_provider
@@ -229,7 +222,7 @@
 
     - name: Create OAuth2/OIDC provider in Authentik
       ansible.builtin.uri:
-        url: "http://192.168.0.32:9000/api/v3/providers/oauth2/"
+        url: "http://localhost:9000/api/v3/providers/oauth2/"
         method: POST
         headers:
           Authorization: "Bearer {{ _authentik_token }}"
@@ -259,7 +252,7 @@
 
     - name: Check if Infisical application already exists in Authentik
       ansible.builtin.uri:
-        url: "http://192.168.0.32:9000/api/v3/core/applications/?slug=infisical"
+        url: "http://localhost:9000/api/v3/core/applications/?slug=infisical"
         headers:
           Authorization: "Bearer {{ _authentik_token }}"
       register: _existing_app
@@ -267,7 +260,7 @@
 
     - name: Create Infisical application in Authentik
       ansible.builtin.uri:
-        url: "http://192.168.0.32:9000/api/v3/core/applications/"
+        url: "http://localhost:9000/api/v3/core/applications/"
         method: POST
         headers:
           Authorization: "Bearer {{ _authentik_token }}"
@@ -283,18 +276,20 @@
 
     - name: Configure Infisical OIDC SSO
       ansible.builtin.uri:
-        url: "http://192.168.0.32:8080/api/v1/sso/oidc/config"
+        url: "http://localhost:8080/api/v1/sso/oidc/config"
         method: POST
         headers:
           Authorization: "Bearer {{ _infisical_token }}"
         body_format: json
         body:
           organizationId: "{{ _infisical_org_id }}"
+          # discoveryURL must be reachable from inside the infisical container at runtime
           discoveryURL: "http://192.168.0.32:9000/application/o/infisical/.well-known/openid-configuration"
           configurationType: discovery
           clientId: "{{ _provider.client_id }}"
           clientSecret: "{{ _provider.client_secret }}"
           isActive: true
+          allowedEmailDomains: ""
         status_code: [200, 201]
       no_log: true
       when: not oidc_done.stat.exists
@@ -306,7 +301,5 @@
         mode: "0600"
         owner: root
         group: root
-      delegate_to: machamp-infra
       become: true
       when: not oidc_done.stat.exists
-
