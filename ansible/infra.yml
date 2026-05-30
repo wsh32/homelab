@@ -1,18 +1,14 @@
 ---
-# Deploy the machamp-infra stack (Infisical + Vaultwarden + Authentik + Litestream)
-# and bootstrap Infisical on first run.
-# Idempotent: safe to re-run; bootstrap is skipped after first successful run.
+# Deploy the machamp-infra stack (Infisical + Vaultwarden + Authentik + Litestream),
+# bootstrap Infisical, create a base user in Authentik, and wire OIDC between them.
+# Idempotent: each phase is gated by a sentinel file and skipped on re-runs.
 #
 # Prerequisites:
 #   - machamp-infra VM must be up and cloud-init must have completed
 #   - Alakazam NFS must be reachable at 192.168.0.4:/mnt/apps/docker
+#   - ansible/secrets.yml must contain infisical_admin_email and infisical_admin_password
 #
-# Usage (first run):
-#   ansible-playbook ansible/infra.yml
-#   (set infisical_admin_password in ansible/secrets.yml, or pass
-#    INFISICAL_ADMIN_PASSWORD=<pass> as an env var)
-#
-# Usage (subsequent runs — bootstrap skipped automatically):
+# Usage (first run or re-run):
 #   ansible-playbook ansible/infra.yml
 
 - name: Deploy infra stack
@@ -26,6 +22,7 @@
   roles:
     - role: infra
 
+# ── Phase 1: Bootstrap Infisical ──────────────────────────────────────────────
 - name: Bootstrap Infisical
   hosts: localhost
   gather_facts: false
@@ -37,9 +34,10 @@
       failed_when: false
       no_log: true
 
-    - name: Resolve admin password into a fact
+    - name: Resolve credentials into facts
       ansible.builtin.set_fact:
-        _infisical_password: "{{ infisical_admin_password | default(lookup('env', 'INFISICAL_ADMIN_PASSWORD')) }}"
+        _admin_email: "{{ infisical_admin_email | default('admin@homelab.local') }}"
+        _admin_password: "{{ infisical_admin_password | default(lookup('env', 'INFISICAL_ADMIN_PASSWORD')) }}"
       no_log: true
 
     - name: Check if Infisical is already bootstrapped
@@ -49,19 +47,19 @@
       become: true
       register: bootstrap_done
 
-    - name: Fail if no admin password available (needed only for first bootstrap)
+    - name: Fail if no admin password available
       ansible.builtin.fail:
         msg: >
           Set infisical_admin_password in ansible/secrets.yml
           or pass INFISICAL_ADMIN_PASSWORD=<pass> as an env var.
-      when: not bootstrap_done.stat.exists and _infisical_password == ''
+      when: not bootstrap_done.stat.exists and _admin_password == ''
 
-    - name: Bootstrap Infisical via docker exec (CLI is inside the container)
+    - name: Bootstrap Infisical via docker exec
       ansible.builtin.shell: |
         docker exec infisical infisical bootstrap \
           --domain http://localhost:8080 \
-          --email "{{ infisical_admin_email | default('admin@homelab.local') }}" \
-          --password "{{ _infisical_password }}" \
+          --email "{{ _admin_email }}" \
+          --password "{{ _admin_password }}" \
           --organization teamrocket \
           --ignore-if-bootstrapped \
           --output json
@@ -71,12 +69,7 @@
       no_log: true
       when: not bootstrap_done.stat.exists
 
-    - name: Display bootstrap output (add workspace_id / client_id / client_secret to terraform.tfvars)
-      ansible.builtin.debug:
-        msg: "{{ bootstrap_result.stdout_lines }}"
-      when: not bootstrap_done.stat.exists
-
-    - name: Create /var/lib/infisical directory on machamp-infra
+    - name: Create /var/lib/infisical on machamp-infra
       ansible.builtin.file:
         path: /var/lib/infisical
         state: directory
@@ -87,7 +80,19 @@
       become: true
       when: not bootstrap_done.stat.exists
 
-    - name: Write bootstrap marker on machamp-infra
+    - name: Persist bootstrap output for OIDC wiring
+      ansible.builtin.copy:
+        content: "{{ bootstrap_result.stdout }}"
+        dest: /var/lib/infisical/bootstrap.json
+        mode: "0600"
+        owner: root
+        group: root
+      delegate_to: machamp-infra
+      become: true
+      no_log: true
+      when: not bootstrap_done.stat.exists
+
+    - name: Write bootstrap sentinel
       ansible.builtin.file:
         path: /var/lib/infisical/.bootstrapped
         state: touch
@@ -97,3 +102,159 @@
       delegate_to: machamp-infra
       become: true
       when: not bootstrap_done.stat.exists
+
+# ── Phase 2: Wire Authentik OIDC → Infisical ──────────────────────────────────
+- name: Configure Authentik OIDC for Infisical
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Load local secrets file if present
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      failed_when: false
+      no_log: true
+
+    - name: Check if OIDC is already configured
+      ansible.builtin.stat:
+        path: /var/lib/infisical/.oidc-configured
+      delegate_to: machamp-infra
+      become: true
+      register: oidc_done
+
+    - name: Read Authentik bootstrap token from machamp-infra
+      ansible.builtin.shell: grep '^AUTHENTIK_BOOTSTRAP_TOKEN=' /etc/homelab.env | cut -d= -f2
+      delegate_to: machamp-infra
+      become: true
+      register: _authentik_token_raw
+      no_log: true
+      changed_when: false
+      when: not oidc_done.stat.exists
+
+    - name: Read bootstrap JSON from machamp-infra
+      ansible.builtin.slurp:
+        src: /var/lib/infisical/bootstrap.json
+      delegate_to: machamp-infra
+      become: true
+      register: _bootstrap_json_raw
+      no_log: true
+      when: not oidc_done.stat.exists
+
+    - name: Set API credential facts
+      ansible.builtin.set_fact:
+        _authentik_token: "{{ _authentik_token_raw.stdout | trim }}"
+        _infisical_token: "{{ (_bootstrap_json_raw.content | b64decode | from_json).identity.credentials.token }}"
+        _infisical_org_id: "{{ (_bootstrap_json_raw.content | b64decode | from_json).organization.id }}"
+        _admin_email: "{{ infisical_admin_email | default('admin@homelab.local') }}"
+        _admin_password: "{{ infisical_admin_password | default(lookup('env', 'INFISICAL_ADMIN_PASSWORD')) }}"
+      no_log: true
+      when: not oidc_done.stat.exists
+
+    - name: Wait for Authentik to be ready
+      ansible.builtin.uri:
+        url: "http://192.168.0.32:9000/-/health/ready/"
+        status_code: 200
+      register: authentik_ready
+      retries: 60
+      delay: 5
+      until: authentik_ready.status == 200
+      when: not oidc_done.stat.exists
+
+    - name: Create base user in Authentik
+      ansible.builtin.uri:
+        url: "http://192.168.0.32:9000/api/v3/core/users/"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _authentik_token }}"
+        body_format: json
+        body:
+          username: "{{ _admin_email }}"
+          email: "{{ _admin_email }}"
+          name: Admin
+          is_active: true
+          type: internal
+        status_code: 201
+      register: _user_result
+      no_log: true
+      when: not oidc_done.stat.exists
+
+    - name: Set password for Authentik user
+      ansible.builtin.uri:
+        url: "http://192.168.0.32:9000/api/v3/core/users/{{ _user_result.json.pk }}/set_password/"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _authentik_token }}"
+        body_format: json
+        body:
+          password: "{{ _admin_password }}"
+        status_code: 204
+      no_log: true
+      when: not oidc_done.stat.exists
+
+    - name: Get Authentik authorization flow UUID
+      ansible.builtin.uri:
+        url: "http://192.168.0.32:9000/api/v3/flows/instances/?slug=default-provider-authorization-explicit-consent"
+        headers:
+          Authorization: "Bearer {{ _authentik_token }}"
+      register: _flow_result
+      when: not oidc_done.stat.exists
+
+    - name: Create OAuth2/OIDC provider in Authentik
+      ansible.builtin.uri:
+        url: "http://192.168.0.32:9000/api/v3/providers/oauth2/"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _authentik_token }}"
+        body_format: json
+        body:
+          name: infisical
+          authorization_flow: "{{ _flow_result.json.results[0].pk }}"
+          client_type: confidential
+          redirect_uris: "https://infisical.wsh/api/v1/sso/oidc/callback\nhttp://192.168.0.32:8080/api/v1/sso/oidc/callback"
+        status_code: 201
+      register: _provider_result
+      no_log: true
+      when: not oidc_done.stat.exists
+
+    - name: Create Infisical application in Authentik
+      ansible.builtin.uri:
+        url: "http://192.168.0.32:9000/api/v3/core/applications/"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _authentik_token }}"
+        body_format: json
+        body:
+          name: Infisical
+          slug: infisical
+          provider: "{{ _provider_result.json.pk }}"
+        status_code: 201
+      when: not oidc_done.stat.exists
+
+    - name: Configure Infisical OIDC SSO
+      ansible.builtin.uri:
+        url: "http://192.168.0.32:8080/api/v1/sso/oidc/config"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _infisical_token }}"
+        body_format: json
+        body:
+          organizationId: "{{ _infisical_org_id }}"
+          discoveryURL: "http://192.168.0.32:9000/application/o/infisical/.well-known/openid-configuration"
+          configurationType: discovery
+          clientId: "{{ _provider_result.json.client_id }}"
+          clientSecret: "{{ _provider_result.json.client_secret }}"
+          isActive: true
+        status_code: [200, 201]
+      no_log: true
+      when: not oidc_done.stat.exists
+
+    - name: Write OIDC configured sentinel
+      ansible.builtin.file:
+        path: /var/lib/infisical/.oidc-configured
+        state: touch
+        mode: "0600"
+        owner: root
+        group: root
+      delegate_to: machamp-infra
+      become: true
+      when: not oidc_done.stat.exists
