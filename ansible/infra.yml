@@ -290,9 +290,22 @@
           clientSecret: "{{ _provider.client_secret }}"
           isActive: true
           allowedEmailDomains: ""
-        status_code: [200, 201]
+        status_code: [200, 201, 422]
       no_log: true
+      register: _oidc_result
       when: not oidc_done.stat.exists
+
+    - name: Show Infisical OIDC config error (response message only — credentials not logged)
+      ansible.builtin.debug:
+        msg: >-
+          Infisical OIDC config HTTP {{ _oidc_result.status }}:
+          {{ _oidc_result.json.message | default(_oidc_result.json.error | default('(no message in response)')) }}
+      when: not oidc_done.stat.exists and (_oidc_result.status | int) not in [200, 201]
+
+    - name: Fail if Infisical OIDC config was not successful
+      ansible.builtin.fail:
+        msg: "Infisical OIDC config returned HTTP {{ _oidc_result.status }} — see previous task for the error message"
+      when: not oidc_done.stat.exists and (_oidc_result.status | int) not in [200, 201]
 
     - name: Write OIDC configured sentinel
       ansible.builtin.file:
