@@ -35,8 +35,8 @@
     group: "{{ item.group }}"
     mode: "{{ item.mode }}"
   loop:
-    # PostgreSQL official image runs as uid 999 (postgres user).
-    - { path: /var/lib/postgres,    owner: "999", group: "999", mode: "0750" }
+    # PostgreSQL alpine image runs as uid 70 (alpine), not 999 (debian).
+    - { path: /var/lib/postgres,    owner: "70",  group: "70",  mode: "0750" }
     - { path: /var/lib/vaultwarden, owner: "0",   group: "0",   mode: "0755" }
   become: true
 
