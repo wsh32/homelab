@@ -49,12 +49,15 @@
 
 - name: Create Traefik and step-ca NFS directories
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ item.path }}"
     state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.owner }}"
     mode: "0755"
   loop:
-    - /mnt/nas/docker/traefik/acme
-    - /mnt/nas/docker/step-ca
+    - { path: /mnt/nas/docker/traefik/acme, owner: "0" }
+    # step-ca runs as uid 1000 and writes its config/certs here on first init
+    - { path: /mnt/nas/docker/step-ca, owner: "1000" }
   become: true
 
 - name: Create Authentik NFS media directories (owned by uid 1000 — authentik container user)
