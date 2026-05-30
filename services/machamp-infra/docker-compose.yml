@@ -48,7 +48,6 @@ services:
       AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
       ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
       SITE_URL: https://infisical.wsh
-      LICENSE_KEY: ${INFISICAL_LICENSE_KEY:-}
 
   # ── Vaultwarden ────────────────────────────────────────────────────────────
   vaultwarden:
