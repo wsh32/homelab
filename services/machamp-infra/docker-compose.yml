@@ -41,7 +41,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      - redis
     ports:
       - "8080:8080"
     environment:
