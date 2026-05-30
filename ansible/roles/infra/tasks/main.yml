@@ -47,6 +47,16 @@
     mode: "0755"
   become: true
 
+- name: Create Traefik and step-ca NFS directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /mnt/nas/docker/traefik/acme
+    - /mnt/nas/docker/step-ca
+  become: true
+
 - name: Create Authentik NFS media directories (owned by uid 1000 — authentik container user)
   ansible.builtin.file:
     path: "{{ item }}"

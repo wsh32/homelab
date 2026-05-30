@@ -1,4 +1,43 @@
 services:
+  # ── Traefik ────────────────────────────────────────────────────────────────
+  traefik:
+    image: traefik:v3
+    container_name: traefik
+    restart: unless-stopped
+    depends_on:
+      step-ca:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - /mnt/nas/docker/traefik/acme:/acme
+      # step-ca root cert so LEGO can trust the ACME CA endpoint
+      - /mnt/nas/docker/step-ca/certs/root_ca.crt:/certs/root_ca.crt:ro
+    environment:
+      LEGO_CA_CERTIFICATES: /certs/root_ca.crt
+
+  # ── step-ca (local CA for TLS certs) ──────────────────────────────────────
+  step-ca:
+    image: smallstep/step-ca:latest
+    container_name: step-ca
+    restart: unless-stopped
+    volumes:
+      - /mnt/nas/docker/step-ca:/home/step
+    environment:
+      DOCKER_STEPCA_INIT_NAME: Homelab CA
+      DOCKER_STEPCA_INIT_DNS_NAMES: "step-ca.wsh,localhost,192.168.0.32"
+      DOCKER_STEPCA_INIT_ACME: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider --no-check-certificate https://localhost:9000/health 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
   # ── Shared databases ───────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
@@ -48,6 +87,15 @@ services:
       AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
       ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
       SITE_URL: https://infisical.wsh
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.infisical-wsh.rule=Host(`infisical.wsh`)"
+      - "traefik.http.routers.infisical-wsh.entrypoints=websecure"
+      - "traefik.http.routers.infisical-wsh.tls=true"
+      - "traefik.http.routers.infisical-wsh.tls.certresolver=step"
+      - "traefik.http.routers.infisical-home.rule=Host(`infisical.home`)"
+      - "traefik.http.routers.infisical-home.entrypoints=web"
+      - "traefik.http.services.infisical-svc.loadbalancer.server.port=8080"
 
   # ── Vaultwarden ────────────────────────────────────────────────────────────
   vaultwarden:
@@ -60,6 +108,15 @@ services:
       DOMAIN: https://vault.wsh
       SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
       ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vault-wsh.rule=Host(`vault.wsh`)"
+      - "traefik.http.routers.vault-wsh.entrypoints=websecure"
+      - "traefik.http.routers.vault-wsh.tls=true"
+      - "traefik.http.routers.vault-wsh.tls.certresolver=step"
+      - "traefik.http.routers.vault-home.rule=Host(`vault.home`)"
+      - "traefik.http.routers.vault-home.entrypoints=web"
+      - "traefik.http.services.vault-svc.loadbalancer.server.port=80"
 
   litestream:
     image: litestream/litestream:0.5.11
@@ -100,6 +157,15 @@ services:
     volumes:
       - /mnt/nas/docker/authentik/media:/media
       - /mnt/nas/docker/authentik/custom-templates:/templates
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth-wsh.rule=Host(`auth.wsh`)"
+      - "traefik.http.routers.auth-wsh.entrypoints=websecure"
+      - "traefik.http.routers.auth-wsh.tls=true"
+      - "traefik.http.routers.auth-wsh.tls.certresolver=step"
+      - "traefik.http.routers.auth-home.rule=Host(`auth.home`)"
+      - "traefik.http.routers.auth-home.entrypoints=web"
+      - "traefik.http.services.auth-svc.loadbalancer.server.port=9000"
 
   authentik-worker:
     image: ghcr.io/goauthentik/server:2024.12.3

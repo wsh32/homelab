@@ -1,0 +1,158 @@
+# File-provider routes for machamp-services (192.168.0.30).
+# Infra services (Infisical, Vaultwarden, Authentik) are handled by Docker labels.
+http:
+  routers:
+    # ── Jellyfin ──────────────────────────────────────────────────────────────
+    jellyfin-wsh:
+      rule: "Host(`jellyfin.wsh`)"
+      entryPoints: [websecure]
+      service: jellyfin-svc
+      tls:
+        certResolver: step
+    jellyfin-home:
+      rule: "Host(`jellyfin.home`)"
+      entryPoints: [web]
+      service: jellyfin-svc
+
+    # ── Servarr (Tailscale only) ───────────────────────────────────────────────
+    prowlarr-wsh:
+      rule: "Host(`prowlarr.wsh`)"
+      entryPoints: [websecure]
+      service: prowlarr-svc
+      tls:
+        certResolver: step
+    radarr-wsh:
+      rule: "Host(`radarr.wsh`)"
+      entryPoints: [websecure]
+      service: radarr-svc
+      tls:
+        certResolver: step
+    sonarr-wsh:
+      rule: "Host(`sonarr.wsh`)"
+      entryPoints: [websecure]
+      service: sonarr-svc
+      tls:
+        certResolver: step
+
+    # ── PhotoPrism ────────────────────────────────────────────────────────────
+    photos-wsh:
+      rule: "Host(`photos.wsh`)"
+      entryPoints: [websecure]
+      service: photos-svc
+      tls:
+        certResolver: step
+
+    # ── Calibre-Web ───────────────────────────────────────────────────────────
+    books-wsh:
+      rule: "Host(`books.wsh`)"
+      entryPoints: [websecure]
+      service: books-svc
+      tls:
+        certResolver: step
+
+    # ── n8n ───────────────────────────────────────────────────────────────────
+    n8n-wsh:
+      rule: "Host(`n8n.wsh`)"
+      entryPoints: [websecure]
+      service: n8n-svc
+      tls:
+        certResolver: step
+
+    # ── CouchDB ───────────────────────────────────────────────────────────────
+    couchdb-wsh:
+      rule: "Host(`couchdb.wsh`)"
+      entryPoints: [websecure]
+      service: couchdb-svc
+      tls:
+        certResolver: step
+
+    # ── Quartz (notes) ────────────────────────────────────────────────────────
+    notes-wsh:
+      rule: "Host(`notes.wsh`)"
+      entryPoints: [websecure]
+      service: notes-svc
+      tls:
+        certResolver: step
+
+    # ── Homepage ──────────────────────────────────────────────────────────────
+    home-wsh:
+      rule: "Host(`home.wsh`)"
+      entryPoints: [websecure]
+      service: home-svc
+      tls:
+        certResolver: step
+    home-home:
+      rule: "Host(`home.home`)"
+      entryPoints: [web]
+      service: home-svc
+
+    # ── Prometheus ────────────────────────────────────────────────────────────
+    prometheus-wsh:
+      rule: "Host(`prometheus.wsh`)"
+      entryPoints: [websecure]
+      service: prometheus-svc
+      tls:
+        certResolver: step
+
+    # ── Grafana ───────────────────────────────────────────────────────────────
+    grafana-wsh:
+      rule: "Host(`grafana.wsh`)"
+      entryPoints: [websecure]
+      service: grafana-svc
+      tls:
+        certResolver: step
+    grafana-home:
+      rule: "Host(`grafana.home`)"
+      entryPoints: [web]
+      service: grafana-svc
+
+  services:
+    jellyfin-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.30:8096"
+    prowlarr-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.30:9696"
+    radarr-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.30:7878"
+    sonarr-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.30:8989"
+    photos-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.30:2342"
+    books-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.30:8083"
+    n8n-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.30:5678"
+    couchdb-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.30:5984"
+    notes-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.30:8080"
+    home-svc:
+      loadBalancer:
+        servers:
+          # homepage maps container port 3000 to host port 3001 (grafana owns 3000)
+          - url: "http://192.168.0.30:3001"
+    prometheus-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.30:9090"
+    grafana-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.30:3000"
