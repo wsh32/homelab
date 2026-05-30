@@ -14,12 +14,22 @@ services:
       # Passed through so the init script can create per-service users.
       INFISICAL_DB_PASSWORD: ${INFISICAL_DB_PASSWORD}
       AUTHENTIK_DB_PASSWORD: ${AUTHENTIK_DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7.2-alpine
     container_name: redis
     restart: unless-stopped
     command: --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   # ── Infisical ─────────────────────────────────────────────────────────────
   infisical:
@@ -27,7 +37,10 @@ services:
     container_name: infisical
     restart: unless-stopped
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
       - redis
     ports:
       - "8080:8080"
@@ -69,8 +82,10 @@ services:
     restart: unless-stopped
     command: server
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "9000:9000"
     environment:
@@ -91,8 +106,10 @@ services:
     restart: unless-stopped
     command: worker
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       AUTHENTIK_POSTGRESQL__HOST: postgres
       AUTHENTIK_POSTGRESQL__USER: authentik
