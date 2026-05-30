@@ -1,17 +1,18 @@
 ---
-# Deploy the machamp-infra stack (Infisical + Vaultwarden + MongoDB + Redis + Litestream)
+# Deploy the machamp-infra stack (Infisical + Vaultwarden + Authentik + Litestream)
 # and bootstrap Infisical on first run.
 # Idempotent: safe to re-run; bootstrap is skipped after first successful run.
 #
 # Prerequisites:
 #   - machamp-infra VM must be up and cloud-init must have completed
 #   - Alakazam NFS must be reachable at 192.168.0.4:/mnt/apps/docker
-#   - Infisical CLI must be installed on alakazam-deploy (ansible/roles/deploy)
 #
-# Usage (first run — prompts for bootstrap password):
-#   INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml
+# Usage (first run):
+#   ansible-playbook ansible/infra.yml
+#   (set infisical_admin_password in ansible/secrets.yml, or pass
+#    INFISICAL_ADMIN_PASSWORD=<pass> as an env var)
 #
-# Usage (subsequent runs — bootstrap skipped, env var still required but unused):
+# Usage (subsequent runs — bootstrap skipped automatically):
 #   ansible-playbook ansible/infra.yml
 
 - name: Deploy infra stack
@@ -36,6 +37,11 @@
       failed_when: false
       no_log: true
 
+    - name: Resolve admin password into a fact
+      ansible.builtin.set_fact:
+        _infisical_password: "{{ infisical_admin_password | default(lookup('env', 'INFISICAL_ADMIN_PASSWORD')) }}"
+      no_log: true
+
     - name: Check if Infisical is already bootstrapped
       ansible.builtin.stat:
         path: /var/lib/infisical/.bootstrapped
@@ -48,29 +54,23 @@
         msg: >
           Set infisical_admin_password in ansible/secrets.yml
           or pass INFISICAL_ADMIN_PASSWORD=<pass> as an env var.
-      when: >
-        not bootstrap_done.stat.exists and
-        (infisical_admin_password | default(lookup('env', 'INFISICAL_ADMIN_PASSWORD'))) == ''
+      when: not bootstrap_done.stat.exists and _infisical_password == ''
 
-    - name: Wait for Infisical to be ready
-      ansible.builtin.wait_for:
-        host: 192.168.0.32
-        port: 8080
-        timeout: 120
-      when: not bootstrap_done.stat.exists
-
-    - name: Run infisical-bootstrap.sh
-      ansible.builtin.shell:
-        cmd: "{{ playbook_dir }}/../scripts/infisical-bootstrap.sh"
-      environment:
-        INFISICAL_HOST: http://192.168.0.32:8080
-        INFISICAL_ADMIN_EMAIL: admin@homelab.local
-        INFISICAL_ADMIN_PASSWORD: "{{ infisical_admin_password | default(lookup('env', 'INFISICAL_ADMIN_PASSWORD')) }}"
+    - name: Bootstrap Infisical via docker exec (CLI is inside the container)
+      ansible.builtin.shell: |
+        docker exec infisical infisical bootstrap \
+          --domain http://localhost:8080 \
+          --email admin@homelab.local \
+          --password "{{ _infisical_password }}" \
+          --ignore-if-bootstrapped \
+          --output json
+      delegate_to: machamp-infra
+      become: true
       register: bootstrap_result
       no_log: true
       when: not bootstrap_done.stat.exists
 
-    - name: Display bootstrap credentials (add to terraform.tfvars)
+    - name: Display bootstrap output (add workspace_id / client_id / client_secret to terraform.tfvars)
       ansible.builtin.debug:
         msg: "{{ bootstrap_result.stdout_lines }}"
       when: not bootstrap_done.stat.exists
