@@ -1,0 +1,218 @@
+services:
+  # ── Traefik ────────────────────────────────────────────────────────────────
+  traefik:
+    image: traefik:v3
+    container_name: traefik
+    restart: unless-stopped
+    depends_on:
+      step-ca:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - /mnt/nas/docker/traefik/acme:/acme
+      # step-ca root cert so LEGO can trust the ACME CA endpoint
+      - /mnt/nas/docker/step-ca/certs/root_ca.crt:/certs/root_ca.crt:ro
+    environment:
+      LEGO_CA_CERTIFICATES: /certs/root_ca.crt
+
+  # ── step-ca (local CA for TLS certs) ──────────────────────────────────────
+  step-ca:
+    image: smallstep/step-ca:latest
+    container_name: step-ca
+    restart: unless-stopped
+    volumes:
+      - /mnt/nas/docker/step-ca:/home/step
+    environment:
+      DOCKER_STEPCA_INIT_NAME: Homelab CA
+      DOCKER_STEPCA_INIT_DNS_NAMES: "step-ca.wsh,localhost,192.168.0.32"
+      DOCKER_STEPCA_INIT_ACME: "true"
+    healthcheck:
+      # nc -z works with TLS ports; start_period gives first-run init time
+      test: ["CMD-SHELL", "nc -z localhost 9000"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 60s
+
+  # ── Shared databases ───────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: unless-stopped
+    volumes:
+      - /var/lib/postgres:/var/lib/postgresql/data   # local disk — not NFS
+      - ./postgres-init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+      # Passed through so the init script can create per-service users.
+      AUTHENTIK_DB_PASSWORD: ${AUTHENTIK_DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis
+    restart: unless-stopped
+    command: --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Infisical ─────────────────────────────────────────────────────────────
+  infisical:
+    image: infisical/infisical:latest
+    container_name: infisical
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      DB_CONNECTION_URI: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/infisical
+      REDIS_URL: redis://redis:6379/0
+      AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
+      ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
+      SITE_URL: https://infisical.wsh
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.infisical-wsh.rule=Host(`infisical.wsh`)"
+      - "traefik.http.routers.infisical-wsh.entrypoints=websecure"
+      - "traefik.http.routers.infisical-wsh.tls=true"
+      - "traefik.http.routers.infisical-wsh.tls.certresolver=step"
+      - "traefik.http.routers.infisical-home.rule=Host(`infisical.home`)"
+      - "traefik.http.routers.infisical-home.entrypoints=web"
+      - "traefik.http.services.infisical-svc.loadbalancer.server.port=8080"
+
+  # ── Vaultwarden ────────────────────────────────────────────────────────────
+  vaultwarden:
+    image: vaultwarden/server:1.32.0
+    container_name: vaultwarden
+    restart: unless-stopped
+    volumes:
+      - /var/lib/vaultwarden:/data   # local disk — backed up continuously by litestream
+    environment:
+      DOMAIN: https://vault.wsh
+      SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
+      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vault-wsh.rule=Host(`vault.wsh`)"
+      - "traefik.http.routers.vault-wsh.entrypoints=websecure"
+      - "traefik.http.routers.vault-wsh.tls=true"
+      - "traefik.http.routers.vault-wsh.tls.certresolver=step"
+      - "traefik.http.routers.vault-home.rule=Host(`vault.home`)"
+      - "traefik.http.routers.vault-home.entrypoints=web"
+      - "traefik.http.services.vault-svc.loadbalancer.server.port=80"
+
+  litestream:
+    image: litestream/litestream:0.5.11
+    container_name: litestream
+    restart: unless-stopped
+    depends_on:
+      - vaultwarden
+    volumes:
+      - /var/lib/vaultwarden:/data:ro
+      - /mnt/nas/docker/vaultwarden-backup:/backup
+      - ./litestream.yml:/etc/litestream.yml:ro
+    command: replicate
+
+  # ── Authentik ──────────────────────────────────────────────────────────────
+  authentik-server:
+    image: ghcr.io/goauthentik/server:2024.12.3
+    container_name: authentik-server
+    restart: unless-stopped
+    command: server
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "9000:9000"
+    environment:
+      AUTHENTIK_POSTGRESQL__HOST: postgres
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_REDIS__DB: 1
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD}
+      AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL}
+      AUTHENTIK_BOOTSTRAP_TOKEN: ${AUTHENTIK_BOOTSTRAP_TOKEN}
+    volumes:
+      - /mnt/nas/docker/authentik/media:/media
+      - /mnt/nas/docker/authentik/custom-templates:/templates
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth-wsh.rule=Host(`auth.wsh`)"
+      - "traefik.http.routers.auth-wsh.entrypoints=websecure"
+      - "traefik.http.routers.auth-wsh.tls=true"
+      - "traefik.http.routers.auth-wsh.tls.certresolver=step"
+      - "traefik.http.routers.auth-home.rule=Host(`auth.home`)"
+      - "traefik.http.routers.auth-home.entrypoints=web"
+      - "traefik.http.services.auth-svc.loadbalancer.server.port=9000"
+
+  authentik-worker:
+    image: ghcr.io/goauthentik/server:2024.12.3
+    container_name: authentik-worker
+    restart: unless-stopped
+    command: worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      AUTHENTIK_POSTGRESQL__HOST: postgres
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_REDIS__DB: 1
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD}
+      AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL}
+      AUTHENTIK_BOOTSTRAP_TOKEN: ${AUTHENTIK_BOOTSTRAP_TOKEN}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /mnt/nas/docker/authentik/media:/media
+      - /mnt/nas/docker/authentik/custom-templates:/templates
+
+  # ── PostgreSQL backup ──────────────────────────────────────────────────────
+  postgres-backup:
+    image: postgres:16-alpine
+    container_name: postgres-backup
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - /mnt/nas/docker/postgres-backup:/backups
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          file="/backups/dump_$(date +%Y%m%d_%H%M%S).sql.gz"
+          pg_dumpall -h postgres -U postgres | gzip > "$$file" \
+            && echo "Backup saved: $$file"
+          find /backups -name 'dump_*.sql.gz' -mtime +7 -delete
+          sleep 86400
+        done

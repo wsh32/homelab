@@ -26,7 +26,7 @@ Infrastructure-as-code for a Proxmox-based homelab. All compute is defined in Te
 | Node | Role |
 |------|------|
 | **Machamp** | Proxmox compute node. Hosts all VMs: development workstation and all Docker Compose services (Traefik, Jellyfin, Servarr, etc.) |
-| **Diglett** | Always-on Proxmox infrastructure node. Hosts DNS (AdGuard Home), Tailscale coordination (Headscale on port 443, Let's Encrypt DNS-01 TLS, DDNS via cloudflare-ddns), and secrets (Infisical + Vaultwarden) |
+| **Diglett** | Always-on Proxmox infrastructure node. Hosts DNS (AdGuard Home) and Tailscale coordination (Headscale on port 443, Let's Encrypt DNS-01 TLS, DDNS via cloudflare-ddns) |
 | **Alakazam** | TrueNAS NAS. Provides NFS mounts for all persistent Docker volumes and Terraform state; runs alakazam-deploy (TrueNAS KVM deploy host) |
 
 See [`docs/services.md`](docs/services.md) for the full per-VM service list.
@@ -54,7 +54,7 @@ ansible/
   network.yml             # static IP config for Proxmox nodes
 services/
   dns/                    # AdGuard + Headscale + cloudflare-ddns (pre-seeded, no wizards)
-  diglett-infra/         # Infisical + Vaultwarden + Litestream
+  machamp-infra/         # Infisical + Vaultwarden + Authentik + Litestream
   diglett-deploy/        # (not yet created)
   machamp/                  # Docker Compose — all Machamp/services workloads
 network.yml               # single source of truth for all IPs and VM IDs
@@ -128,8 +128,8 @@ ansible-playbook ansible/bootstrap-headscale.yml  # generates + writes Headscale
 # All remaining VMs
 ./scripts/deploy.sh
 
-# Bootstrap Infisical, distribute credentials, bring up all services
-ansible-playbook ansible/bootstrap-infisical.yml
+# Deploy machamp-infra (Infisical, Vaultwarden, Authentik) and bootstrap Infisical
+INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml
 ansible-playbook ansible/site.yml
 ```
 
@@ -147,7 +147,7 @@ ansible-playbook ansible/site.yml
 | **Vaultwarden** | Human-consumed secrets: web UI admin passwords, personal credentials | Written by each service's Ansible role after configuration |
 
 VMs fetch machine secrets from Infisical at boot via `infisical export` → ephemeral `.env` file.
-Infisical machine identity credentials live at `/etc/infisical.env` on each VM (root-owned, mode 0600), written by `ansible/bootstrap-infisical.yml`.
+Infisical bootstrap secrets live at `/etc/homelab.env` on `machamp-infra` (root-owned, mode 0600), generated once by the `infra` Ansible role and NFS-persisted at `/mnt/nas/docker/infisical-backups/.secrets.env` for rebuild safety.
 
 Never commit `.env`, `terraform.tfvars`, or `*.tfstate`.
 

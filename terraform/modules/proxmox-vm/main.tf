@@ -40,7 +40,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
   cpu {
     cores = var.cores
-    type  = "x86-64-v2-AES"
+    type  = var.cpu_type
   }
 
   memory {
@@ -55,14 +55,6 @@ resource "proxmox_virtual_environment_vm" "vm" {
     size         = var.disk_size_gb
     discard      = "on"
     iothread     = true
-  }
-
-  # Cloud-init drive
-  disk {
-    datastore_id = var.datastore
-    interface    = "ide2"
-    file_format  = "raw"
-    size         = 4
   }
 
   network_device {

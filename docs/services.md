@@ -29,14 +29,6 @@ TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/boo
 | cloudflared | Cloudflare Tunnel — exposes Headscale publicly without open ports or a static IP |
 | Tailscale exit node | Primary exit node for the tailnet |
 
-### diglett-infra (`192.168.0.21`)
-
-| Service | Notes |
-|---------|-------|
-| Infisical | Machine-consumed secrets (service API keys, inter-service tokens). Each VM fetches secrets at boot via `infisical export` |
-| Vaultwarden | Human-consumed secrets (web UI admin passwords). One manual browser registration at bootstrap; persists on NFS forever |
-| Litestream | Continuously streams the Vaultwarden SQLite WAL to Alakazam NFS |
-
 ### diglett-haos (`192.168.0.22`)
 
 | Service | Notes |
@@ -46,6 +38,15 @@ TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/boo
 ---
 
 ## Machamp VMs
+
+### machamp-infra (`192.168.0.32`)
+
+| Service | Notes |
+|---------|-------|
+| Infisical | Machine-consumed secrets (service API keys, inter-service tokens). Each VM fetches secrets at boot via `infisical export` |
+| Vaultwarden | Human-consumed secrets (web UI admin passwords). One manual browser registration at bootstrap; persists on NFS forever |
+| Authentik | OIDC identity provider. SSO for Grafana, n8n, Headplane, and Headscale (configure OIDC clients post-deploy) |
+| Litestream | Continuously streams the Vaultwarden SQLite WAL to Alakazam NFS |
 
 ### machamp-services (`192.168.0.30`)
 

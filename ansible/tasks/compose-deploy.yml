@@ -1,0 +1,19 @@
+---
+# Shared task: pull and start a Docker Compose stack.
+# Include this via include_tasks, passing:
+#   compose_project_src: absolute path to the directory containing docker-compose.yml
+# The calling role must define a handler named "Restart <basename> stack"
+# where <basename> is the last path component of compose_project_src.
+
+- name: Pull Docker images for {{ compose_project_src | basename }}
+  community.docker.docker_compose_v2_pull:
+    project_src: "{{ compose_project_src }}"
+  become: true
+
+- name: Start {{ compose_project_src | basename }} stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ compose_project_src }}"
+    state: present
+    pull: never
+  become: true
+  notify: "Restart {{ compose_project_src | basename }} stack"

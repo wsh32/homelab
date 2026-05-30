@@ -10,6 +10,7 @@
 **/.env
 **/*.pem
 **/*.key
+ansible/secrets.yml
 
 # Headscale runtime state
 services/vps/headscale/*.pem

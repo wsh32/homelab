@@ -20,9 +20,9 @@ dns:
   #   *.home → LAN HTTP path (guests, IoT, no TLS)
   rewrites:
     - domain: "*.wsh"
-      answer: machamp-services.ts.home   # Tailscale MagicDNS; each node resolves to services VM Tailscale IP
+      answer: machamp-infra.ts.home     # Tailscale MagicDNS; Traefik is on infra VM
     - domain: "*.home"
-      answer: 192.168.0.30              # machamp-services VM LAN IP
+      answer: 192.168.0.32              # machamp-infra VM LAN IP (Traefik)
 
   safe_search:
     enabled: false
