@@ -124,6 +124,30 @@
   no_log: true
   become: true
 
+- name: Override Authentik admin email from secrets.yml
+  ansible.builtin.lineinfile:
+    path: "{{ item }}"
+    regexp: '^AUTHENTIK_BOOTSTRAP_EMAIL='
+    line: "AUTHENTIK_BOOTSTRAP_EMAIL={{ authentik_admin_email }}"
+  loop:
+    - /etc/homelab.env
+    - /mnt/nas/docker/infisical-backups/.secrets.env
+  become: true
+  no_log: true
+  when: authentik_admin_email is defined
+
+- name: Override Authentik admin password from secrets.yml
+  ansible.builtin.lineinfile:
+    path: "{{ item }}"
+    regexp: '^AUTHENTIK_BOOTSTRAP_PASSWORD='
+    line: "AUTHENTIK_BOOTSTRAP_PASSWORD={{ authentik_admin_password }}"
+  loop:
+    - /etc/homelab.env
+    - /mnt/nas/docker/infisical-backups/.secrets.env
+  become: true
+  no_log: true
+  when: authentik_admin_password is defined
+
 - name: Ensure /etc/homelab.env has correct permissions
   ansible.builtin.file:
     path: /etc/homelab.env
