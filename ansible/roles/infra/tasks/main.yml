@@ -138,19 +138,16 @@
   until: pg_ready.rc == 0
   changed_when: false
 
-- name: Unlock Infisical migration table if stuck (idempotent)
-  ansible.builtin.shell: >
-    docker exec postgres psql -U postgres -d infisical
-    -c "UPDATE knex_migrations_lock SET is_locked = 0 WHERE is_locked = 1;"
+- name: Wait for Infisical to be healthy, unlocking migration table on each retry (up to 5 minutes)
+  ansible.builtin.shell: |
+    # Unlock any stuck knex migration lock before each health check attempt.
+    docker exec postgres psql -U postgres -d infisical \
+      -c "UPDATE knex_migrations_lock SET is_locked = 0 WHERE is_locked = 1;" \
+      2>/dev/null || true
+    curl -sf http://localhost:8080/api/status
   become: true
-  changed_when: false
-  failed_when: false
-
-- name: Wait for Infisical to be healthy (up to 5 minutes)
-  ansible.builtin.uri:
-    url: http://localhost:8080/api/status
-    status_code: 200
   register: infisical_health
   retries: 60
   delay: 5
-  until: infisical_health.status == 200
+  until: infisical_health.rc == 0
+  changed_when: false
