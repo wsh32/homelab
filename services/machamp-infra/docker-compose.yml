@@ -12,7 +12,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: postgres
       # Passed through so the init script can create per-service users.
-      INFISICAL_DB_PASSWORD: ${INFISICAL_DB_PASSWORD}
       AUTHENTIK_DB_PASSWORD: ${AUTHENTIK_DB_PASSWORD}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -44,7 +43,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      DB_CONNECTION_URI: postgresql://infisical:${INFISICAL_DB_PASSWORD}@postgres:5432/infisical
+      DB_CONNECTION_URI: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/infisical
       REDIS_URL: redis://redis:6379/0
       AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
       ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
