@@ -160,6 +160,16 @@
       until: authentik_ready.status == 200
       when: not oidc_done.stat.exists
 
+    # ── User ──────────────────────────────────────────────────────────────────
+
+    - name: Check if user already exists in Authentik
+      ansible.builtin.uri:
+        url: "http://192.168.0.32:9000/api/v3/core/users/?search={{ _admin_email | urlencode }}"
+        headers:
+          Authorization: "Bearer {{ _authentik_token }}"
+      register: _existing_user
+      when: not oidc_done.stat.exists
+
     - name: Create base user in Authentik
       ansible.builtin.uri:
         url: "http://192.168.0.32:9000/api/v3/core/users/"
@@ -174,13 +184,13 @@
           is_active: true
           type: internal
         status_code: 201
-      register: _user_result
+      register: _new_user
       no_log: true
-      when: not oidc_done.stat.exists
+      when: not oidc_done.stat.exists and _existing_user.json.count == 0
 
     - name: Set password for Authentik user
       ansible.builtin.uri:
-        url: "http://192.168.0.32:9000/api/v3/core/users/{{ _user_result.json.pk }}/set_password/"
+        url: "http://192.168.0.32:9000/api/v3/core/users/{{ _new_user.json.pk }}/set_password/"
         method: POST
         headers:
           Authorization: "Bearer {{ _authentik_token }}"
@@ -189,7 +199,9 @@
           password: "{{ _admin_password }}"
         status_code: 204
       no_log: true
-      when: not oidc_done.stat.exists
+      when: not oidc_done.stat.exists and _existing_user.json.count == 0
+
+    # ── OIDC Provider ─────────────────────────────────────────────────────────
 
     - name: Get Authentik authorization flow UUID
       ansible.builtin.uri:
@@ -197,6 +209,22 @@
         headers:
           Authorization: "Bearer {{ _authentik_token }}"
       register: _flow_result
+      when: not oidc_done.stat.exists
+
+    - name: Get Authentik invalidation flow UUID
+      ansible.builtin.uri:
+        url: "http://192.168.0.32:9000/api/v3/flows/instances/?slug=default-invalidation-flow"
+        headers:
+          Authorization: "Bearer {{ _authentik_token }}"
+      register: _inval_flow_result
+      when: not oidc_done.stat.exists
+
+    - name: Check if OIDC provider already exists in Authentik
+      ansible.builtin.uri:
+        url: "http://192.168.0.32:9000/api/v3/providers/oauth2/?name=infisical"
+        headers:
+          Authorization: "Bearer {{ _authentik_token }}"
+      register: _existing_provider
       when: not oidc_done.stat.exists
 
     - name: Create OAuth2/OIDC provider in Authentik
@@ -209,11 +237,32 @@
         body:
           name: infisical
           authorization_flow: "{{ _flow_result.json.results[0].pk }}"
+          invalidation_flow: "{{ _inval_flow_result.json.results[0].pk }}"
           client_type: confidential
-          redirect_uris: "https://infisical.wsh/api/v1/sso/oidc/callback\nhttp://192.168.0.32:8080/api/v1/sso/oidc/callback"
+          redirect_uris:
+            - matching_mode: strict
+              url: "https://infisical.wsh/api/v1/sso/oidc/callback"
+            - matching_mode: strict
+              url: "http://192.168.0.32:8080/api/v1/sso/oidc/callback"
         status_code: 201
-      register: _provider_result
+      register: _new_provider
       no_log: true
+      when: not oidc_done.stat.exists and _existing_provider.json.count == 0
+
+    - name: Set provider fact (new or existing)
+      ansible.builtin.set_fact:
+        _provider: "{{ _new_provider.json if _existing_provider.json.count == 0 else _existing_provider.json.results[0] }}"
+      no_log: true
+      when: not oidc_done.stat.exists
+
+    # ── Application ───────────────────────────────────────────────────────────
+
+    - name: Check if Infisical application already exists in Authentik
+      ansible.builtin.uri:
+        url: "http://192.168.0.32:9000/api/v3/core/applications/?slug=infisical"
+        headers:
+          Authorization: "Bearer {{ _authentik_token }}"
+      register: _existing_app
       when: not oidc_done.stat.exists
 
     - name: Create Infisical application in Authentik
@@ -226,9 +275,11 @@
         body:
           name: Infisical
           slug: infisical
-          provider: "{{ _provider_result.json.pk }}"
+          provider: "{{ _provider.pk }}"
         status_code: 201
-      when: not oidc_done.stat.exists
+      when: not oidc_done.stat.exists and _existing_app.json.count == 0
+
+    # ── Infisical OIDC config ─────────────────────────────────────────────────
 
     - name: Configure Infisical OIDC SSO
       ansible.builtin.uri:
@@ -241,8 +292,8 @@
           organizationId: "{{ _infisical_org_id }}"
           discoveryURL: "http://192.168.0.32:9000/application/o/infisical/.well-known/openid-configuration"
           configurationType: discovery
-          clientId: "{{ _provider_result.json.client_id }}"
-          clientSecret: "{{ _provider_result.json.client_secret }}"
+          clientId: "{{ _provider.client_id }}"
+          clientSecret: "{{ _provider.client_secret }}"
           isActive: true
         status_code: [200, 201]
       no_log: true
@@ -258,3 +309,4 @@
       delegate_to: machamp-infra
       become: true
       when: not oidc_done.stat.exists
+
