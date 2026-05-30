@@ -129,3 +129,29 @@
   ansible.builtin.include_tasks: ../../../tasks/compose-deploy.yml
   vars:
     compose_project_src: /home/{{ ansible_user }}/homelab/services/machamp-infra
+
+- name: Wait for postgres to be ready
+  ansible.builtin.shell: docker exec postgres pg_isready -U postgres
+  become: true
+  register: pg_ready
+  retries: 30
+  delay: 3
+  until: pg_ready.rc == 0
+  changed_when: false
+
+- name: Unlock Infisical migration table if stuck (idempotent)
+  ansible.builtin.shell: >
+    docker exec postgres psql -U postgres -d infisical
+    -c "UPDATE knex_migrations_lock SET is_locked = 0 WHERE is_locked = 1;"
+  become: true
+  changed_when: false
+  failed_when: false
+
+- name: Wait for Infisical to be healthy (up to 5 minutes)
+  ansible.builtin.uri:
+    url: http://localhost:8080/api/status
+    status_code: 200
+  register: infisical_health
+  retries: 60
+  delay: 5
+  until: infisical_health.status == 200
