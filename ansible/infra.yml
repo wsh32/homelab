@@ -290,7 +290,7 @@
           clientSecret: "{{ _provider.client_secret }}"
           isActive: true
           allowedEmailDomains: ""
-        status_code: [200, 201, 422]
+        status_code: [200, 201, 400, 422]
       no_log: true
       register: _oidc_result
       when: not oidc_done.stat.exists
