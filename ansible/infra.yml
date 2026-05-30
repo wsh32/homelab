@@ -186,7 +186,7 @@
         status_code: 201
       register: _new_user
       no_log: true
-      when: not oidc_done.stat.exists and _existing_user.json.count == 0
+      when: not oidc_done.stat.exists and (_existing_user.json.results | length) == 0
 
     - name: Set password for Authentik user
       ansible.builtin.uri:
@@ -199,7 +199,7 @@
           password: "{{ _admin_password }}"
         status_code: 204
       no_log: true
-      when: not oidc_done.stat.exists and _existing_user.json.count == 0
+      when: not oidc_done.stat.exists and (_existing_user.json.results | length) == 0
 
     # ── OIDC Provider ─────────────────────────────────────────────────────────
 
@@ -247,11 +247,11 @@
         status_code: 201
       register: _new_provider
       no_log: true
-      when: not oidc_done.stat.exists and _existing_provider.json.count == 0
+      when: not oidc_done.stat.exists and (_existing_provider.json.results | length) == 0
 
     - name: Set provider fact (new or existing)
       ansible.builtin.set_fact:
-        _provider: "{{ _new_provider.json if _existing_provider.json.count == 0 else _existing_provider.json.results[0] }}"
+        _provider: "{{ _new_provider.json if (_existing_provider.json.results | length) == 0 else _existing_provider.json.results[0] }}"
       no_log: true
       when: not oidc_done.stat.exists
 
@@ -277,7 +277,7 @@
           slug: infisical
           provider: "{{ _provider.pk }}"
         status_code: 201
-      when: not oidc_done.stat.exists and _existing_app.json.count == 0
+      when: not oidc_done.stat.exists and (_existing_app.json.results | length) == 0
 
     # ── Infisical OIDC config ─────────────────────────────────────────────────
 
