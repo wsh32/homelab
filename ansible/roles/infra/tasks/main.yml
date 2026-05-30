@@ -36,20 +36,15 @@
     mode: "{{ item.mode }}"
   loop:
     # PostgreSQL official image runs as uid 999 (postgres user).
-    - { path: /var/lib/infisical/pg,  owner: "999", group: "999", mode: "0750" }
-    - { path: /var/lib/authentik/pg,  owner: "999", group: "999", mode: "0750" }
-    - { path: /var/lib/vaultwarden,   owner: "0",   group: "0",   mode: "0755" }
+    - { path: /var/lib/postgres,    owner: "999", group: "999", mode: "0750" }
+    - { path: /var/lib/vaultwarden, owner: "0",   group: "0",   mode: "0755" }
   become: true
 
-- name: Create NFS backup directories
+- name: Create NFS sentinel directory
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: /mnt/nas/docker/infisical-backups
     state: directory
     mode: "0755"
-  loop:
-    - /mnt/nas/docker/infisical-backups
-    - /mnt/nas/docker/vaultwarden-backup
-    - /mnt/nas/docker/authentik-backups
   become: true
 
 - name: Create Authentik NFS media directories (owned by uid 1000 — authentik container user)
@@ -65,30 +60,25 @@
     - /mnt/nas/docker/authentik/custom-templates
   become: true
 
-- name: Check for inconsistent state (data dirs exist but NFS sentinel missing)
+- name: Check for inconsistent state (data dir exists but NFS sentinel missing)
   ansible.builtin.shell: |
     sentinel=/mnt/nas/docker/infisical-backups/.secrets.env
-    pg_dirs_initialized=0
-    for d in /var/lib/infisical/pg /var/lib/authentik/pg; do
-      if [ -d "$d" ] && [ "$(ls -A $d 2>/dev/null)" ]; then
-        pg_dirs_initialized=1
-      fi
-    done
-    if [ "$pg_dirs_initialized" = "1" ] && [ ! -f "$sentinel" ]; then
+    if [ -d /var/lib/postgres ] && [ "$(ls -A /var/lib/postgres 2>/dev/null)" ] \
+        && [ ! -f "$sentinel" ]; then
       echo "INCONSISTENT"
     fi
   register: state_check
   changed_when: false
   become: true
 
-- name: Fail on inconsistent state — secrets and data dirs are out of sync
+- name: Fail on inconsistent state — secrets and data dir are out of sync
   ansible.builtin.fail:
     msg: >
-      PostgreSQL data directories exist but the NFS secrets sentinel is missing.
-      This means credentials would be regenerated and PostgreSQL would reject them.
-      To recover: either restore the sentinel from a backup, or wipe the data dirs
-      (sudo rm -rf /var/lib/infisical/pg /var/lib/authentik/pg) if this is a fresh
-      install with no real data, then re-run.
+      PostgreSQL data directory exists but the NFS secrets sentinel is missing.
+      Regenerating secrets would break the existing database.
+      To recover: restore the sentinel from backup, or wipe the data dir
+      (sudo rm -rf /var/lib/postgres) if this is a fresh install with no real
+      data, then re-run.
   when: state_check.stdout == 'INCONSISTENT'
 
 - name: Generate bootstrap secrets (idempotent — skipped if NFS sentinel exists)
@@ -97,17 +87,14 @@
     local_env=/etc/homelab.env
     if [ ! -f "$nfs_secrets" ]; then
       tmp=$(mktemp)
-      printf "INFISICAL_DB_USER=infisical\n"                          > "$tmp"
-      printf "INFISICAL_DB_NAME=infisical\n"                         >> "$tmp"
-      printf "INFISICAL_DB_PASSWORD=%s\n" "$(openssl rand -hex 16)" >> "$tmp"
-      printf "INFISICAL_AUTH_SECRET=%s\n" "$(openssl rand -hex 32)" >> "$tmp"
+      printf "POSTGRES_PASSWORD=%s\n"       "$(openssl rand -hex 16)" > "$tmp"
+      printf "INFISICAL_DB_PASSWORD=%s\n"   "$(openssl rand -hex 16)" >> "$tmp"
+      printf "INFISICAL_AUTH_SECRET=%s\n"   "$(openssl rand -hex 32)" >> "$tmp"
       printf "INFISICAL_ENCRYPTION_KEY=%s\n" "$(openssl rand -hex 16)" >> "$tmp"
-      printf "VAULTWARDEN_ADMIN_TOKEN=%s\n" "$(openssl rand -hex 32)"  >> "$tmp"
-      printf "VAULTWARDEN_SIGNUPS_ALLOWED=true\n"                   >> "$tmp"
-      printf "AUTHENTIK_DB_USER=authentik\n"                        >> "$tmp"
-      printf "AUTHENTIK_DB_NAME=authentik\n"                        >> "$tmp"
-      printf "AUTHENTIK_DB_PASSWORD=%s\n" "$(openssl rand -hex 16)" >> "$tmp"
-      printf "AUTHENTIK_SECRET_KEY=%s\n" "$(openssl rand -hex 32)"  >> "$tmp"
+      printf "VAULTWARDEN_ADMIN_TOKEN=%s\n" "$(openssl rand -hex 32)" >> "$tmp"
+      printf "VAULTWARDEN_SIGNUPS_ALLOWED=true\n"                      >> "$tmp"
+      printf "AUTHENTIK_DB_PASSWORD=%s\n"   "$(openssl rand -hex 16)" >> "$tmp"
+      printf "AUTHENTIK_SECRET_KEY=%s\n"    "$(openssl rand -hex 32)" >> "$tmp"
       chmod 600 "$tmp"
       cp "$tmp" "$nfs_secrets"
       mv "$tmp" "$local_env"
