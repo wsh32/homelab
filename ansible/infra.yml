@@ -76,6 +76,17 @@
         msg: "{{ bootstrap_result.stdout_lines }}"
       when: not bootstrap_done.stat.exists
 
+    - name: Create /var/lib/infisical directory on machamp-infra
+      ansible.builtin.file:
+        path: /var/lib/infisical
+        state: directory
+        mode: "0700"
+        owner: root
+        group: root
+      delegate_to: machamp-infra
+      become: true
+      when: not bootstrap_done.stat.exists
+
     - name: Write bootstrap marker on machamp-infra
       ansible.builtin.file:
         path: /var/lib/infisical/.bootstrapped
