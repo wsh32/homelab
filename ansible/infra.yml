@@ -60,7 +60,7 @@
       ansible.builtin.shell: |
         docker exec infisical infisical bootstrap \
           --domain http://localhost:8080 \
-          --email admin@homelab.local \
+          --email "{{ infisical_admin_email | default('admin@homelab.local') }}" \
           --password "{{ _infisical_password }}" \
           --organization homelab \
           --ignore-if-bootstrapped \
