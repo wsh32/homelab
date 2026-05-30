@@ -29,7 +29,7 @@ BOOTSTRAP_OUTPUT=$(infisical bootstrap \
   --domain "$INFISICAL_HOST" \
   --email "$ADMIN_EMAIL" \
   --password "$ADMIN_PASSWORD" \
-  --organization homelab \
+  --organization teamrocket \
   --ignore-if-bootstrapped \
   --output json)
 

@@ -62,7 +62,7 @@
           --domain http://localhost:8080 \
           --email "{{ infisical_admin_email | default('admin@homelab.local') }}" \
           --password "{{ _infisical_password }}" \
-          --organization homelab \
+          --organization teamrocket \
           --ignore-if-bootstrapped \
           --output json
       delegate_to: machamp-infra
