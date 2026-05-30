@@ -47,6 +47,16 @@
     mode: "0755"
   become: true
 
+- name: Create NFS backup directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /mnt/nas/docker/postgres-backup
+    - /mnt/nas/docker/vaultwarden-backup
+  become: true
+
 - name: Create Traefik and step-ca NFS directories
   ansible.builtin.file:
     path: "{{ item.path }}"
@@ -163,6 +173,80 @@
     state: link
     force: true
   become: true
+
+- name: Check if postgres data directory is empty
+  ansible.builtin.find:
+    paths: /var/lib/postgres
+    file_type: any
+    hidden: true
+  register: postgres_data_contents
+  become: true
+
+- name: Find postgres backups on NFS
+  ansible.builtin.find:
+    paths: /mnt/nas/docker/postgres-backup
+    patterns: "dump_*.sql.gz"
+    file_type: file
+  register: postgres_backups
+  become: true
+
+- name: Restore postgres from NFS backup (data dir empty, backup present)
+  when:
+    - postgres_data_contents.files | length == 0
+    - postgres_backups.files | length > 0
+  block:
+    - name: Set latest postgres backup path
+      ansible.builtin.set_fact:
+        _latest_pg_backup: "{{ (postgres_backups.files | sort(attribute='mtime') | last).path }}"
+
+    - name: Start postgres container for restore
+      community.docker.docker_compose_v2:
+        project_src: /home/{{ ansible_user }}/homelab/services/machamp-infra
+        services:
+          - postgres
+        state: present
+        pull: missing
+      become: true
+
+    - name: Wait for postgres to be ready before restore
+      ansible.builtin.shell: docker exec postgres pg_isready -U postgres
+      become: true
+      register: pg_ready_restore
+      retries: 30
+      delay: 3
+      until: pg_ready_restore.rc == 0
+      changed_when: false
+
+    - name: Restore all databases from NFS dump
+      ansible.builtin.shell: |
+        gunzip -c {{ _latest_pg_backup }} | docker exec -i postgres psql -U postgres
+      become: true
+      no_log: true
+
+- name: Check if vaultwarden database exists
+  ansible.builtin.stat:
+    path: /var/lib/vaultwarden/db.sqlite3
+  register: vaultwarden_db_check
+  become: true
+
+- name: Check if vaultwarden litestream backup exists on NFS
+  ansible.builtin.stat:
+    path: /mnt/nas/docker/vaultwarden-backup/db.sqlite3
+  register: vaultwarden_backup_check
+  become: true
+
+- name: Restore vaultwarden from litestream backup (db missing, backup present)
+  ansible.builtin.shell: |
+    docker run --rm \
+      -v /var/lib/vaultwarden:/data \
+      -v /mnt/nas/docker/vaultwarden-backup:/backup \
+      -v /home/{{ ansible_user }}/homelab/services/machamp-infra/litestream.yml:/etc/litestream.yml:ro \
+      litestream/litestream:0.5.11 \
+      restore -config /etc/litestream.yml /data/db.sqlite3
+  become: true
+  when:
+    - not vaultwarden_db_check.stat.exists
+    - vaultwarden_backup_check.stat.exists
 
 - name: Deploy infra stack
   ansible.builtin.include_tasks: ../../../tasks/compose-deploy.yml

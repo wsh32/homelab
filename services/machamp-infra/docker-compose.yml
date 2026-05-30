@@ -193,3 +193,26 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /mnt/nas/docker/authentik/media:/media
       - /mnt/nas/docker/authentik/custom-templates:/templates
+
+  # ── PostgreSQL backup ──────────────────────────────────────────────────────
+  postgres-backup:
+    image: postgres:16-alpine
+    container_name: postgres-backup
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - /mnt/nas/docker/postgres-backup:/backups
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          file="/backups/dump_$(date +%Y%m%d_%H%M%S).sql.gz"
+          pg_dumpall -h postgres -U postgres | gzip > "$$file" \
+            && echo "Backup saved: $$file"
+          find /backups -name 'dump_*.sql.gz' -mtime +7 -delete
+          sleep 86400
+        done
