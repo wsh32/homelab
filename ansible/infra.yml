@@ -285,7 +285,7 @@
           organizationId: "{{ _infisical_org_id }}"
           # discoveryURL must be reachable from inside the infisical container at runtime
           discoveryURL: "http://192.168.0.32:9000/application/o/infisical/.well-known/openid-configuration"
-          configurationType: discovery
+          configurationType: discoveryURL
           clientId: "{{ _provider.client_id }}"
           clientSecret: "{{ _provider.client_secret }}"
           isActive: true
