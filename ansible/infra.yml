@@ -1,7 +1,10 @@
 ---
 # Deploy the machamp-infra stack (Infisical + Vaultwarden + Authentik + Litestream)
 # and bootstrap Infisical with an admin account.
-# Idempotent: bootstrap is gated by a sentinel file and skipped on re-runs.
+#
+# Bootstrap is always attempted — --ignore-if-bootstrapped makes it idempotent.
+# This avoids the sentinel-outlives-data problem (e.g. postgres wiped after a
+# failed deploy) that would otherwise prevent re-seeding.
 #
 # Prerequisites:
 #   - machamp-infra VM must be up and cloud-init must have completed
@@ -41,18 +44,21 @@
         _admin_password: "{{ infisical_admin_password | default(lookup('env', 'INFISICAL_ADMIN_PASSWORD')) }}"
       no_log: true
 
-    - name: Check if Infisical is already bootstrapped
-      ansible.builtin.stat:
-        path: /var/lib/infisical/.bootstrapped
-      become: true
-      register: bootstrap_done
-
     - name: Fail if no admin password available
       ansible.builtin.fail:
         msg: >
           Set infisical_admin_password in ansible/secrets.yml
           or pass INFISICAL_ADMIN_PASSWORD=<pass> as an env var.
-      when: not bootstrap_done.stat.exists and _admin_password == ''
+      when: _admin_password == ''
+
+    - name: Ensure /var/lib/infisical exists
+      ansible.builtin.file:
+        path: /var/lib/infisical
+        state: directory
+        mode: "0700"
+        owner: root
+        group: root
+      become: true
 
     - name: Bootstrap Infisical via docker exec
       ansible.builtin.shell: |
@@ -64,26 +70,6 @@
           --ignore-if-bootstrapped \
           --output json
       become: true
-      register: bootstrap_result
       no_log: true
-      when: not bootstrap_done.stat.exists
-
-    - name: Create /var/lib/infisical
-      ansible.builtin.file:
-        path: /var/lib/infisical
-        state: directory
-        mode: "0700"
-        owner: root
-        group: root
-      become: true
-      when: not bootstrap_done.stat.exists
-
-    - name: Write bootstrap sentinel
-      ansible.builtin.file:
-        path: /var/lib/infisical/.bootstrapped
-        state: touch
-        mode: "0600"
-        owner: root
-        group: root
-      become: true
-      when: not bootstrap_done.stat.exists
+      register: bootstrap_result
+      changed_when: "'already bootstrapped' not in bootstrap_result.stdout"
