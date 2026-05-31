@@ -2,18 +2,20 @@
 
 ## OIDC Client Configuration for Authentik
 
-**What:** Wire up OIDC clients in Authentik for Grafana, n8n, Headplane, and Headscale. Authentik itself is already deployed on `machamp-infra`.
+**What:** Wire up OIDC clients in Authentik for Headscale, Headplane, Grafana, and n8n. Authentik itself is already deployed on `machamp-infra`.
 
-**Why:** headplane currently requires pasting a headscale API key at every login. OIDC gives a proper login flow and a single credential to manage. Grafana and n8n also benefit from unified SSO.
+**Why:** headplane currently requires pasting a headscale API key at every login. OIDC gives a proper login flow and a single credential to manage. Headscale OIDC means new devices authenticate via Authentik instead of pre-auth keys. Grafana and n8n also benefit from unified SSO.
 
 **Work:**
 1. Headless Authentik bootstrap via Ansible: use Authentik's API to create OAuth2 providers and applications for each service (client ID + secret), write credentials to Infisical
-2. Add `oidc:` block to `services/dns/headplane/config.yaml`; pull client secret from Infisical at deploy time
-3. Add OIDC environment variables to Grafana and n8n in `services/machamp/docker-compose.yml`
-4. Optional: configure headscale itself to use Authentik OIDC for node registration
+2. **Headscale OIDC** — add `oidc:` block to `services/dns/headscale/config.yaml` pointing at `http://auth.home/application/o/headscale/`; store client secret in `/etc/headscale.env` on diglett-dns (alongside existing `HEADSCALE_SERVER_URL`); restore `autoApprovers` in `acls.hujson` using the Authentik user's email (e.g. `"wesoohoo@gmail.com"`) now that headscale auto-creates users from OIDC identity
+3. Add `oidc:` block to `services/dns/headplane/config.yaml`; pull client secret from `/etc/headscale.env`
+4. Add OIDC environment variables to Grafana and n8n in `services/machamp/docker-compose.yml`
+
+**Headscale OIDC enrollment note:** when enrolling a device that is not yet on LAN or Tailscale (e.g. a phone from outside), the browser redirect to `auth.home` won't resolve. Mitigation: keep a reusable pre-auth key as a bootstrap fallback (`headscale preauthkeys create --reusable`), or expose Authentik publicly via Cloudflare Tunnel.
 
 **Secret management:**
-- headplane / Grafana / n8n OIDC client secrets → Infisical, injected by Ansible
+- Headscale / headplane / Grafana / n8n OIDC client secrets → Infisical, injected by Ansible
 
 **Depends on:** `machamp-infra` VM deployed and Authentik bootstrapped, `machamp-services` VM deployed, Traefik + step-ca running.
 
