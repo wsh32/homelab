@@ -253,6 +253,40 @@
   vars:
     compose_project_src: /home/{{ ansible_user }}/homelab/services/machamp-infra
 
+- name: Wait for Traefik port 443
+  ansible.builtin.wait_for:
+    host: localhost
+    port: 443
+    timeout: 30
+  failed_when: false
+  become: true
+
+- name: Check TLS cert issuer on Traefik
+  ansible.builtin.shell: |
+    echo | openssl s_client -connect localhost:443 -servername infisical.home 2>/dev/null \
+      | openssl x509 -noout -issuer 2>/dev/null
+  register: traefik_cert_issuer
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: Clear stale acme.json (Traefik serving a non-step-ca cert)
+  ansible.builtin.shell: truncate -s 0 /mnt/nas/docker/traefik/acme/acme.json
+  become: true
+  register: acme_cleared
+  # Only act when Traefik returned something — empty means ACME still pending, don't interfere
+  when:
+    - traefik_cert_issuer.stdout != ''
+    - "'Team Rocket' not in traefik_cert_issuer.stdout"
+
+- name: Restart Traefik to re-trigger ACME after clearing stale cert
+  community.docker.docker_container:
+    name: traefik
+    state: started
+    restart: true
+  become: true
+  when: acme_cleared.changed
+
 - name: Wait for postgres to be ready
   ansible.builtin.shell: docker exec postgres pg_isready -U postgres
   become: true
