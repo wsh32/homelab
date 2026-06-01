@@ -25,6 +25,9 @@ services:
     image: smallstep/step-ca:latest
     container_name: step-ca
     restart: unless-stopped
+    dns:
+      - 192.168.0.2   # AdGuard on diglett-dns — needed to resolve .home for ACME HTTP-01
+      - 8.8.8.8
     volumes:
       - /mnt/nas/docker/step-ca:/home/step
     environment:
