@@ -24,6 +24,7 @@ dns:
     - domain: "*.home"
       answer: 192.168.0.30              # machamp-services VM LAN IP
 
+  safebrowsing_enabled: false
   safe_search:
     enabled: false
     bing: true
