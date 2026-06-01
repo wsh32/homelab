@@ -10,21 +10,32 @@
     project_src: "{{ compose_project_src }}"
   become: true
 
-# Handles the case where a compose project directory was renamed: containers created under
-# the old project name have a mismatched label and cause `compose up` to fail with a
-# "container name already in use" error. Finds containers by explicit container_name in the
-# compose file and removes any whose project label doesn't match the current project.
-- name: Remove stale containers conflicting with {{ compose_project_src | basename }}
+# Removes containers that would block `compose up`:
+#   - containers from a different project (e.g. dir renamed dns→diglett-dns)
+#   - containers in a non-running state (zombies from failed prior deploys)
+# Running containers in the correct project are left untouched.
+- name: Remove containers blocking {{ compose_project_src | basename }}
   ansible.builtin.shell: |
     project="{{ compose_project_src | basename }}"
     container_names=$(grep -E '^\s+container_name:' "{{ compose_project_src }}/docker-compose.yml" | awk '{print $2}' || true)
     for cname in $container_names; do
+      [ -z "$cname" ] && continue
       inspect_out=$(docker inspect "$cname" 2>/dev/null) || continue
-      existing_project=$(echo "$inspect_out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(((d[0].get('Config') or {}).get('Labels') or {}).get('com.docker.compose.project',''))" 2>/dev/null) || continue
-      if [ -n "$existing_project" ] && [ "$existing_project" != "$project" ]; then
-        docker rm -f "$cname"
-        echo "Removed $cname (was project: $existing_project)"
+      python_out=$(echo "$inspect_out" | python3 -c "
+    import json, sys
+    d = json.load(sys.stdin)
+    c = d[0] if d else {}
+    labels = (c.get('Config') or {}).get('Labels') or {}
+    print(labels.get('com.docker.compose.project', 'none'))
+    print((c.get('State') or {}).get('Status', 'unknown'))
+    " 2>/dev/null) || continue
+      existing_project=$(echo "$python_out" | sed -n '1p')
+      status=$(echo "$python_out" | sed -n '2p')
+      if [ "$existing_project" = "$project" ] && { [ "$status" = "running" ] || [ "$status" = "restarting" ]; }; then
+        continue
       fi
+      docker rm -f "$cname"
+      echo "Removed $cname (project=$existing_project status=$status)"
     done
   become: true
   register: stale_cleanup
