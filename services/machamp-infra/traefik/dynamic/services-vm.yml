@@ -1,4 +1,4 @@
-# File-provider routes for machamp-services (192.168.0.30).
+# File-provider routes for off-host backends.
 # Infra services (Infisical, Vaultwarden, Authentik) are handled by Docker labels.
 # All services are LAN (.home) only until Tailscale is wired up — see TODOS.md.
 http:
@@ -12,6 +12,18 @@ http:
       rule: "Host(`traefik.home`)"
       entryPoints: [websecure]
       service: api@internal
+      tls:
+        certResolver: step
+
+    # ── Headplane (diglett-dns) ───────────────────────────────────────────────
+    headplane-home:
+      rule: "Host(`headplane.home`)"
+      entryPoints: [web]
+      service: headplane-svc
+    headplane-home-tls:
+      rule: "Host(`headplane.home`)"
+      entryPoints: [websecure]
+      service: headplane-svc
       tls:
         certResolver: step
 
@@ -156,6 +168,10 @@ http:
         certResolver: step
 
   services:
+    headplane-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.2:3001"
     jellyfin-svc:
       loadBalancer:
         servers:
