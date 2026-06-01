@@ -60,14 +60,14 @@
     path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
     regexp: '^\s+url:'
     line: "  url: \"{{ headscale_env_raw.content | b64decode | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\\1') | first }}\""
-  notify: Restart dns stack
+  notify: Restart diglett-dns stack
 
 - name: Set headplane base_url in config
   ansible.builtin.lineinfile:
     path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
     regexp: '^\s+base_url:'
     line: "  base_url: \"http://{{ ansible_host }}:3001\""
-  notify: Restart dns stack
+  notify: Restart diglett-dns stack
 
 - name: Check if headplane API key is provisioned
   ansible.builtin.stat:
@@ -89,7 +89,7 @@
     regexp: '^\s+api_key:'
     line: "  api_key: \"{{ headplane_api_key_role.content | b64decode | trim }}\""
   no_log: true
-  notify: Restart dns stack
+  notify: Restart diglett-dns stack
   when: headplane_api_key_stat_role.stat.exists
 
 - name: Enable IP forwarding (required for tailscale exit node)
