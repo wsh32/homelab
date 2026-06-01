@@ -90,10 +90,6 @@ services:
       SITE_URL: https://infisical.wsh
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.infisical-wsh.rule=Host(`infisical.wsh`)"
-      - "traefik.http.routers.infisical-wsh.entrypoints=websecure"
-      - "traefik.http.routers.infisical-wsh.tls=true"
-      - "traefik.http.routers.infisical-wsh.tls.certresolver=step"
       - "traefik.http.routers.infisical-home.rule=Host(`infisical.home`)"
       - "traefik.http.routers.infisical-home.entrypoints=web"
       - "traefik.http.routers.infisical-home-tls.rule=Host(`infisical.home`)"
@@ -115,10 +111,6 @@ services:
       ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.vault-wsh.rule=Host(`vault.wsh`)"
-      - "traefik.http.routers.vault-wsh.entrypoints=websecure"
-      - "traefik.http.routers.vault-wsh.tls=true"
-      - "traefik.http.routers.vault-wsh.tls.certresolver=step"
       - "traefik.http.routers.vault-home.rule=Host(`vault.home`)"
       - "traefik.http.routers.vault-home.entrypoints=web"
       - "traefik.http.routers.vault-home-tls.rule=Host(`vault.home`)"
@@ -168,10 +160,6 @@ services:
       - /mnt/nas/docker/authentik/custom-templates:/templates
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.auth-wsh.rule=Host(`auth.wsh`)"
-      - "traefik.http.routers.auth-wsh.entrypoints=websecure"
-      - "traefik.http.routers.auth-wsh.tls=true"
-      - "traefik.http.routers.auth-wsh.tls.certresolver=step"
       - "traefik.http.routers.auth-home.rule=Host(`auth.home`)"
       - "traefik.http.routers.auth-home.entrypoints=web"
       - "traefik.http.routers.auth-home-tls.rule=Host(`auth.home`)"
