@@ -40,17 +40,6 @@
       failed_when: false  # idempotent: no-op if user already exists
       become: true
 
-    - name: Get infra user ID
-      community.docker.docker_container_exec:
-        container: headscale
-        command: headscale users list --output json
-      register: users_result
-      become: true
-
-    - name: Parse infra user ID
-      ansible.builtin.set_fact:
-        headscale_user_id: "{{ (users_result.stdout | from_json) | selectattr('name', 'equalto', 'infra') | map(attribute='id') | first }}"
-
     - name: Check if tailscale auth key is cached on disk
       ansible.builtin.stat:
         path: /etc/tailscale-auth.key
@@ -68,7 +57,7 @@
     - name: List pre-auth keys in headscale DB
       community.docker.docker_container_exec:
         container: headscale
-        command: "headscale preauthkeys list --user {{ headscale_user_id }} --output json"
+        command: "headscale preauthkeys list --output json"
       register: preauthkeys_list
       become: true
       when: tailscale_auth_key_stat.stat.exists
@@ -85,7 +74,7 @@
     - name: Generate reusable pre-auth key (1 year expiry)
       community.docker.docker_container_exec:
         container: headscale
-        command: "headscale preauthkeys create --user {{ headscale_user_id }} --reusable --expiration 8760h --output json"
+        command: "headscale preauthkeys create --reusable --expiration 8760h --output json"
       register: preauthkey_result
       become: true
       when: not _cached_key_valid
