@@ -21,6 +21,7 @@
       - avahi-daemon
     state: present
     update_cache: true
+    lock_timeout: 300
   become: true
 
 - name: Set timezone to America/Los_Angeles
@@ -56,5 +57,6 @@
     name: tailscale
     state: latest
     update_cache: true
+    lock_timeout: 300
   become: true
   notify: Restart tailscale
