@@ -10,10 +10,31 @@
     project_src: "{{ compose_project_src }}"
   become: true
 
+# Handles the case where a compose project directory was renamed: containers created under
+# the old project name have a mismatched label and cause `compose up` to fail with a
+# "container name already in use" error. Finds containers by explicit container_name in the
+# compose file and removes any whose project label doesn't match the current project.
+- name: Remove stale containers conflicting with {{ compose_project_src | basename }}
+  ansible.builtin.shell: |
+    project="{{ compose_project_src | basename }}"
+    container_names=$(grep -E '^\s+container_name:' "{{ compose_project_src }}/docker-compose.yml" | awk '{print $2}' || true)
+    for cname in $container_names; do
+      inspect_out=$(docker inspect "$cname" 2>/dev/null) || continue
+      existing_project=$(echo "$inspect_out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(((d[0].get('Config') or {}).get('Labels') or {}).get('com.docker.compose.project',''))" 2>/dev/null) || continue
+      if [ -n "$existing_project" ] && [ "$existing_project" != "$project" ]; then
+        docker rm -f "$cname"
+        echo "Removed $cname (was project: $existing_project)"
+      fi
+    done
+  become: true
+  register: stale_cleanup
+  changed_when: "'Removed' in stale_cleanup.stdout"
+
 - name: Start {{ compose_project_src | basename }} stack
   community.docker.docker_compose_v2:
     project_src: "{{ compose_project_src }}"
     state: present
     pull: never
+    remove_orphans: true
   become: true
   notify: "Restart {{ compose_project_src | basename }} stack"
