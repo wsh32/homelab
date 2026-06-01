@@ -15,7 +15,7 @@ http:
       tls:
         certResolver: step
 
-    # ── Headplane (diglett-dns) ───────────────────────────────────────────────
+    # ── diglett-dns services ──────────────────────────────────────────────────
     headplane-home:
       rule: "Host(`headplane.home`)"
       entryPoints: [web]
@@ -24,6 +24,16 @@ http:
       rule: "Host(`headplane.home`)"
       entryPoints: [websecure]
       service: headplane-svc
+      tls:
+        certResolver: step
+    adguard-home:
+      rule: "Host(`adguard.home`)"
+      entryPoints: [web]
+      service: adguard-svc
+    adguard-home-tls:
+      rule: "Host(`adguard.home`)"
+      entryPoints: [websecure]
+      service: adguard-svc
       tls:
         certResolver: step
 
@@ -172,6 +182,10 @@ http:
       loadBalancer:
         servers:
           - url: "http://192.168.0.2:3001"
+    adguard-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.2:3000"
     jellyfin-svc:
       loadBalancer:
         servers:
