@@ -3,7 +3,7 @@
 # cloud-init handles the initial package install and Tailscale auth;
 # this role handles ongoing configuration and day-2 concerns.
 
-- name: Stop and disable automatic apt services (Ansible owns updates)
+- name: Stop and disable automatic apt services
   ansible.builtin.systemd:
     name: "{{ item }}"
     state: stopped
