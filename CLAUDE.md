@@ -25,9 +25,15 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
   - "traefik.http.routers.<name>-wsh.tls=true"
   - "traefik.http.routers.<name>-home.rule=Host(`<name>.home`)"
   - "traefik.http.routers.<name>-home.entrypoints=web"
+  - "traefik.http.routers.<name>-home-tls.rule=Host(`<name>.home`)"
+  - "traefik.http.routers.<name>-home-tls.entrypoints=websecure"
+  - "traefik.http.routers.<name>-home-tls.tls=true"
+  - "traefik.http.routers.<name>-home-tls.tls.certresolver=step"
   - "traefik.http.services.<name>-svc.loadbalancer.server.port=<port>"
   ```
-  TLS cert resolver is `step` (local step-ca CA), not `letsencrypt`.
+  TLS cert resolver is `step` (local step-ca CA), not `letsencrypt`. Both HTTP and HTTPS
+  are served on `.home` — devices with the step-ca root cert installed get HTTPS, others
+  fall back to HTTP.
 - **Headless config**: all services are configured without the web UI. Two accepted exceptions: HAOS (restored from backup) and Vaultwarden (one manual browser registration). See "Headless Service Configuration" in `docs/plan.md`.
 
 ## Repo structure

@@ -13,6 +13,12 @@ http:
       rule: "Host(`jellyfin.home`)"
       entryPoints: [web]
       service: jellyfin-svc
+    jellyfin-home-tls:
+      rule: "Host(`jellyfin.home`)"
+      entryPoints: [websecure]
+      service: jellyfin-svc
+      tls:
+        certResolver: step
 
     # ── Servarr (Tailscale only) ───────────────────────────────────────────────
     prowlarr-wsh:
@@ -85,6 +91,12 @@ http:
       rule: "Host(`home.home`)"
       entryPoints: [web]
       service: home-svc
+    home-home-tls:
+      rule: "Host(`home.home`)"
+      entryPoints: [websecure]
+      service: home-svc
+      tls:
+        certResolver: step
 
     # ── Prometheus ────────────────────────────────────────────────────────────
     prometheus-wsh:
@@ -105,6 +117,12 @@ http:
       rule: "Host(`grafana.home`)"
       entryPoints: [web]
       service: grafana-svc
+    grafana-home-tls:
+      rule: "Host(`grafana.home`)"
+      entryPoints: [websecure]
+      service: grafana-svc
+      tls:
+        certResolver: step
 
   services:
     jellyfin-svc:

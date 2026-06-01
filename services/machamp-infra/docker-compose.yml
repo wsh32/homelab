@@ -96,6 +96,10 @@ services:
       - "traefik.http.routers.infisical-wsh.tls.certresolver=step"
       - "traefik.http.routers.infisical-home.rule=Host(`infisical.home`)"
       - "traefik.http.routers.infisical-home.entrypoints=web"
+      - "traefik.http.routers.infisical-home-tls.rule=Host(`infisical.home`)"
+      - "traefik.http.routers.infisical-home-tls.entrypoints=websecure"
+      - "traefik.http.routers.infisical-home-tls.tls=true"
+      - "traefik.http.routers.infisical-home-tls.tls.certresolver=step"
       - "traefik.http.services.infisical-svc.loadbalancer.server.port=8080"
 
   # ── Vaultwarden ────────────────────────────────────────────────────────────
@@ -117,10 +121,10 @@ services:
       - "traefik.http.routers.vault-wsh.tls.certresolver=step"
       - "traefik.http.routers.vault-home.rule=Host(`vault.home`)"
       - "traefik.http.routers.vault-home.entrypoints=web"
-      - "traefik.http.routers.vault-home.middlewares=vault-https-redirect"
-      - "traefik.http.middlewares.vault-https-redirect.redirectregex.regex=^http://vault\\.home(.*)"
-      - "traefik.http.middlewares.vault-https-redirect.redirectregex.replacement=https://vault.wsh$${1}"
-      - "traefik.http.middlewares.vault-https-redirect.redirectregex.permanent=true"
+      - "traefik.http.routers.vault-home-tls.rule=Host(`vault.home`)"
+      - "traefik.http.routers.vault-home-tls.entrypoints=websecure"
+      - "traefik.http.routers.vault-home-tls.tls=true"
+      - "traefik.http.routers.vault-home-tls.tls.certresolver=step"
       - "traefik.http.services.vault-svc.loadbalancer.server.port=80"
 
   litestream:
@@ -170,6 +174,10 @@ services:
       - "traefik.http.routers.auth-wsh.tls.certresolver=step"
       - "traefik.http.routers.auth-home.rule=Host(`auth.home`)"
       - "traefik.http.routers.auth-home.entrypoints=web"
+      - "traefik.http.routers.auth-home-tls.rule=Host(`auth.home`)"
+      - "traefik.http.routers.auth-home-tls.entrypoints=websecure"
+      - "traefik.http.routers.auth-home-tls.tls=true"
+      - "traefik.http.routers.auth-home-tls.tls.certresolver=step"
       - "traefik.http.services.auth-svc.loadbalancer.server.port=9000"
 
   authentik-worker:
