@@ -26,13 +26,13 @@ dns:
 
   safe_search:
     enabled: false
-    bing: false
-    duckduckgo: false
-    ecosia: false
-    google: false
-    pixabay: false
-    yandex: false
-    youtube: false
+    bing: true
+    duckduckgo: true
+    ecosia: true
+    google: true
+    pixabay: true
+    yandex: true
+    youtube: true
 
   cache_size: 4194304
   ratelimit: 20
