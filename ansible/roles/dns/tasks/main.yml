@@ -110,7 +110,33 @@
     regexp: '^#?DNSStubListener='
     line: 'DNSStubListener=no'
   become: true
-  notify: Restart systemd-resolved
+  register: resolved_stub
+
+- name: Configure systemd-resolved upstream DNS (AdGuard with 8.8.8.8 fallback)
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/resolved.conf
+    regexp: '^#?DNS='
+    line: 'DNS=127.0.0.1 8.8.8.8'
+  become: true
+  register: resolved_dns
+
+- name: Restart systemd-resolved to apply stub/DNS config
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    state: restarted
+  become: true
+  when: resolved_stub.changed or resolved_dns.changed
+
+# With DNSStubListener=no, the default /etc/resolv.conf symlink points at the
+# now-dead stub (127.0.0.53). Repoint it at the non-stub config so the host
+# uses the DNS= upstreams above and can reach the internet.
+- name: Point /etc/resolv.conf at systemd-resolved non-stub config
+  ansible.builtin.file:
+    src: /run/systemd/resolve/resolv.conf
+    dest: /etc/resolv.conf
+    state: link
+    force: true
+  become: true
 
 - name: Deploy DNS stack
   ansible.builtin.include_tasks: ../../../tasks/compose-deploy.yml
