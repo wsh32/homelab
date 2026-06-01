@@ -112,11 +112,11 @@
   become: true
   register: resolved_stub
 
-- name: Configure systemd-resolved upstream DNS (AdGuard with 8.8.8.8 fallback)
+- name: Configure systemd-resolved upstream DNS
   ansible.builtin.lineinfile:
     path: /etc/systemd/resolved.conf
     regexp: '^#?DNS='
-    line: 'DNS=127.0.0.1 8.8.8.8'
+    line: 'DNS=8.8.8.8 8.8.4.4'
   become: true
   register: resolved_dns
 
@@ -129,7 +129,8 @@
 
 # With DNSStubListener=no, the default /etc/resolv.conf symlink points at the
 # now-dead stub (127.0.0.53). Repoint it at the non-stub config so the host
-# uses the DNS= upstreams above and can reach the internet.
+# uses 8.8.8.8/8.8.4.4 directly. AdGuard serves LAN clients; the host itself
+# does not need to route through AdGuard for its own resolution.
 - name: Point /etc/resolv.conf at systemd-resolved non-stub config
   ansible.builtin.file:
     src: /run/systemd/resolve/resolv.conf
