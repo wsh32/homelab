@@ -117,6 +117,10 @@ services:
       - "traefik.http.routers.vault-wsh.tls.certresolver=step"
       - "traefik.http.routers.vault-home.rule=Host(`vault.home`)"
       - "traefik.http.routers.vault-home.entrypoints=web"
+      - "traefik.http.routers.vault-home.middlewares=vault-https-redirect"
+      - "traefik.http.middlewares.vault-https-redirect.redirectregex.regex=^http://vault\\.home(.*)"
+      - "traefik.http.middlewares.vault-https-redirect.redirectregex.replacement=https://vault.wsh$${1}"
+      - "traefik.http.middlewares.vault-https-redirect.redirectregex.permanent=true"
       - "traefik.http.services.vault-svc.loadbalancer.server.port=80"
 
   litestream:
