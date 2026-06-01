@@ -3,6 +3,11 @@
 # cloud-init handles the initial package install and Tailscale auth;
 # this role handles ongoing configuration and day-2 concerns.
 
+- name: Wait for cloud-init to finish
+  ansible.builtin.command: cloud-init status --wait
+  become: true
+  changed_when: false
+
 - name: Stop and disable automatic apt services
   ansible.builtin.systemd:
     name: "{{ item }}"
