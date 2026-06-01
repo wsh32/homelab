@@ -8,9 +8,9 @@
 
 **Work:**
 1. Headless Authentik bootstrap via Ansible: use Authentik's API to create OAuth2 providers and applications for each service (client ID + secret), write credentials to Infisical
-2. **Headscale OIDC** — add `oidc:` block to `services/dns/headscale/config.yaml` pointing at `http://auth.home/application/o/headscale/`; store client secret in `/etc/headscale.env` on diglett-dns (alongside existing `HEADSCALE_SERVER_URL`); restore `autoApprovers` in `acls.hujson` using the Authentik user's email (e.g. `"wesoohoo@gmail.com"`) now that headscale auto-creates users from OIDC identity
-3. Add `oidc:` block to `services/dns/headplane/config.yaml`; pull client secret from `/etc/headscale.env`
-4. Add OIDC environment variables to Grafana and n8n in `services/machamp/docker-compose.yml`
+2. **Headscale OIDC** — add `oidc:` block to `services/diglett-dns/headscale/config.yaml` pointing at `http://auth.home/application/o/headscale/`; store client secret in `/etc/headscale.env` on diglett-dns (alongside existing `HEADSCALE_SERVER_URL`); restore `autoApprovers` in `acls.hujson` using the Authentik user's email (e.g. `"wesoohoo@gmail.com"`) now that headscale auto-creates users from OIDC identity
+3. Add `oidc:` block to `services/diglett-dns/headplane/config.yaml`; pull client secret from `/etc/headscale.env`
+4. Add OIDC environment variables to Grafana and n8n in `services/machamp-services/docker-compose.yml`
 
 **Headscale OIDC enrollment note:** when enrolling a device that is not yet on LAN or Tailscale (e.g. a phone from outside), the browser redirect to `auth.home` won't resolve. Mitigation: keep a reusable pre-auth key as a bootstrap fallback (`headscale preauthkeys create --reusable`), or expose Authentik publicly via Cloudflare Tunnel.
 

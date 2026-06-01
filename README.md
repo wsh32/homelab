@@ -45,7 +45,7 @@ ansible/
   roles/
     base/                 # all Ubuntu VMs and physical devices
     docker/               # Docker Compose VMs
-    dns/                  # deploys services/dns/ stack to diglett-dns
+    dns/                  # deploys services/diglett-dns/ stack to diglett-dns
     network/              # Proxmox bridge config on physical nodes
   base.yml                # day-2 config for all VMs (push)
   dns.yml                 # deploy AdGuard Home + Headscale + cloudflared

@@ -66,7 +66,7 @@ Root module for Machamp. VM ID range 100–199, IP range `192.168.0.30–49`.
 
 ---
 
-## `services/dns/`
+## `services/diglett-dns/`
 
 Docker Compose stack for the `diglett-dns` VM.
 
@@ -94,7 +94,7 @@ Not yet created.
 
 ---
 
-## `services/machamp/`
+## `services/machamp-services/`
 
 Docker Compose stack for the `machamp-services` VM. This is the main services stack.
 

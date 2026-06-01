@@ -1,20 +1,20 @@
 ---
-# DNS role — deploys the services/dns/ Docker Compose stack to diglett-dns.
+# DNS role — deploys the services/diglett-dns/ Docker Compose stack to diglett-dns.
 # Requires: base role (already run), Docker installed via cloud-init at VM creation.
 
 - name: Create services directory
   ansible.builtin.file:
-    path: /home/{{ ansible_user }}/homelab/services/dns
+    path: /home/{{ ansible_user }}/homelab/services/diglett-dns
     state: directory
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: "0755"
   become: true
 
-- name: Sync services/dns/ from deploy VM
+- name: Sync services/diglett-dns/ from deploy VM
   ansible.posix.synchronize:
-    src: "{{ playbook_dir }}/../services/dns/"
-    dest: /home/{{ ansible_user }}/homelab/services/dns/
+    src: "{{ playbook_dir }}/../services/diglett-dns/"
+    dest: /home/{{ ansible_user }}/homelab/services/diglett-dns/
     delete: true
     recursive: true
     rsync_opts:
@@ -57,14 +57,14 @@
 
 - name: Set headscale URL in headplane config
   ansible.builtin.lineinfile:
-    path: /home/{{ ansible_user }}/homelab/services/dns/headplane/config.yaml
+    path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
     regexp: '^\s+url:'
     line: "  url: \"{{ headscale_env_raw.content | b64decode | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\\1') | first }}\""
   notify: Restart dns stack
 
 - name: Set headplane base_url in config
   ansible.builtin.lineinfile:
-    path: /home/{{ ansible_user }}/homelab/services/dns/headplane/config.yaml
+    path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
     regexp: '^\s+base_url:'
     line: "  base_url: \"http://{{ ansible_host }}:3001\""
   notify: Restart dns stack
@@ -85,7 +85,7 @@
 
 - name: Inject headplane API key into config
   ansible.builtin.lineinfile:
-    path: /home/{{ ansible_user }}/homelab/services/dns/headplane/config.yaml
+    path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
     regexp: '^\s+api_key:'
     line: "  api_key: \"{{ headplane_api_key_role.content | b64decode | trim }}\""
   no_log: true
@@ -115,4 +115,4 @@
 - name: Deploy DNS stack
   ansible.builtin.include_tasks: ../../../tasks/compose-deploy.yml
   vars:
-    compose_project_src: /home/{{ ansible_user }}/homelab/services/dns
+    compose_project_src: /home/{{ ansible_user }}/homelab/services/diglett-dns

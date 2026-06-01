@@ -183,7 +183,7 @@
 
     - name: Update headscale DNS nameserver to diglett-dns tailscale IP
       ansible.builtin.lineinfile:
-        path: /home/{{ ansible_user }}/homelab/services/dns/headscale/config.yaml
+        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headscale/config.yaml
         regexp: '^\s+- \d+\.\d+\.\d+\.\d+'
         line: "      - {{ diglett_ts_ip.stdout | trim }}  # AdGuard Home on diglett-dns"
       register: nameserver_update
@@ -243,7 +243,7 @@
 
     - name: Inject headscale API key into headplane config
       ansible.builtin.lineinfile:
-        path: /home/{{ ansible_user }}/homelab/services/dns/headplane/config.yaml
+        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
         regexp: '^\s+api_key:'
         line: "  api_key: \"{{ headplane_api_key_nfs.content | b64decode | trim }}\""
       no_log: true

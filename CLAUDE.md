@@ -40,12 +40,11 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
 
 ```
 terraform/modules/proxmox-vm/  — shared VM module, edit here for VM-level changes
-terraform/diglett/            — Diglett VMs (DNS, HAOS)
-terraform/machamp/            — Machamp VMs (Infra, Services, Dev)
-services/dns/                 — AdGuard Home + Headscale + cloudflared
-services/machamp-infra/       — Infisical + Vaultwarden + Authentik + Litestream
-services/diglett-deploy/      — (not yet created)
-services/machamp/             — all Docker Compose services (Traefik, Jellyfin, etc.)
+terraform/diglett/             — Diglett VMs (DNS, HAOS)
+terraform/machamp/             — Machamp VMs (Infra, Services, Dev)
+services/diglett-dns/          — AdGuard Home + Headscale + cloudflared
+services/machamp-infra/        — Infisical + Vaultwarden + Authentik + Litestream
+services/machamp-services/     — all Docker Compose services (Jellyfin, Grafana, etc.)
 scripts/                       — bootstrap and init scripts (headless service setup)
 ansible/                       — push-only config management for VMs and physical devices
 docs/                          — architecture docs, plan, TODOs

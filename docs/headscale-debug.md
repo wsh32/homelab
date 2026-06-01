@@ -129,7 +129,7 @@ docker exec headscale sqlite3 /var/lib/headscale/db.sqlite "SELECT * FROM nodes;
 ## Full restart
 
 ```bash
-cd ~/services/dns   # or wherever docker-compose.yml lives on the DNS VM
+cd ~/services/diglett-dns   # or wherever docker-compose.yml lives on the DNS VM
 docker compose down && docker compose up -d
 docker compose logs -f
 ```
