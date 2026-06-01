@@ -74,7 +74,7 @@
     - name: Generate reusable pre-auth key (1 year expiry)
       community.docker.docker_container_exec:
         container: headscale
-        command: "headscale preauthkeys create --reusable --expiration 8760h --output json"
+        command: "headscale preauthkeys create --user infra --reusable --expiration 8760h --output json"
       register: preauthkey_result
       become: true
       when: not _cached_key_valid
