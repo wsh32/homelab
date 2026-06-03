@@ -109,7 +109,7 @@ services:
     volumes:
       - /var/lib/vaultwarden:/data   # local disk — backed up continuously by litestream
     environment:
-      DOMAIN: https://vault.wsh
+      DOMAIN: https://vault.home
       SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
       ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
     labels:
