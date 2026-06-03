@@ -90,7 +90,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
       ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
-      SITE_URL: https://infisical.wsh
+      SITE_URL: https://infisical.home
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.infisical-home.rule=Host(`infisical.home`)"
