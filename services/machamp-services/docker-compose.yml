@@ -10,7 +10,7 @@ services:
       - /mnt/nas/docker/jellyfin:/config
       - /mnt/nas/media:/media:ro
     environment:
-      JELLYFIN_PublishedServerUrl: https://jellyfin.wsh
+      JELLYFIN_PublishedServerUrl: https://jellyfin.home
     # GPU transcoding: Quadro P2200 passed through to VM; expose via /dev/dri
     devices:
       - /dev/dri:/dev/dri
@@ -71,7 +71,7 @@ services:
       - /mnt/nas/photos:/photoprism/originals:ro
     environment:
       PHOTOPRISM_ADMIN_PASSWORD: ${PHOTOPRISM_ADMIN_PASSWORD}
-      PHOTOPRISM_SITE_URL: https://photos.wsh
+      PHOTOPRISM_SITE_URL: https://photos.home
       PHOTOPRISM_ORIGINALS_LIMIT: -1
       PHOTOPRISM_HTTP_COMPRESSION: gzip
 
@@ -99,10 +99,10 @@ services:
     volumes:
       - /mnt/nas/docker/n8n:/home/node/.n8n
     environment:
-      N8N_HOST: n8n.wsh
+      N8N_HOST: n8n.home
       N8N_PROTOCOL: https
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
-      WEBHOOK_URL: https://n8n.wsh
+      WEBHOOK_URL: https://n8n.home
 
   # ── Obsidian LiveSync (CouchDB) ────────────────────────────────────────────
   couchdb:
@@ -174,7 +174,7 @@ services:
       - /mnt/nas/docker/grafana:/var/lib/grafana
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
-      GF_SERVER_ROOT_URL: https://grafana.wsh
+      GF_SERVER_ROOT_URL: https://grafana.home
 
   # ── Monitoring: Loki ───────────────────────────────────────────────────────
   loki:
