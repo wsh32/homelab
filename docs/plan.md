@@ -361,7 +361,7 @@ Bootstrapped via `infisical bootstrap` CLI (requires Infisical CLI ≥ 0.28) aft
 
 - Playbook: `ansible/infra.yml` (Bootstrap Infisical play)
 - Creates: admin user (`admin@homelab.local`), organization, workspace
-- Idempotent: skipped after first run via marker at `/var/lib/infisical/.bootstrapped` on machamp-infra
+- Idempotent: `--ignore-if-bootstrapped` flag makes re-runs a no-op
 - Run: `INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`
 
 ### Jellyfin
