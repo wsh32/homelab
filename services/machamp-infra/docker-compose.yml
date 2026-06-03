@@ -103,7 +103,7 @@ services:
 
   # ── Vaultwarden ────────────────────────────────────────────────────────────
   vaultwarden:
-    image: vaultwarden/server:1.32.0
+    image: vaultwarden/server:latest
     container_name: vaultwarden
     restart: unless-stopped
     volumes:

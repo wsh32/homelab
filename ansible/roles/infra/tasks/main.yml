@@ -287,6 +287,55 @@
   become: true
   when: acme_cleared.changed
 
+- name: Check if Vaultwarden admin token is already Argon2-hashed
+  ansible.builtin.shell: |
+    grep '^VAULTWARDEN_ADMIN_TOKEN=' /etc/homelab.env | cut -d= -f2- | grep -q '^\$argon2' && echo hashed || echo plain
+  register: vw_token_state
+  changed_when: false
+  no_log: true
+  become: true
+
+- name: Wait for Vaultwarden container to be running (needed for hash command)
+  ansible.builtin.shell: docker inspect --format='{{"{{"}} .State.Running {{"}}"}}' vaultwarden
+  register: vw_running
+  retries: 15
+  delay: 5
+  until: vw_running.stdout == 'true'
+  changed_when: false
+  become: true
+  when: vw_token_state.stdout == 'plain'
+
+- name: Hash Vaultwarden admin token with Argon2 PHC (idempotent — skipped if already hashed)
+  ansible.builtin.shell: |
+    token=$(grep '^VAULTWARDEN_ADMIN_TOKEN=' /etc/homelab.env | cut -d= -f2-)
+    hashed=$(echo -n "$token" | docker exec -i vaultwarden /vaultwarden hash --preset owasp 2>/dev/null)
+    python3 - "$hashed" <<'PYEOF'
+    import sys, re
+    hashed = sys.argv[1]
+    for path in ['/etc/homelab.env', '/mnt/nas/docker/infisical-backups/.secrets.env']:
+        try:
+            with open(path, 'r') as f:
+                content = f.read()
+            with open(path, 'w') as f:
+                f.write(re.sub(r'^VAULTWARDEN_ADMIN_TOKEN=.*$', 'VAULTWARDEN_ADMIN_TOKEN=' + hashed, content, flags=re.MULTILINE))
+        except OSError:
+            pass
+    PYEOF
+    echo changed
+  register: vw_hash_result
+  changed_when: "'changed' in vw_hash_result.stdout"
+  no_log: true
+  become: true
+  when: vw_token_state.stdout == 'plain'
+
+- name: Restart Vaultwarden to apply hashed admin token
+  community.docker.docker_container:
+    name: vaultwarden
+    state: started
+    restart: true
+  become: true
+  when: vw_hash_result.changed | default(false)
+
 - name: Wait for postgres to be ready
   ansible.builtin.shell: docker exec postgres pg_isready -U postgres
   become: true
