@@ -33,6 +33,14 @@ Goal: `*.wsh` resolves and loads over HTTPS; `*.home` resolves and loads over HT
 - [ ] **Set AdGuard admin password hash** — generate bcrypt hash, replace `CHANGEME_BCRYPT_HASH_HERE` in `services/diglett-dns/adguard/AdGuardHome.yaml`, commit
 - [ ] **Initialize step-ca** — Ansible role for step-ca: `step ca init`, export root CA cert; operator installs root CA on personal devices once
 - [ ] **Set Headscale domain in config** — replace placeholder `server_url` in `services/diglett-dns/headscale/config.yml` with the Cloudflare Tunnel public URL; commit
+- [ ] **Automate Vaultwarden secret storage via `bw` CLI** — after the one manual browser registration, write a script (or Ansible task in `ansible/roles/infra/`) that reads generated secrets from `/etc/homelab.env` on machamp-infra over SSH and uses `bw` CLI on the operator machine to create the following items in Vaultwarden:
+  - `Vaultwarden Admin` (Login, no username, password = `VAULTWARDEN_ADMIN_TOKEN`, URL = `https://vault.home/admin`)
+  - `Authentik` (Login, username = `akadmin`, password = `AUTHENTIK_BOOTSTRAP_PASSWORD`, URL = `https://auth.home`)
+  - `Infisical` (Login, username = admin email, password = `INFISICAL_ADMIN_PASSWORD`, URL = `https://infisical.home`)
+  - `AdGuard` (Login, username = `admin`, password = plaintext AdGuard password, URL = `https://adguard.home`)
+  - `PostgreSQL` (Login, username = `postgres`, password = `POSTGRES_PASSWORD`, host = `192.168.0.32`)
+  - `Headplane API Key` (Secure Note, contents of `/mnt/nas/docker/headplane/api.key` on diglett-dns)
+  - Script should be idempotent: skip items that already exist (`bw list items --search <name>` before creating)
 - [ ] **Test Vaultwarden account creation via `bw` CLI** — attempt `bw config server http://vault.home && bw register`; document result; if unsupported, one manual browser registration is the accepted fallback
 - [ ] **Add external API keys to Infisical** — manually add `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GITHUB_TOKEN`, and any other external keys via Infisical UI
 
