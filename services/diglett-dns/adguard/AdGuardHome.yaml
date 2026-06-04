@@ -24,6 +24,15 @@ dns:
     - domain: "*.home"
       answer: 192.168.0.32              # machamp-infra VM LAN IP (Traefik)
 
+  cache_size: 4194304
+  ratelimit: 20
+
+  blocked_hosts:
+    - version.bind
+    - id.server
+    - hostname.bind
+
+filtering:
   safebrowsing_enabled: false
   safe_search:
     enabled: false
@@ -34,14 +43,6 @@ dns:
     pixabay: true
     yandex: true
     youtube: true
-
-  cache_size: 4194304
-  ratelimit: 20
-
-  blocked_hosts:
-    - version.bind
-    - id.server
-    - hostname.bind
 
 filters:
   - enabled: true
