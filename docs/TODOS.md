@@ -1,23 +1,23 @@
 # TODOs
 
-## OIDC with Authentik
+## OIDC Client Configuration for Authentik
 
-**What:** Deploy Authentik on `machamp-services` as the homelab OIDC identity provider, then wire headplane (and future services) to use it for SSO.
+**What:** Wire up OIDC clients in Authentik for Headscale, Headplane, Grafana, and n8n. Authentik itself is already deployed on `machamp-infra`.
 
-**Why:** headplane currently requires pasting a headscale API key at every login. OIDC gives a proper login flow and a single credential to manage. Authentik is the standard homelab choice — widely used, well documented, large library of pre-built integrations.
+**Why:** headplane currently requires pasting a headscale API key at every login. OIDC gives a proper login flow and a single credential to manage. Headscale OIDC means new devices authenticate via Authentik instead of pre-auth keys. Grafana and n8n also benefit from unified SSO.
 
 **Work:**
-1. Add `authentik-server`, `authentik-worker`, `postgres`, and `redis` to `services/machamp/docker-compose.yml`; mount persistent data to `/mnt/nas/docker/authentik`
-2. Add Traefik labels for `authentik.wsh` and `authentik.home`
-3. Headless bootstrap via Ansible: use Authentik's API to create the headplane OAuth2 provider and application (client ID + secret), write credentials to Infisical
-4. Add `oidc:` block to `services/dns/headplane/config.yaml`; pull client secret from Infisical at deploy time
-5. Optional: configure headscale itself to use Authentik OIDC for node registration
+1. Headless Authentik bootstrap via Ansible: use Authentik's API to create OAuth2 providers and applications for each service (client ID + secret), write credentials to Infisical
+2. **Headscale OIDC** — add `oidc:` block to `services/diglett-dns/headscale/config.yaml` pointing at `http://auth.home/application/o/headscale/`; store client secret in `/etc/headscale.env` on diglett-dns (alongside existing `HEADSCALE_SERVER_URL`); restore `autoApprovers` in `acls.hujson` using the Authentik user's email (e.g. `"wesoohoo@gmail.com"`) now that headscale auto-creates users from OIDC identity
+3. Add `oidc:` block to `services/diglett-dns/headplane/config.yaml`; pull client secret from `/etc/headscale.env`
+4. Add OIDC environment variables to Grafana and n8n in `services/machamp-services/docker-compose.yml`
+
+**Headscale OIDC enrollment note:** when enrolling a device that is not yet on LAN or Tailscale (e.g. a phone from outside), the browser redirect to `auth.home` won't resolve. Mitigation: keep a reusable pre-auth key as a bootstrap fallback (`headscale preauthkeys create --reusable`), or expose Authentik publicly via Cloudflare Tunnel.
 
 **Secret management:**
-- Authentik secret key and postgres password → Infisical
-- headplane OIDC client secret → Infisical, injected into headplane config by Ansible
+- Headscale / headplane / Grafana / n8n OIDC client secrets → Infisical, injected by Ansible
 
-**Depends on:** `machamp-services` VM deployed, Traefik + step-ca running.
+**Depends on:** `machamp-infra` VM deployed and Authentik bootstrapped, `machamp-services` VM deployed, Traefik + step-ca running.
 
 ---
 
@@ -52,6 +52,22 @@ and breaks `.home` domain resolution.
 
 ---
 
+## Tailscale `.wsh` Routing + LAN Access Lockdown
+
+**What:** Re-add `.wsh` Traefik routers once Tailscale is fully up, and add IP allowlist middleware to restrict sensitive services on the LAN.
+
+**Why:** All services are currently exposed on `.home` (LAN, no auth) for simplicity during bring-up. Tailscale routing and per-service IP allowlists are the next layer.
+
+**Work:**
+1. Wire up Tailscale (diglett-dns joining headscale, subnet router, DNS)
+2. Restore `*.wsh` AdGuard rewrite to `machamp-infra.ts.home` and add `.wsh` routers in `services-vm.yml` and docker-compose labels for each service
+3. Add Traefik IP allowlist middleware (source range `192.168.0.0/24`) for sensitive services that should never be publicly reachable even over Tailscale: `traefik.home`, `prometheus.home`, `couchdb.home`, `infisical.home`
+4. Consider moving Servarr (.home only, no .wsh) since they don't need remote access
+
+**Depends on:** Tailscale fully operational.
+
+---
+
 ## UFW Firewall Hardening
 
 **What:** Enable UFW on all VMs with a default-deny policy and per-role allowlists.
@@ -63,7 +79,7 @@ and breaks `.home` domain resolution.
 - `services` VMs: allow Docker bridge traffic
 - `diglett-dns`: allow DNS (53 TCP/UDP), AdGuard UI (3000 TCP) from LAN
 - `machamp-services`: allow Traefik (80, 443) from LAN and Tailscale
-- `diglett-infra`: allow Infisical (8080) and Vaultwarden (8083) from LAN/Tailscale
+- `machamp-infra`: allow Infisical (8080), Vaultwarden (80), and Authentik (9000) from LAN/Tailscale
 
 **Note:** Add UFW tasks back to `ansible/roles/base/tasks/main.yml` and per-role allowlists to each service role. The base role previously had UFW enabled — removed to unblock initial bring-up.
 

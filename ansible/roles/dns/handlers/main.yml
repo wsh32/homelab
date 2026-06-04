@@ -1,7 +1,7 @@
 ---
-- name: Restart dns stack
+- name: Restart diglett-dns stack
   community.docker.docker_compose_v2:
-    project_src: /home/{{ ansible_user }}/homelab/services/dns
+    project_src: /home/{{ ansible_user }}/homelab/services/diglett-dns
     state: restarted
   become: true
 

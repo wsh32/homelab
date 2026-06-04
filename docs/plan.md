@@ -48,10 +48,10 @@ IP ranges: physical nodes `.4–.19` (`.7` = alakazam-deploy), diglett-dns VM sp
 | Machamp | machamp | 192.168.0.5 | Static (Ansible — `/etc/network/interfaces`) |
 | Diglett | diglett | 192.168.0.6 | Static (Ansible — `/etc/network/interfaces`) |
 | alakazam-deploy | alakazam-deploy | 192.168.0.7 | Static (TrueNAS UI) — deploy host (TrueNAS KVM) |
-| diglett-infra VM | diglett-infra | 192.168.0.21 | Static (Terraform) — Infisical + Vaultwarden |
 | diglett-haos VM | diglett-haos | 192.168.0.22 | Static (Terraform) — Home Assistant OS |
 | machamp-services VM | machamp-services | 192.168.0.30 | Static (Terraform) |
 | machamp-dev VM | machamp-dev | 192.168.0.31 | Static (Terraform) |
+| machamp-infra VM | machamp-infra | 192.168.0.32 | Static (Terraform) — Infisical + Vaultwarden + Authentik |
 
 ---
 
@@ -180,9 +180,11 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
     deploy VM.
 11. **`terraform apply`** — provisions all remaining VMs. Cloud-init handles Docker
     install and NFS mounts. VMs do not yet have Infisical credentials.
-12. **`ansible-playbook ansible/bootstrap-infisical.yml`** — bootstraps Infisical (admin
-    user, org, workspace), creates a scoped machine identity per VM, writes credentials
-    to `/etc/infisical.env` (root-owned, mode 0600) on each VM that needs secrets.
+12. **`INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`** — deploys the
+    machamp-infra stack (Infisical, Vaultwarden, Authentik, PostgreSQL x2, Redis x2, Litestream) and bootstraps
+    Infisical on first run (admin user `admin@homelab.local`, org, workspace). Outputs
+    `workspace_id`, `client_id`, `client_secret` — add these to `terraform.tfvars`. Idempotent
+    on re-run (bootstrap skipped after first successful run).
 13. **`ansible-playbook ansible/site.yml`** — brings up all services. Each service role
     generates its own secrets, seeds them to Infisical, writes config, and starts the
     container. Vaultwarden account creation attempted via the Bitwarden CLI (`bw register`);
@@ -205,17 +207,17 @@ services that depend on those external keys.
 | Proxmox host | 2GB | — | OS overhead |
 | diglett-dns | 2GB | 2 | AdGuard + Tailscale exit node + Headscale + cloudflare-ddns |
 | diglett-haos | 4GB | 2 | HAOS |
-| diglett-infra | 6GB | 2 | Infisical + Vaultwarden |
-| Headroom | 2GB | — | Buffer / future |
+| Headroom | 8GB | — | Buffer / future |
 
 ### Machamp (128GB ECC RAM, Threadripper 3975WX 32c/64t)
 
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
 | Proxmox host | 4GB | — | OS overhead |
+| machamp-infra | 12GB | 4 | Infisical + Vaultwarden + Authentik |
 | machamp-services | 32GB | 8 | All Docker Compose services; GPU passthrough (Quadro P2200) for Jellyfin |
 | machamp-dev | 16GB | 6 | Development workstation |
-| Headroom | 76GB | — | Future VMs / workloads |
+| Headroom | 64GB | — | Future VMs / workloads |
 
 ### Services node (planned — 128GB RAM, Ryzen 7 3700x 8c/16t)
 
@@ -264,18 +266,6 @@ Terraform downloads the official HAOS `.qcow2` image via `proxmox_virtual_enviro
 and creates a dedicated VM resource. HAOS config is backed up daily via Proxmox vzdump.
 On rebuild, restore from the latest vzdump backup via the HAOS UI or `ha` CLI.
 
-**diglett-infra** (`192.168.0.21`):
-
-| Service | Notes |
-|---------|-------|
-| Infisical | Machine-consumed secrets: service API keys, inter-service tokens, developer API keys |
-| Vaultwarden | Human-consumed secrets: web UI admin passwords, personal credentials |
-
-Infisical stores all machine-read secrets — both service API keys (fetched at VM boot via
-`infisical export`) and developer API keys accessed via `infisical run -- <command>` on the
-operator laptop (Claude, Codex, GitHub tokens, etc.).
-Vaultwarden stores all passwords a human types into a browser. The two stores never overlap.
-
 ### Physical deploy host
 
 **alakazam-deploy** (`192.168.0.7` — TrueNAS SCALE KVM, out-of-band):
@@ -285,7 +275,21 @@ Vaultwarden stores all passwords a human types into a browser. The two stores ne
 | Terraform | Manages Diglett and Machamp VMs; `terraform.tfvars` lives here |
 | Ansible | Runs `base.yml` after Terraform apply; reaches all VMs over Tailscale SSH |
 
-### Machamp (compute — GPU workloads)
+### Machamp (compute + identity services)
+
+**machamp-infra** (`192.168.0.32`):
+
+| Service | Notes |
+|---------|-------|
+| Infisical | Machine-consumed secrets: service API keys, inter-service tokens, developer API keys |
+| Vaultwarden | Human-consumed secrets: web UI admin passwords, personal credentials |
+| Authentik | OIDC identity provider; SSO for Grafana, n8n, Headplane, Headscale |
+
+Infisical stores all machine-read secrets — both service API keys (fetched at VM boot via
+`infisical export`) and developer API keys accessed via `infisical run -- <command>` on the
+operator laptop (Claude, Codex, GitHub tokens, etc.).
+Vaultwarden stores all passwords a human types into a browser. The two stores never overlap.
+Authentik provides OIDC SSO for internal services; configure OIDC clients post-deploy.
 
 **machamp-services** (`192.168.0.30`):
 
@@ -342,7 +346,7 @@ persists on NFS forever).
 Pre-seeded `AdGuardHome.yaml` mounted into the container before first start. AdGuard detects
 a valid config on startup and skips the wizard entirely.
 
-- Config file: `services/dns/adguard/AdGuardHome.yaml` (committed to repo)
+- Config file: `services/diglett-dns/adguard/AdGuardHome.yaml` (committed to repo)
 - Admin password stored as bcrypt hash in the config file; plaintext in Vaultwarden
 - Upstream DNS: `8.8.8.8`, `8.8.4.4`
 - DNS rewrites (committed in `AdGuardHome.yaml`):
@@ -355,10 +359,10 @@ a valid config on startup and skips the wizard entirely.
 
 Bootstrapped via `infisical bootstrap` CLI (requires Infisical CLI ≥ 0.28) after first start.
 
-- Playbook: `ansible/bootstrap-infisical.yml`
-- Creates: admin user, organization, workspace, one scoped machine identity per VM
-- Distributes credentials to each VM at `/etc/infisical.env` (root-owned, mode 0600)
-- Idempotent via `--ignore-if-bootstrapped` flag
+- Playbook: `ansible/infra.yml` (Bootstrap Infisical play)
+- Creates: admin user (`admin@homelab.local`), organization, workspace
+- Idempotent: `--ignore-if-bootstrapped` flag makes re-runs a no-op
+- Run: `INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`
 
 ### Jellyfin
 
@@ -375,7 +379,7 @@ Pre-seeded `config.xml` placed in each app's `/config` directory before first co
 API keys are generated by the Ansible service role, seeded to Infisical, and written into
 the config files — making cross-app linking deterministic without Terraform involvement.
 
-- Config files: `services/machamp/config/radarr.xml`, `sonarr.xml`, `prowlarr.xml`
+- Config files: `services/machamp-services/config/radarr.xml`, `sonarr.xml`, `prowlarr.xml`
 - API keys generated by Ansible role (random hex), seeded to Infisical, written to config
 - `AuthenticationRequired=DisabledForLocalAddresses` — LAN-only, behind Traefik
 - Prowlarr → Radarr/Sonarr linked via `scripts/servarr-init.sh` (`POST /api/v1/applications`)
@@ -413,7 +417,7 @@ Admin credentials set via env vars. Single-node initialization and CORS configur
 done via an init container.
 
 - Init container: `couchdb-init` (curlimages/curl)
-- Script: `services/machamp/couchdb-init.sh`
+- Script: `services/machamp-services/couchdb-init.sh`
 - Sequence: wait for healthy → `/_cluster_setup` → create `obsidian` DB → set CORS headers
 - CORS origins: `app://obsidian.md,capacitor://localhost,http://localhost`
 - Idempotent: `PUT /obsidian` 409 on existing DB is ignored
@@ -435,7 +439,7 @@ All workspaces use a local file backend on an NFS mount from Alakazam.
 
 Single Traefik instance on Machamp (services VM at `192.168.0.30`) serves all services across
 all nodes. Diglett-hosted services (Infisical, Vaultwarden) are configured as external backends
-pointing at their local IPs (e.g. `192.168.0.21`). All nodes are on the same LAN so Traefik
+pointing at their local IPs (e.g. `192.168.0.32`). All nodes are on the same LAN so Traefik
 on Machamp reaches them directly.
 
 Traefik listens on two entrypoints:
@@ -495,9 +499,14 @@ At VM boot, a systemd unit runs `infisical export --format dotenv > /etc/homelab
 before Docker Compose starts. Services read `/etc/homelab.env` via `env_file:`. The file
 is ephemeral and regenerated on each boot.
 
-Infisical credentials (`client_id`, `client_secret`, `workspace_id`) are distributed to
-each VM by `ansible/bootstrap-infisical.yml`, written to `/etc/infisical.env` (root-owned,
-mode 0600). This file is the only persistent secret on each VM and is the key that unlocks
+Bootstrap secrets for machamp-infra itself (`MONGO_ROOT_PASSWORD`, `INFISICAL_AUTH_SECRET`,
+`INFISICAL_ENCRYPTION_KEY`, `VAULTWARDEN_ADMIN_TOKEN`) are generated once by the `infra`
+Ansible role, written to `/etc/homelab.env` (root:root, 0600) on machamp-infra, and
+NFS-persisted at `/mnt/nas/docker/infisical-backups/.secrets.env` so they survive VM
+rebuilds without requiring vzdump restore.
+
+Machine identity credentials for other VMs (`client_id`, `client_secret`, `workspace_id`) are
+written to `/etc/infisical.env` (root-owned, mode 0600) on each VM. This file is the only persistent secret on each VM and is the key that unlocks
 all others.
 
 Service secrets are seeded to Infisical by each service's Ansible role at bring-up time —
@@ -528,7 +537,7 @@ corruption from soft-mount interruptions. Backups go to Alakazam NFS.
 | Service | DB | Backup method | Frequency |
 |---------|----|---------------|-----------|
 | Vaultwarden | SQLite | Litestream — continuous WAL streaming to NFS | Continuous |
-| Infisical | MongoDB | `mongodump` cron → NFS | Every 6 hours |
+| Infisical | PostgreSQL | `pg_dump` cron → NFS | Every 6 hours |
 
 Proxmox vzdump of the Infisical VM provides full disaster recovery (daily).
 
@@ -646,8 +655,8 @@ NUT clients: Machamp, Diglett, Alakazam (shut down gracefully on power loss)
 | Terraform code drift | Acknowledged — code update deferred, plan is source of truth |
 | HAOS provisioning | Terraform provisions VM via qcow2 image download; config restored from Proxmox vzdump backup |
 | Reverse proxy for Diglett services | Single Traefik on Machamp; Diglett services as external backends by local IP |
-| Vaultwarden/Infisical DB location | Local VM disk; Vaultwarden via Litestream (continuous), Infisical via mongodump every 6h |
-| Infisical bootstrap | `ansible/bootstrap-infisical.yml` runs after VMs are provisioned. Creates admin, org, workspace, and per-VM machine identities. Credentials written to `/etc/infisical.env` on each VM by Ansible — not via Terraform/cloud-init. |
+| Vaultwarden/Infisical DB location | Local VM disk; Vaultwarden via Litestream (continuous), Infisical via pg_dump every 6h |
+| Infisical bootstrap | `ansible/infra.yml` deploys machamp-infra stack and bootstraps Infisical (admin, org, workspace) on first run. Run as: `INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`. Idempotent on re-run. |
 | Infisical role | Single source of truth for all machine-consumed secrets. VMs fetch via `infisical export` at boot using credentials in `/etc/infisical.env`. Service secrets seeded by each service's Ansible role at bring-up time; external API keys added manually. |
 | Vaultwarden role | Human-consumed secrets only (web UI admin passwords). Populated by each service's Ansible role after the service is configured. |
 | Vaultwarden account creation | Attempted automatically via `bw register` (Bitwarden CLI) during `ansible/site.yml`. One manual browser registration accepted as fallback if CLI doesn't support it. Account persists on NFS — never repeated. |

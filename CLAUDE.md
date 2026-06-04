@@ -13,33 +13,35 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
   - Machine-consumed secrets (service API keys, inter-service tokens) → Infisical. Fetched at VM boot via `infisical export` to generate an ephemeral `.env` file. Seeded by each service's Ansible role at bring-up time. Never hardcoded, never in `terraform.tfvars`.
   - Human-consumed secrets (web UI admin passwords) → Vaultwarden. Stored by each service's Ansible role after configuration. Never in Infisical.
   - Infrastructure credentials (Proxmox API tokens, SSH key, Cloudflare API token) → `var.*` from `terraform.tfvars`, gitignored. Lives on the deploy VM.
-  - Infisical machine identity credentials → `/etc/infisical.env` on each VM (root-owned, 0600), written by `ansible/bootstrap-infisical.yml`.
+  - Infisical bootstrap secrets (MongoDB password, auth/encryption keys, Vaultwarden token, Authentik keys) → `/etc/homelab.env` on machamp-infra (root:root, 0600). Generated once by the `infra` Ansible role; NFS-persisted at `/mnt/nas/docker/infisical-backups/.secrets.env` for rebuild safety. Deploy + bootstrap: `INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`.
   - Developer API keys (Claude, Codex, GitHub) → Infisical, entered manually via UI, accessed via `infisical run --` on the operator laptop.
 - **VM IDs**: Diglett VMs use 200–299, Machamp VMs use 100–199.
 - **IP addresses**: physical nodes use 192.168.0.4–19 (`.7` = alakazam-deploy), diglett-dns VM is special-cased at `.2`, Diglett VMs use 192.168.0.21–29, Machamp VMs use 192.168.0.30–49.
 - **Docker Compose**: persistent data always mounts to `/mnt/nas/<dataset>/<service>` (Alakazam NFS). Never use named volumes for stateful data — it must survive VM recreation.
-- **Traefik routing**: each service gets two routers — `<name>-wsh` (Tailscale, HTTPS) and `<name>-home` (LAN, HTTP). Omit a router to restrict exposure on that network. Default is both. See DNS Architecture in `docs/plan.md` for the full two-domain design.
+- **Traefik routing**: each service gets `.home` routers only (LAN). `.wsh` Tailscale routing is planned but not yet active — see TODOS.md. See DNS Architecture in `docs/plan.md` for the full two-domain design.
   ```yaml
-  - "traefik.http.routers.<name>-wsh.rule=Host(`<name>.wsh`)"
-  - "traefik.http.routers.<name>-wsh.entrypoints=websecure"
-  - "traefik.http.routers.<name>-wsh.tls=true"
   - "traefik.http.routers.<name>-home.rule=Host(`<name>.home`)"
   - "traefik.http.routers.<name>-home.entrypoints=web"
+  - "traefik.http.routers.<name>-home-tls.rule=Host(`<name>.home`)"
+  - "traefik.http.routers.<name>-home-tls.entrypoints=websecure"
+  - "traefik.http.routers.<name>-home-tls.tls=true"
+  - "traefik.http.routers.<name>-home-tls.tls.certresolver=step"
   - "traefik.http.services.<name>-svc.loadbalancer.server.port=<port>"
   ```
-  TLS cert resolver is `step` (local step-ca CA), not `letsencrypt`.
+  TLS cert resolver is `step` (local step-ca CA), not `letsencrypt`. Both HTTP and HTTPS
+  are served on `.home` — devices with the step-ca root cert installed get HTTPS, others
+  fall back to HTTP.
 - **Headless config**: all services are configured without the web UI. Two accepted exceptions: HAOS (restored from backup) and Vaultwarden (one manual browser registration). See "Headless Service Configuration" in `docs/plan.md`.
 
 ## Repo structure
 
 ```
 terraform/modules/proxmox-vm/  — shared VM module, edit here for VM-level changes
-terraform/diglett/            — Diglett VMs (DNS, HAOS, Infisical, Deploy)
-terraform/machamp/               — Machamp VMs (Ollama, OpenClaw, Dev, Services)
-services/dns/                  — AdGuard Home + Headscale + cloudflared
-services/diglett-infra/       — Infisical + Vaultwarden + Litestream
-services/diglett-deploy/      — (not yet created)
-services/machamp/                — all Docker Compose services (Traefik, Jellyfin, etc.)
+terraform/diglett/             — Diglett VMs (DNS, HAOS)
+terraform/machamp/             — Machamp VMs (Infra, Services, Dev)
+services/diglett-dns/          — AdGuard Home + Headscale + cloudflared
+services/machamp-infra/        — Infisical + Vaultwarden + Authentik + Litestream
+services/machamp-services/     — all Docker Compose services (Jellyfin, Grafana, etc.)
 scripts/                       — bootstrap and init scripts (headless service setup)
 ansible/                       — push-only config management for VMs and physical devices
 docs/                          — architecture docs, plan, TODOs
