@@ -200,14 +200,14 @@ services that depend on those external keys.
 
 ## VM Resource Budget
 
-### Diglett (16GB RAM, i3-8109U 4c/4t)
+### Diglett (32GB RAM, i3-8109U 4c/4t)
 
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
 | Proxmox host | 2GB | — | OS overhead |
 | diglett-dns | 2GB | 2 | AdGuard + Tailscale exit node + Headscale + cloudflare-ddns |
 | diglett-haos | 4GB | 2 | HAOS |
-| Headroom | 8GB | — | Buffer / future |
+| Headroom | 24GB | — | Buffer / future — see opportunities below |
 
 ### Machamp (128GB ECC RAM, Threadripper 3975WX 32c/64t)
 
@@ -660,7 +660,7 @@ NUT clients: Machamp, Diglett, Alakazam (shut down gracefully on power loss)
 | Infisical role | Single source of truth for all machine-consumed secrets. VMs fetch via `infisical export` at boot using credentials in `/etc/infisical.env`. Service secrets seeded by each service's Ansible role at bring-up time; external API keys added manually. |
 | Vaultwarden role | Human-consumed secrets only (web UI admin passwords). Populated by each service's Ansible role after the service is configured. |
 | Vaultwarden account creation | Attempted automatically via `bw register` (Bitwarden CLI) during `ansible/site.yml`. One manual browser registration accepted as fallback if CLI doesn't support it. Account persists on NFS — never repeated. |
-| Diglett RAM headroom | Accept the risk; monitor closely |
+| Diglett RAM headroom | 32GB total (upgraded from 16GB). 8GB used by current VMs; 24GB headroom available for machamp-infra migration or other workloads. |
 | Tailscale exit node coupling | Accept DNS+exit node coupling on Diglett; diglett-dns is the sole exit node |
 | Monitoring stack | Prometheus + Grafana + Loki only; Mimir/Tempo removed |
 | AdGuard headless config | Pre-seeded `AdGuardHome.yaml`; setup wizard bypassed entirely |

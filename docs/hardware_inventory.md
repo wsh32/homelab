@@ -18,7 +18,7 @@ What hardware do I own that is part of my homelab?
     * Role: Always on infra node
     * OS: Proxmox
     * CPU: i3-8109U
-    * RAM: 16GB
+    * RAM: 32GB
     * Boot drive: 256GB NVME SSD
     * SSD: 1TB SATA SSD
 
