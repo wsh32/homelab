@@ -43,6 +43,7 @@ Goal: `*.wsh` resolves and loads over HTTPS; `*.home` resolves and loads over HT
   - Script should be idempotent: skip items that already exist (`bw list items --search <name>` before creating)
 - [ ] **Test Vaultwarden account creation via `bw` CLI** — attempt `bw config server http://vault.home && bw register`; document result; if unsupported, one manual browser registration is the accepted fallback
 - [ ] **Add external API keys to Infisical** — manually add `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GITHUB_TOKEN`, and any other external keys via Infisical UI
+- [ ] **Upgrade PostgreSQL 16 → 17** — PG16 is EOL Nov 2025; PG17 is current stable. Major version upgrades require a dump/restore: `docker exec postgres pg_dumpall -U postgres | gzip > /tmp/pgdump.sql.gz`, update image to `postgres:17-alpine`, wipe `/var/lib/postgres`, restart, restore. An NFS backup from `postgres-backup` can serve as the dump source. Do this during a maintenance window.
 
 ---
 

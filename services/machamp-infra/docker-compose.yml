@@ -1,7 +1,7 @@
 services:
   # ── Traefik ────────────────────────────────────────────────────────────────
   traefik:
-    image: traefik:v3
+    image: traefik:v3.7.1
     container_name: traefik
     restart: unless-stopped
     depends_on:
@@ -44,7 +44,7 @@ services:
 
   # ── Shared databases ───────────────────────────────────────────────────────
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine  # TODO: upgrade to 17-alpine (EOL Nov 2025) — requires pg_upgrade; see impl-todos.md
     container_name: postgres
     restart: unless-stopped
     volumes:
@@ -63,7 +63,7 @@ services:
       retries: 10
 
   redis:
-    image: redis:7.2-alpine
+    image: redis:8.8.0-alpine
     container_name: redis
     restart: unless-stopped
     command: --save 60 1 --loglevel warning
@@ -136,7 +136,7 @@ services:
 
   # ── Authentik ──────────────────────────────────────────────────────────────
   authentik-server:
-    image: ghcr.io/goauthentik/server:2024.12.3
+    image: ghcr.io/goauthentik/server:2026.5.2
     container_name: authentik-server
     restart: unless-stopped
     command: server
@@ -172,7 +172,7 @@ services:
       - "traefik.http.services.auth-svc.loadbalancer.server.port=9000"
 
   authentik-worker:
-    image: ghcr.io/goauthentik/server:2024.12.3
+    image: ghcr.io/goauthentik/server:2026.5.2
     container_name: authentik-worker
     restart: unless-stopped
     command: worker

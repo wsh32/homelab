@@ -106,7 +106,7 @@ services:
 
   # ── Obsidian LiveSync (CouchDB) ────────────────────────────────────────────
   couchdb:
-    image: couchdb:3
+    image: couchdb:3.5.2
     container_name: couchdb
     restart: unless-stopped
     ports:
