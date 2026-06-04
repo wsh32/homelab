@@ -1,0 +1,55 @@
+---
+# Shared task: pull and start a Docker Compose stack.
+# Include this via include_tasks, passing:
+#   compose_project_src: absolute path to the directory containing docker-compose.yml
+# The calling role must define a handler named "Restart <basename> stack"
+# where <basename> is the last path component of compose_project_src.
+
+- name: Pull Docker images for {{ compose_project_src | basename }}
+  community.docker.docker_compose_v2_pull:
+    project_src: "{{ compose_project_src }}"
+  become: true
+  register: pull_result
+  retries: 3
+  delay: 15
+  until: pull_result is not failed
+
+# Removes containers that would block `compose up`:
+#   - containers from a different project (e.g. dir renamed dns→diglett-dns)
+#   - containers in a non-running state (zombies from failed prior deploys)
+# Running containers in the correct project are left untouched.
+- name: Remove containers blocking {{ compose_project_src | basename }}
+  ansible.builtin.shell: |
+    project="{{ compose_project_src | basename }}"
+    container_names=$(grep -E '^\s+container_name:' "{{ compose_project_src }}/docker-compose.yml" | awk '{print $2}' || true)
+    for cname in $container_names; do
+      [ -z "$cname" ] && continue
+      inspect_out=$(docker inspect "$cname" 2>/dev/null) || continue
+      python_out=$(echo "$inspect_out" | python3 -c "
+    import json, sys
+    d = json.load(sys.stdin)
+    c = d[0] if d else {}
+    labels = (c.get('Config') or {}).get('Labels') or {}
+    print(labels.get('com.docker.compose.project', 'none'))
+    print((c.get('State') or {}).get('Status', 'unknown'))
+    " 2>/dev/null) || continue
+      existing_project=$(echo "$python_out" | sed -n '1p')
+      status=$(echo "$python_out" | sed -n '2p')
+      if [ "$existing_project" = "$project" ] && { [ "$status" = "running" ] || [ "$status" = "restarting" ]; }; then
+        continue
+      fi
+      docker rm -f "$cname"
+      echo "Removed $cname (project=$existing_project status=$status)"
+    done
+  become: true
+  register: stale_cleanup
+  changed_when: "'Removed' in stale_cleanup.stdout"
+
+- name: Start {{ compose_project_src | basename }} stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ compose_project_src }}"
+    state: present
+    pull: never
+    remove_orphans: true
+  become: true
+  notify: "Restart {{ compose_project_src | basename }} stack"

@@ -1,6 +1,5 @@
 api:
   dashboard: true
-  insecure: false
 
 entryPoints:
   web:
@@ -11,17 +10,19 @@ entryPoints:
 providers:
   docker:
     exposedByDefault: false
-    network: bridge
   file:
     directory: /etc/traefik/dynamic
     watch: true
 
+# step-ca is in the same compose network; use container name to avoid circular routing
+# through Traefik itself. LEGO_CA_CERTIFICATES on the Traefik container provides the
+# step-ca root cert so lego trusts the CA's TLS endpoint.
 certificatesResolvers:
   step:
     acme:
-      email: wesoohoo@gmail.com
+      email: admin@homelab.local
       storage: /acme/acme.json
-      caServer: https://step-ca.wsh/acme/acme/directory
+      caServer: https://step-ca:9000/acme/acme/directory
       httpChallenge:
         entryPoint: web
 

@@ -1,80 +1,40 @@
 services:
-  # ── Traefik ────────────────────────────────────────────────────────────────
-  traefik:
-    image: traefik:v3
-    container_name: traefik
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./traefik/dynamic:/etc/traefik/dynamic:ro
-      - /mnt/nas/docker/traefik/acme:/acme
-
-  # ── step-ca (local CA) ─────────────────────────────────────────────────────
-  step-ca:
-    image: smallstep/step-ca:latest
-    container_name: step-ca
-    restart: unless-stopped
-    volumes:
-      - /mnt/nas/docker/step-ca:/home/step
-    environment:
-      DOCKER_STEPCA_INIT_NAME: Homelab CA
-      DOCKER_STEPCA_INIT_DNS_NAMES: step-ca.wsh,localhost
-      DOCKER_STEPCA_INIT_ACME: "true"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.step-ca-wsh.rule=Host(`step-ca.wsh`)"
-      - "traefik.http.routers.step-ca-wsh.entrypoints=websecure"
-      - "traefik.http.routers.step-ca-wsh.tls=true"
-      - "traefik.http.services.step-ca-svc.loadbalancer.server.port=9000"
-
   # ── Jellyfin ───────────────────────────────────────────────────────────────
   jellyfin:
     image: jellyfin/jellyfin:latest
     container_name: jellyfin
     restart: unless-stopped
+    ports:
+      - "8096:8096"
     volumes:
       - /mnt/nas/docker/jellyfin:/config
       - /mnt/nas/media:/media:ro
     environment:
-      JELLYFIN_PublishedServerUrl: https://jellyfin.wsh
+      JELLYFIN_PublishedServerUrl: https://jellyfin.home
     # GPU transcoding: Quadro P2200 passed through to VM; expose via /dev/dri
     devices:
       - /dev/dri:/dev/dri
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.jellyfin-wsh.rule=Host(`jellyfin.wsh`)"
-      - "traefik.http.routers.jellyfin-wsh.entrypoints=websecure"
-      - "traefik.http.routers.jellyfin-wsh.tls=true"
-      - "traefik.http.routers.jellyfin-home.rule=Host(`jellyfin.home`)"
-      - "traefik.http.routers.jellyfin-home.entrypoints=web"
-      - "traefik.http.services.jellyfin-svc.loadbalancer.server.port=8096"
 
   # ── Servarr ────────────────────────────────────────────────────────────────
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
     restart: unless-stopped
+    ports:
+      - "9696:9696"
     volumes:
       - /mnt/nas/docker/prowlarr:/config
-      - ./config/prowlarr.xml:/config/config.xml:ro   # pre-seeded; copied on first start
+      - ./config/prowlarr.xml:/config/config.xml:ro
     environment:
       PUID: "1000"
       PGID: "1000"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.prowlarr-wsh.rule=Host(`prowlarr.wsh`)"
-      - "traefik.http.routers.prowlarr-wsh.entrypoints=websecure"
-      - "traefik.http.routers.prowlarr-wsh.tls=true"
-      - "traefik.http.services.prowlarr-svc.loadbalancer.server.port=9696"
 
   radarr:
     image: lscr.io/linuxserver/radarr:latest
     container_name: radarr
     restart: unless-stopped
+    ports:
+      - "7878:7878"
     volumes:
       - /mnt/nas/docker/radarr:/config
       - ./config/radarr.xml:/config/config.xml:ro
@@ -83,17 +43,13 @@ services:
     environment:
       PUID: "1000"
       PGID: "1000"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.radarr-wsh.rule=Host(`radarr.wsh`)"
-      - "traefik.http.routers.radarr-wsh.entrypoints=websecure"
-      - "traefik.http.routers.radarr-wsh.tls=true"
-      - "traefik.http.services.radarr-svc.loadbalancer.server.port=7878"
 
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
     container_name: sonarr
     restart: unless-stopped
+    ports:
+      - "8989:8989"
     volumes:
       - /mnt/nas/docker/sonarr:/config
       - ./config/sonarr.xml:/config/config.xml:ro
@@ -102,86 +58,64 @@ services:
     environment:
       PUID: "1000"
       PGID: "1000"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.sonarr-wsh.rule=Host(`sonarr.wsh`)"
-      - "traefik.http.routers.sonarr-wsh.entrypoints=websecure"
-      - "traefik.http.routers.sonarr-wsh.tls=true"
-      - "traefik.http.services.sonarr-svc.loadbalancer.server.port=8989"
 
   # ── PhotoPrism ─────────────────────────────────────────────────────────────
   photoprism:
     image: photoprism/photoprism:latest
     container_name: photoprism
     restart: unless-stopped
+    ports:
+      - "2342:2342"
     volumes:
       - /mnt/nas/docker/photoprism:/photoprism/storage
       - /mnt/nas/photos:/photoprism/originals:ro
     environment:
       PHOTOPRISM_ADMIN_PASSWORD: ${PHOTOPRISM_ADMIN_PASSWORD}
-      PHOTOPRISM_SITE_URL: https://photos.wsh
+      PHOTOPRISM_SITE_URL: https://photos.home
       PHOTOPRISM_ORIGINALS_LIMIT: -1
       PHOTOPRISM_HTTP_COMPRESSION: gzip
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.photos-wsh.rule=Host(`photos.wsh`)"
-      - "traefik.http.routers.photos-wsh.entrypoints=websecure"
-      - "traefik.http.routers.photos-wsh.tls=true"
-      - "traefik.http.services.photos-svc.loadbalancer.server.port=2342"
 
   # ── Calibre-Web ────────────────────────────────────────────────────────────
   calibre-web:
     image: lscr.io/linuxserver/calibre-web:latest
     container_name: calibre-web
     restart: unless-stopped
+    ports:
+      - "8083:8083"
     volumes:
       - /mnt/nas/docker/calibre-web:/config
       - /mnt/nas/media/books:/books
     environment:
       PUID: "1000"
       PGID: "1000"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.books-wsh.rule=Host(`books.wsh`)"
-      - "traefik.http.routers.books-wsh.entrypoints=websecure"
-      - "traefik.http.routers.books-wsh.tls=true"
-      - "traefik.http.services.books-svc.loadbalancer.server.port=8083"
 
   # ── n8n ────────────────────────────────────────────────────────────────────
   n8n:
     image: n8nio/n8n:latest
     container_name: n8n
     restart: unless-stopped
+    ports:
+      - "5678:5678"
     volumes:
       - /mnt/nas/docker/n8n:/home/node/.n8n
     environment:
-      N8N_HOST: n8n.wsh
+      N8N_HOST: n8n.home
       N8N_PROTOCOL: https
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
-      WEBHOOK_URL: https://n8n.wsh
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.n8n-wsh.rule=Host(`n8n.wsh`)"
-      - "traefik.http.routers.n8n-wsh.entrypoints=websecure"
-      - "traefik.http.routers.n8n-wsh.tls=true"
-      - "traefik.http.services.n8n-svc.loadbalancer.server.port=5678"
+      WEBHOOK_URL: https://n8n.home
 
   # ── Obsidian LiveSync (CouchDB) ────────────────────────────────────────────
   couchdb:
-    image: couchdb:3
+    image: couchdb:3.5.2
     container_name: couchdb
     restart: unless-stopped
+    ports:
+      - "5984:5984"
     volumes:
       - /mnt/nas/docker/couchdb:/opt/couchdb/data
     environment:
       COUCHDB_USER: ${COUCHDB_USER}
       COUCHDB_PASSWORD: ${COUCHDB_PASSWORD}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.couchdb-wsh.rule=Host(`couchdb.wsh`)"
-      - "traefik.http.routers.couchdb-wsh.entrypoints=websecure"
-      - "traefik.http.routers.couchdb-wsh.tls=true"
-      - "traefik.http.services.couchdb-svc.loadbalancer.server.port=5984"
 
   couchdb-init:
     image: curlimages/curl:latest
@@ -201,65 +135,46 @@ services:
     image: ghcr.io/jackyzha0/quartz:v4
     container_name: quartz
     restart: unless-stopped
+    ports:
+      - "8080:8080"
     volumes:
-      - /mnt/nas/media/obsidian-vault:/vault:ro   # vault path TBD
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.notes-wsh.rule=Host(`notes.wsh`)"
-      - "traefik.http.routers.notes-wsh.entrypoints=websecure"
-      - "traefik.http.routers.notes-wsh.tls=true"
-      - "traefik.http.services.notes-svc.loadbalancer.server.port=8080"
+      - /mnt/nas/media/obsidian-vault:/vault:ro
 
   # ── Homepage dashboard ─────────────────────────────────────────────────────
   homepage:
     image: ghcr.io/gethomepage/homepage:latest
     container_name: homepage
     restart: unless-stopped
+    ports:
+      # host 3001 avoids conflict with grafana on 3000
+      - "3001:3000"
     volumes:
       - /mnt/nas/docker/homepage:/app/config
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.home-wsh.rule=Host(`home.wsh`)"
-      - "traefik.http.routers.home-wsh.entrypoints=websecure"
-      - "traefik.http.routers.home-wsh.tls=true"
-      - "traefik.http.routers.home-home.rule=Host(`home.home`)"
-      - "traefik.http.routers.home-home.entrypoints=web"
-      - "traefik.http.services.home-svc.loadbalancer.server.port=3000"
 
   # ── Monitoring: Prometheus ─────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
     restart: unless-stopped
+    ports:
+      - "9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - /mnt/nas/docker/prometheus:/prometheus
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.prometheus-wsh.rule=Host(`prometheus.wsh`)"
-      - "traefik.http.routers.prometheus-wsh.entrypoints=websecure"
-      - "traefik.http.routers.prometheus-wsh.tls=true"
-      - "traefik.http.services.prometheus-svc.loadbalancer.server.port=9090"
 
   # ── Monitoring: Grafana ────────────────────────────────────────────────────
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
     restart: unless-stopped
+    ports:
+      - "3000:3000"
     volumes:
       - /mnt/nas/docker/grafana:/var/lib/grafana
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
-      GF_SERVER_ROOT_URL: https://grafana.wsh
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.grafana-wsh.rule=Host(`grafana.wsh`)"
-      - "traefik.http.routers.grafana-wsh.entrypoints=websecure"
-      - "traefik.http.routers.grafana-wsh.tls=true"
-      - "traefik.http.routers.grafana-home.rule=Host(`grafana.home`)"
-      - "traefik.http.routers.grafana-home.entrypoints=web"
-      - "traefik.http.services.grafana-svc.loadbalancer.server.port=3000"
+      GF_SERVER_ROOT_URL: https://grafana.home
 
   # ── Monitoring: Loki ───────────────────────────────────────────────────────
   loki:

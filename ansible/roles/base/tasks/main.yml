@@ -3,6 +3,18 @@
 # cloud-init handles the initial package install and Tailscale auth;
 # this role handles ongoing configuration and day-2 concerns.
 
+- name: Stop and disable automatic apt services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop:
+    - apt-daily.timer
+    - apt-daily-upgrade.timer
+    - unattended-upgrades.service
+  become: true
+  failed_when: false
+
 - name: Ensure base packages are present
   ansible.builtin.apt:
     name:
@@ -21,6 +33,7 @@
       - avahi-daemon
     state: present
     update_cache: true
+    lock_timeout: 300
   become: true
 
 - name: Set timezone to America/Los_Angeles
@@ -56,5 +69,6 @@
     name: tailscale
     state: latest
     update_cache: true
+    lock_timeout: 300
   become: true
   notify: Restart tailscale

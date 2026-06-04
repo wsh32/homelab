@@ -1,0 +1,43 @@
+---
+# Shared task: mount an Alakazam NFS share with stale-mount detection.
+# Include this via include_tasks, passing these vars:
+#   nfs_mount_path:   mount point on the target host  (default: /mnt/nas/docker)
+#   nfs_source_path:  NFS export path                 (default: {{ nas_ip }}:/mnt/apps/docker)
+# Callers must set nas_ip (typically from network.yml).
+
+- name: Check current mount source for {{ nfs_mount_path }}
+  ansible.builtin.shell: awk '$2 == "{{ nfs_mount_path }}" {print $1}' /proc/mounts
+  register: nfs_current_mount_src
+  changed_when: false
+
+- name: Check if {{ nfs_mount_path }} is accessible (detects stale mounts)
+  ansible.builtin.command: timeout 5 stat {{ nfs_mount_path }}
+  register: nfs_mount_accessible
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: Force unmount if stale or wrong source
+  ansible.builtin.command: umount -f -l {{ nfs_mount_path }}
+  become: true
+  changed_when: true
+  failed_when: false
+  when: >
+    (nfs_current_mount_src.stdout != '' and nfs_mount_accessible.rc != 0) or
+    (nfs_current_mount_src.stdout != '' and nfs_current_mount_src.stdout != nfs_source_path)
+
+- name: Ensure NFS mount point exists
+  ansible.builtin.file:
+    path: "{{ nfs_mount_path }}"
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Mount Alakazam NFS share ({{ nfs_source_path }})
+  ansible.posix.mount:
+    path: "{{ nfs_mount_path }}"
+    src: "{{ nfs_source_path }}"
+    fstype: nfs
+    opts: soft,timeo=30,nfsvers=4
+    state: mounted
+  become: true

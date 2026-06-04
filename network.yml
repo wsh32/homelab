@@ -61,10 +61,6 @@ nodes:
         ip: 192.168.0.2
         vm_id: 200
         vm_roles: [services]
-      diglett-infra:
-        ip: 192.168.0.21
-        vm_id: 201
-        vm_roles: [services]
       diglett-haos:
         ip: 192.168.0.22
         vm_id: 202
@@ -84,3 +80,7 @@ nodes:
         ip: 192.168.0.31
         vm_id: 101
         vm_roles: [dev]
+      machamp-infra:
+        ip: 192.168.0.32
+        vm_id: 102
+        vm_roles: [services]
