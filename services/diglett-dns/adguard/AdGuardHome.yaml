@@ -33,7 +33,6 @@ dns:
     - hostname.bind
 
 filtering:
-  safebrowsing_enabled: false
   safe_search:
     enabled: false
     bing: true
