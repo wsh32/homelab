@@ -1,0 +1,69 @@
+---
+# Ensure every managed host is joined to the Headscale network.
+# Idempotent: skips hosts that are already connected.
+#
+# Requires ansible/secrets.yml to exist (written by dns.yml).
+# Run dns.yml first if secrets.yml is missing.
+#
+# Usage:
+#   ansible-playbook ansible/headscale.yml
+
+- name: Join all hosts to Headscale
+  hosts: all:!localhost
+  gather_facts: false
+
+  pre_tasks:
+    - name: Load headscale credentials from secrets.yml
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      no_log: true
+
+    - name: Fail if headscale credentials are missing
+      ansible.builtin.fail:
+        msg: "headscale_preauth_key or headscale_server_url missing in secrets.yml — run dns.yml first"
+      when: >
+        headscale_preauth_key | default('') == '' or
+        headscale_server_url | default('') == ''
+
+  tasks:
+    - name: Check if tailscale is installed
+      ansible.builtin.stat:
+        path: /usr/bin/tailscale
+      register: _ts_binary
+      become: true
+
+    - name: Install tailscale via official install script
+      ansible.builtin.shell:
+        cmd: curl -fsSL https://tailscale.com/install.sh | sh
+        creates: /usr/bin/tailscale
+      become: true
+      when: not _ts_binary.stat.exists
+
+    - name: Enable and start tailscaled
+      ansible.builtin.systemd:
+        name: tailscaled
+        state: started
+        enabled: true
+      become: true
+
+    - name: Check tailscale connection status
+      ansible.builtin.command: tailscale status --json
+      register: _ts_status
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Parse tailscale backend state
+      ansible.builtin.set_fact:
+        _ts_connected: "{{ (_ts_status.stdout | default('{}') | from_json).get('BackendState', '') == 'Running' }}"
+
+    - name: Join tailscale network
+      ansible.builtin.command: >-
+        tailscale up
+        --login-server={{ headscale_server_url }}
+        --auth-key={{ headscale_preauth_key }}
+        --accept-routes
+        --hostname={{ inventory_hostname }}
+      become: true
+      no_log: true
+      when: not _ts_connected

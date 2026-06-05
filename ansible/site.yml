@@ -11,3 +11,4 @@
 - import_playbook: services.yml
 - import_playbook: deploy-vm.yml
 - import_playbook: dev.yml
+- import_playbook: headscale.yml
