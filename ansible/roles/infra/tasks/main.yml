@@ -368,4 +368,148 @@
   retries: 60
   delay: 5
   until: infisical_health.rc == 0
+
+# ── Authentik OIDC bootstrap ──────────────────────────────────────────────────
+
+- name: Wait for Authentik to be healthy (up to 5 minutes)
+  ansible.builtin.uri:
+    url: "http://localhost:9000/-/health/ready/"
+    status_code: 200
+  register: authentik_health
+  retries: 60
+  delay: 5
+  until: authentik_health.status == 200
+  changed_when: false
+
+- name: Read AUTHENTIK_BOOTSTRAP_TOKEN from /etc/homelab.env
+  ansible.builtin.shell: grep '^AUTHENTIK_BOOTSTRAP_TOKEN=' /etc/homelab.env | cut -d= -f2-
+  register: _authentik_token_raw
+  changed_when: false
+  no_log: true
+  become: true
+
+- name: Set Authentik API token fact
+  ansible.builtin.set_fact:
+    _authentik_token: "{{ _authentik_token_raw.stdout | trim }}"
+  no_log: true
+
+- name: Check if Headscale OIDC provider already exists in Authentik
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/providers/oauth2/?name=headscale"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _existing_provider_result
+  no_log: true
+
+- name: Set provider existence facts
+  ansible.builtin.set_fact:
+    _provider_exists: "{{ _existing_provider_result.json.pagination.count > 0 }}"
+    _existing_provider: "{{ _existing_provider_result.json.results[0] | default({}) }}"
+  no_log: true
+
+- name: Get built-in OIDC scope property mappings
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/propertymappings/provider/scope/?page_size=100"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _scope_mappings_result
+  no_log: true
+  when: not _provider_exists
+
+- name: Extract standard scope mapping PKs (openid, email, profile)
+  ansible.builtin.set_fact:
+    _scope_pks: >-
+      {{
+        _scope_mappings_result.json.results
+        | selectattr('managed', 'in', [
+            'goauthentik.io/providers/oauth2/scope-openid',
+            'goauthentik.io/providers/oauth2/scope-email',
+            'goauthentik.io/providers/oauth2/scope-profile'
+          ])
+        | map(attribute='pk')
+        | list
+      }}
+  when: not _provider_exists
+
+- name: Get default implicit-consent authorization flow
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/flows/instances/?designation=authorization&slug=default-provider-authorization-implicit-consent"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _auth_flow_result
+  no_log: true
+  when: not _provider_exists
+
+- name: Create Headscale OAuth2 provider in Authentik
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/providers/oauth2/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "headscale"
+      authorization_flow: "{{ _auth_flow_result.json.results[0].pk }}"
+      client_type: "confidential"
+      redirect_uris:
+        - matching_mode: "strict"
+          url: "{{ headscale_public_url }}/oidc/callback"
+      sub_mode: "user_email"
+      property_mappings: "{{ _scope_pks }}"
+      include_claims_in_id_token: true
+      access_token_validity: "hours=1"
+      refresh_token_validity: "days=30"
+    status_code: 201
+  register: _new_provider
+  no_log: true
+  when: not _provider_exists
+
+- name: Create Headscale application in Authentik
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/core/applications/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "Headscale"
+      slug: "headscale"
+      provider: "{{ _new_provider.json.pk }}"
+    status_code: [201, 400]  # 400 = application slug already exists, treat as idempotent
+  no_log: true
+  when: not _provider_exists
+
+- name: Set OIDC client credentials from new provider
+  ansible.builtin.set_fact:
+    _oidc_client_id: "{{ _new_provider.json.client_id }}"
+    _oidc_client_secret: "{{ _new_provider.json.client_secret }}"
+  no_log: true
+  when: not _provider_exists
+
+- name: Set OIDC client credentials from existing provider
+  ansible.builtin.set_fact:
+    _oidc_client_id: "{{ _existing_provider.client_id }}"
+    _oidc_client_secret: "{{ _existing_provider.client_secret }}"
+  no_log: true
+  when: _provider_exists
+
+- name: Write OIDC credentials to NFS for diglett-dns to consume
+  ansible.builtin.copy:
+    dest: /mnt/nas/docker/headscale-oidc.env
+    content: |
+      HEADSCALE_OIDC_CLIENT_ID={{ _oidc_client_id }}
+      HEADSCALE_OIDC_CLIENT_SECRET={{ _oidc_client_secret }}
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+  no_log: true
   changed_when: false

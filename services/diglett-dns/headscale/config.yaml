@@ -51,3 +51,11 @@ dns:
     global:
       - 0.0.0.0  # replaced at deploy time with diglett-dns tailscale IP
       - 8.8.8.8
+
+oidc:
+  only_start_if_oidc_is_available: true
+  issuer: ""  # injected by Ansible: https://auth.<domain>/application/o/headscale/
+  client_id: ""  # injected by Ansible from /mnt/nas/docker/headscale-oidc.env
+  client_secret: ""  # injected by Ansible from /mnt/nas/docker/headscale-oidc.env
+  scope: ["openid", "email", "profile"]
+  strip_email_domain: false

@@ -1,4 +1,14 @@
 {
+  "tagOwners": {
+    "tag:infra": ["wesoohoo@gmail.com"]
+  },
+  "autoApprovers": {
+    "routes": {
+      "0.0.0.0/0": ["wesoohoo@gmail.com"],
+      "::/0":       ["wesoohoo@gmail.com"]
+    },
+    "exitNode": ["wesoohoo@gmail.com"]
+  },
   "acls": [
     {
       "action": "accept",
