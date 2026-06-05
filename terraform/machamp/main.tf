@@ -40,7 +40,11 @@ module "infra" {
   timezone           = var.timezone
   tailscale_auth_key = var.tailscale_auth_key
 
-  extra_runcmd = []
+  extra_runcmd = [
+    # /etc/cloudflare-tunnel.env is read by the cloudflared container on machamp-infra.
+    "echo 'CLOUDFLARE_TUNNEL_TOKEN=${cloudflare_tunnel.authentik.tunnel_token}' > /etc/cloudflare-tunnel.env",
+    "chmod 600 /etc/cloudflare-tunnel.env",
+  ]
 }
 
 module "dev" {

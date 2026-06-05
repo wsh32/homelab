@@ -197,6 +197,18 @@ services:
       - /mnt/nas/docker/authentik/media:/media
       - /mnt/nas/docker/authentik/custom-templates:/templates
 
+  # ── Cloudflare Tunnel ─────────────────────────────────────────────────────
+  # Exposes only /application/o/ (Authentik OIDC) publicly via Cloudflare Tunnel.
+  # Token written to /etc/cloudflare-tunnel.env by Terraform cloud-init.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    env_file: /etc/cloudflare-tunnel.env
+    depends_on:
+      - authentik-server
+
   # ── PostgreSQL backup ──────────────────────────────────────────────────────
   postgres-backup:
     image: postgres:16-alpine

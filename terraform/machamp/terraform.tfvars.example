@@ -19,3 +19,12 @@ vm_password = "REPLACE_ME"
 
 # Tailscale reusable auth key — generate at https://login.tailscale.com/admin/settings/keys
 tailscale_auth_key = "tskey-auth-REPLACE_ME"
+
+# Cloudflare API token — needs Zone > DNS > Edit and Account > Cloudflare Tunnel > Edit permissions
+cloudflare_api_token = "REPLACE_ME"
+
+# Cloudflare zone ID — find at Cloudflare dashboard > your domain > Overview (right sidebar)
+cloudflare_zone_id = "REPLACE_ME"
+
+# Subdomain for the public Authentik OIDC endpoint (creates auth.<your-domain>)
+authentik_subdomain = "auth"
