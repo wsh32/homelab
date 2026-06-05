@@ -671,7 +671,7 @@
       client_type: "confidential"
       redirect_uris:
         - matching_mode: "strict"
-          url: "{{ headplane_public_url }}/oidc/callback"
+          url: "{{ headplane_public_url }}/admin/oidc/callback"
       sub_mode: "user_email"
       signing_key: "{{ _signing_key_pk }}"
       property_mappings: "{{ _hp_scope_pks }}"
@@ -718,7 +718,7 @@
       signing_key: "{{ _signing_key_pk }}"
       redirect_uris:
         - matching_mode: "strict"
-          url: "{{ headplane_public_url }}/oidc/callback"
+          url: "{{ headplane_public_url }}/admin/oidc/callback"
     status_code: 200
   no_log: true
   when: _hp_provider_exists
