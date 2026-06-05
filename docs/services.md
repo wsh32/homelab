@@ -24,7 +24,7 @@ TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/boo
 
 | Service | Notes |
 |---------|-------|
-| AdGuard Home | LAN DNS resolver. Pre-seeded config — no setup wizard. DNS rewrites: `*.wsh` → CNAME `machamp-services.ts.home`, `*.home` → A `192.168.0.30` |
+| AdGuard Home | LAN DNS resolver. Pre-seeded config — no setup wizard. DNS rewrites: `*.wsh` → CNAME `diglett-infra.ts.home`, `*.home` → A `192.168.0.23` |
 | Headscale | Self-hosted Tailscale coordination server. Pushes AdGuard's Tailscale IP as the DNS resolver for `.wsh` and `.home` to all tailnet members |
 | cloudflared | Cloudflare Tunnel — exposes Headscale publicly without open ports or a static IP |
 | Tailscale exit node | Primary exit node for the tailnet |
@@ -35,25 +35,25 @@ TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/boo
 |---------|-------|
 | Home Assistant OS | Home automation. Restored from vzdump backup on first boot — not managed via cloud-init or Ansible |
 
----
-
-## Machamp VMs
-
-### machamp-infra (`192.168.0.32`)
-
-| Service | Notes |
-|---------|-------|
-| Infisical | Machine-consumed secrets (service API keys, inter-service tokens). Each VM fetches secrets at boot via `infisical export` |
-| Vaultwarden | Human-consumed secrets (web UI admin passwords). One manual browser registration at bootstrap; persists on NFS forever |
-| Authentik | OIDC identity provider. SSO for Grafana, n8n, Headplane, and Headscale (configure OIDC clients post-deploy) |
-| Litestream | Continuously streams the Vaultwarden SQLite WAL to Alakazam NFS |
-
-### machamp-services (`192.168.0.30`)
+### diglett-infra (`192.168.0.23`)
 
 | Service | Notes |
 |---------|-------|
 | Traefik | Reverse proxy. Two entrypoints: `web` (port 80, `*.home`) and `websecure` (port 443, `*.wsh`) |
 | step-ca | Local CA. Issues wildcard `*.wsh` TLS certs; Traefik uses it as the ACME endpoint |
+| Infisical | Machine-consumed secrets (service API keys, inter-service tokens). Each VM fetches secrets at boot via `infisical export` |
+| Vaultwarden | Human-consumed secrets (web UI admin passwords). One manual browser registration at bootstrap; persists on NFS forever |
+| Authentik | OIDC identity provider. SSO for Grafana, n8n, Headplane, and Headscale (configure OIDC clients post-deploy) |
+| Litestream | Continuously streams the Vaultwarden SQLite WAL to Alakazam NFS |
+
+---
+
+## Machamp VMs
+
+### machamp-services (`192.168.0.30`)
+
+| Service | Notes |
+|---------|-------|
 | Jellyfin | Media server. Quadro P2200 passthrough for hardware transcoding |
 | Radarr | Movie library management |
 | Sonarr | TV library management |

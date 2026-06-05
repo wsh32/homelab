@@ -65,6 +65,10 @@ nodes:
         ip: 192.168.0.22
         vm_id: 202
         ansible_managed: false  # HAOS — no SSH access via Ansible
+      diglett-infra:
+        ip: 192.168.0.23
+        vm_id: 203
+        vm_roles: [services]
 
   machamp:
     ip: 192.168.0.5
@@ -80,7 +84,3 @@ nodes:
         ip: 192.168.0.31
         vm_id: 101
         vm_roles: [dev]
-      machamp-infra:
-        ip: 192.168.0.32
-        vm_id: 102
-        vm_roles: [services]

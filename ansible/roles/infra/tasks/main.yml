@@ -1,20 +1,20 @@
 ---
-# Infra role — deploys the services/machamp-infra/ Docker Compose stack to machamp-infra.
+# Infra role — deploys the services/diglett-infra/ Docker Compose stack to diglett-infra.
 # Requires: base role (already run), Docker installed via cloud-init at VM creation.
 
 - name: Create services directory
   ansible.builtin.file:
-    path: /home/{{ ansible_user }}/homelab/services/machamp-infra
+    path: /home/{{ ansible_user }}/homelab/services/diglett-infra
     state: directory
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: "0755"
   become: true
 
-- name: Sync services/machamp-infra/ from deploy VM
+- name: Sync services/diglett-infra/ from deploy VM
   ansible.posix.synchronize:
-    src: "{{ playbook_dir }}/../services/machamp-infra/"
-    dest: /home/{{ ansible_user }}/homelab/services/machamp-infra/
+    src: "{{ playbook_dir }}/../services/diglett-infra/"
+    dest: /home/{{ ansible_user }}/homelab/services/diglett-infra/
     delete: true
     recursive: true
     rsync_opts:
@@ -169,7 +169,7 @@
 - name: Link /etc/homelab.env as compose .env for variable substitution
   ansible.builtin.file:
     src: /etc/homelab.env
-    dest: /home/{{ ansible_user }}/homelab/services/machamp-infra/.env
+    dest: /home/{{ ansible_user }}/homelab/services/diglett-infra/.env
     state: link
     force: true
   become: true
@@ -201,7 +201,7 @@
 
     - name: Start postgres container for restore
       community.docker.docker_compose_v2:
-        project_src: /home/{{ ansible_user }}/homelab/services/machamp-infra
+        project_src: /home/{{ ansible_user }}/homelab/services/diglett-infra
         services:
           - postgres
         state: present
@@ -240,7 +240,7 @@
     docker run --rm \
       -v /var/lib/vaultwarden:/data \
       -v /mnt/nas/docker/vaultwarden-backup:/backup \
-      -v /home/{{ ansible_user }}/homelab/services/machamp-infra/litestream.yml:/etc/litestream.yml:ro \
+      -v /home/{{ ansible_user }}/homelab/services/diglett-infra/litestream.yml:/etc/litestream.yml:ro \
       litestream/litestream:0.5.11 \
       restore -config /etc/litestream.yml /data/db.sqlite3
   become: true
@@ -251,7 +251,7 @@
 - name: Deploy infra stack
   ansible.builtin.include_tasks: ../../../tasks/compose-deploy.yml
   vars:
-    compose_project_src: /home/{{ ansible_user }}/homelab/services/machamp-infra
+    compose_project_src: /home/{{ ansible_user }}/homelab/services/diglett-infra
 
 - name: Wait for Traefik port 443
   ansible.builtin.wait_for:

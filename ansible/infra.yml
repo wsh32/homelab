@@ -1,5 +1,5 @@
 ---
-# Deploy the machamp-infra stack (Infisical + Vaultwarden + Authentik + Litestream)
+# Deploy the diglett-infra stack (Infisical + Vaultwarden + Authentik + Litestream)
 # and bootstrap Infisical with an admin account.
 #
 # Bootstrap is always attempted — --ignore-if-bootstrapped makes it idempotent.
@@ -7,16 +7,16 @@
 # failed deploy) that would otherwise prevent re-seeding.
 #
 # Prerequisites:
-#   - machamp-infra VM must be up and cloud-init must have completed
+#   - diglett-infra VM must be up and cloud-init must have completed
 #   - Alakazam NFS must be reachable at 192.168.0.4:/mnt/apps/docker
 #   - ansible/secrets.yml must contain infisical_admin_email and infisical_admin_password
 #
 # Usage (first run or re-run):
 #   ansible-playbook ansible/infra.yml
-#   ansible-playbook ansible/site.yml --limit machamp-infra
+#   ansible-playbook ansible/site.yml --limit diglett-infra
 
 - name: Deploy infra stack
-  hosts: machamp-infra
+  hosts: diglett-infra
   gather_facts: true
 
   vars:
@@ -35,7 +35,7 @@
 
 # ── Phase 1: Bootstrap Infisical ──────────────────────────────────────────────
 - name: Bootstrap Infisical
-  hosts: machamp-infra
+  hosts: diglett-infra
   gather_facts: false
 
   tasks:

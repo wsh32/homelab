@@ -2,7 +2,7 @@
 
 ## OIDC Client Configuration for Authentik
 
-**What:** Wire up OIDC clients in Authentik for Headscale, Headplane, Grafana, and n8n. Authentik itself is already deployed on `machamp-infra`.
+**What:** Wire up OIDC clients in Authentik for Headscale, Headplane, Grafana, and n8n. Authentik itself is already deployed on `diglett-infra`.
 
 **Why:** headplane currently requires pasting a headscale API key at every login. OIDC gives a proper login flow and a single credential to manage. Headscale OIDC means new devices authenticate via Authentik instead of pre-auth keys. Grafana and n8n also benefit from unified SSO.
 
@@ -17,7 +17,7 @@
 **Secret management:**
 - Headscale / headplane / Grafana / n8n OIDC client secrets → Infisical, injected by Ansible
 
-**Depends on:** `machamp-infra` VM deployed and Authentik bootstrapped, `machamp-services` VM deployed, Traefik + step-ca running.
+**Depends on:** `diglett-infra` VM deployed and Authentik bootstrapped, `machamp-services` VM deployed, Traefik + step-ca running.
 
 ---
 
@@ -60,7 +60,7 @@ and breaks `.home` domain resolution.
 
 **Work:**
 1. Wire up Tailscale (diglett-dns joining headscale, subnet router, DNS)
-2. Restore `*.wsh` AdGuard rewrite to `machamp-infra.ts.home` and add `.wsh` routers in `services-vm.yml` and docker-compose labels for each service
+2. Restore `*.wsh` AdGuard rewrite to `diglett-infra.ts.home` and add `.wsh` routers in `services-vm.yml` and docker-compose labels for each service
 3. Add Traefik IP allowlist middleware (source range `192.168.0.0/24`) for sensitive services that should never be publicly reachable even over Tailscale: `traefik.home`, `prometheus.home`, `couchdb.home`, `infisical.home`
 4. Consider moving Servarr (.home only, no .wsh) since they don't need remote access
 
@@ -79,7 +79,7 @@ and breaks `.home` domain resolution.
 - `services` VMs: allow Docker bridge traffic
 - `diglett-dns`: allow DNS (53 TCP/UDP), AdGuard UI (3000 TCP) from LAN
 - `machamp-services`: allow Traefik (80, 443) from LAN and Tailscale
-- `machamp-infra`: allow Infisical (8080), Vaultwarden (80), and Authentik (9000) from LAN/Tailscale
+- `diglett-infra`: allow Infisical (8080), Vaultwarden (80), and Authentik (9000) from LAN/Tailscale
 
 **Note:** Add UFW tasks back to `ansible/roles/base/tasks/main.yml` and per-role allowlists to each service role. The base role previously had UFW enabled — removed to unblock initial bring-up.
 
