@@ -460,6 +460,17 @@
   no_log: true
   when: not _provider_exists
 
+- name: Get default invalidation flow
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/flows/instances/?designation=invalidation&slug=default-provider-invalidation-flow"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _invalidation_flow_result
+  no_log: true
+  when: not _provider_exists
+
 - name: Create Headscale OAuth2 provider in Authentik
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/providers/oauth2/"
@@ -471,6 +482,7 @@
     body:
       name: "headscale"
       authorization_flow: "{{ _auth_flow_result.json.results[0].pk }}"
+      invalidation_flow: "{{ _invalidation_flow_result.json.results[0].pk }}"
       client_type: "confidential"
       redirect_uris:
         - matching_mode: "strict"
