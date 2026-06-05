@@ -393,6 +393,20 @@
     _authentik_token: "{{ _authentik_token_raw.stdout | trim }}"
   no_log: true
 
+- name: Wait for Authentik API to be ready (post-migration setup and blueprints can take extra time)
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/core/applications/"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _api_ready
+  retries: 60
+  delay: 5
+  until: _api_ready.status == 200
+  changed_when: false
+  no_log: true
+
 - name: Check if Headscale OIDC provider already exists in Authentik
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/providers/oauth2/?name=headscale"
