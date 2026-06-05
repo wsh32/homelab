@@ -589,3 +589,153 @@
   become: true
   no_log: true
   changed_when: false
+
+# ── Headplane OIDC bootstrap ──────────────────────────────────────────────────
+
+- name: Check if Headplane OIDC provider already exists in Authentik
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/providers/oauth2/?name=headplane"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _hp_existing_result
+  no_log: true
+
+- name: Set headplane provider existence facts
+  ansible.builtin.set_fact:
+    _hp_provider_exists: "{{ _hp_existing_result.json.pagination.count > 0 }}"
+    _hp_existing_provider: "{{ _hp_existing_result.json.results[0] | default({}) }}"
+  no_log: true
+
+- name: Get built-in OIDC scope property mappings (headplane)
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/propertymappings/provider/scope/?page_size=100"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _hp_scope_mappings_result
+  no_log: true
+  when: not _hp_provider_exists
+
+- name: Extract standard scope mapping PKs for headplane (openid, email, profile)
+  ansible.builtin.set_fact:
+    _hp_scope_pks: >-
+      {{
+        _hp_scope_mappings_result.json.results
+        | selectattr('managed', 'in', [
+            'goauthentik.io/providers/oauth2/scope-openid',
+            'goauthentik.io/providers/oauth2/scope-email',
+            'goauthentik.io/providers/oauth2/scope-profile'
+          ])
+        | map(attribute='pk')
+        | list
+      }}
+  when: not _hp_provider_exists
+
+- name: Get default implicit-consent authorization flow (headplane)
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/flows/instances/?designation=authorization&slug=default-provider-authorization-implicit-consent"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _hp_auth_flow_result
+  no_log: true
+  when: not _hp_provider_exists
+
+- name: Get default invalidation flow (headplane)
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/flows/instances/?designation=invalidation&slug=default-provider-invalidation-flow"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _hp_invalidation_flow_result
+  no_log: true
+  when: not _hp_provider_exists
+
+- name: Create Headplane OAuth2 provider in Authentik
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/providers/oauth2/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "headplane"
+      authorization_flow: "{{ _hp_auth_flow_result.json.results[0].pk }}"
+      invalidation_flow: "{{ _hp_invalidation_flow_result.json.results[0].pk }}"
+      client_type: "confidential"
+      redirect_uris:
+        - matching_mode: "strict"
+          url: "{{ headplane_public_url }}/oidc/callback"
+      sub_mode: "user_email"
+      signing_key: "{{ _signing_key_pk }}"
+      property_mappings: "{{ _hp_scope_pks }}"
+      include_claims_in_id_token: true
+      access_token_validity: "hours=1"
+      refresh_token_validity: "days=30"
+    status_code: 201
+  register: _hp_new_provider
+  no_log: true
+  when: not _hp_provider_exists
+
+- name: Create Headplane application in Authentik
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/core/applications/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "Headplane"
+      slug: "headplane"
+      provider: "{{ _hp_new_provider.json.pk }}"
+    status_code: [201, 400]  # 400 = application slug already exists, treat as idempotent
+  no_log: true
+  when: not _hp_provider_exists
+
+- name: Set headplane OIDC credentials from new provider
+  ansible.builtin.set_fact:
+    _hp_oidc_client_id: "{{ _hp_new_provider.json.client_id }}"
+    _hp_oidc_client_secret: "{{ _hp_new_provider.json.client_secret }}"
+  no_log: true
+  when: not _hp_provider_exists
+
+- name: Ensure existing headplane provider uses RS256 signing key (idempotent patch)
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/providers/oauth2/{{ _hp_existing_provider.pk }}/"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      signing_key: "{{ _signing_key_pk }}"
+    status_code: 200
+  no_log: true
+  when: _hp_provider_exists
+
+- name: Set headplane OIDC credentials from existing provider
+  ansible.builtin.set_fact:
+    _hp_oidc_client_id: "{{ _hp_existing_provider.client_id }}"
+    _hp_oidc_client_secret: "{{ _hp_existing_provider.client_secret }}"
+  no_log: true
+  when: _hp_provider_exists
+
+- name: Write headplane OIDC credentials to NFS for diglett-dns to consume
+  ansible.builtin.copy:
+    dest: /mnt/nas/docker/headplane-oidc.env
+    content: |
+      HEADPLANE_OIDC_CLIENT_ID={{ _hp_oidc_client_id }}
+      HEADPLANE_OIDC_CLIENT_SECRET={{ _hp_oidc_client_secret }}
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+  no_log: true
+  changed_when: false
