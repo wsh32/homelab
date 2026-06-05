@@ -791,7 +791,7 @@
 
 - name: Filter app lookup results to found apps only
   ansible.builtin.set_fact:
-    _found_apps: "{{ _app_lookup_results.results | selectattr('json.pagination.count', '>', 0) | list }}"
+    _found_apps: "{{ _app_lookup_results.results | selectattr('json.pagination.count', 'gt', 0) | list }}"
   no_log: true
 
 - name: Build app slug → PK map
