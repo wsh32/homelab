@@ -371,12 +371,12 @@
 
 # ── Authentik OIDC bootstrap ──────────────────────────────────────────────────
 
-- name: Wait for Authentik to be healthy (up to 5 minutes)
+- name: Wait for Authentik to be healthy (up to 15 minutes — migrations can be slow on first boot)
   ansible.builtin.uri:
     url: "http://localhost:9000/-/health/ready/"
     status_code: 200
   register: authentik_health
-  retries: 60
+  retries: 180
   delay: 5
   until: authentik_health.status == 200
   changed_when: false
