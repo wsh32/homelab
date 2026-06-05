@@ -695,9 +695,38 @@
       name: "Headplane"
       slug: "headplane"
       provider: "{{ _hp_new_provider.json.pk }}"
+      meta_launch_url: "{{ headplane_public_url }}/admin"
     status_code: [201, 400]  # 400 = application slug already exists, treat as idempotent
   no_log: true
   when: not _hp_provider_exists
+
+- name: Look up headplane application in Authentik
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/core/applications/?slug=headplane"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _hp_app_result
+  no_log: true
+
+- name: Set headplane application PK fact
+  ansible.builtin.set_fact:
+    _hp_app_pk: "{{ _hp_app_result.json.results[0].pk }}"
+  no_log: true
+
+- name: Ensure headplane application launch URL is set (idempotent patch)
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/core/applications/{{ _hp_app_pk }}/"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      meta_launch_url: "{{ headplane_public_url }}/admin"
+    status_code: 200
+  no_log: true
 
 - name: Set headplane OIDC credentials from new provider
   ansible.builtin.set_fact:
@@ -744,21 +773,6 @@
   changed_when: false
 
 # ── Headplane group access restriction ───────────────────────────────────────
-
-- name: Look up headplane application in Authentik
-  ansible.builtin.uri:
-    url: "http://localhost:9000/api/v3/core/applications/?slug=headplane"
-    method: GET
-    headers:
-      Authorization: "Bearer {{ _authentik_token }}"
-    status_code: 200
-  register: _hp_app_result
-  no_log: true
-
-- name: Set headplane application PK fact
-  ansible.builtin.set_fact:
-    _hp_app_pk: "{{ _hp_app_result.json.results[0].pk }}"
-  no_log: true
 
 - name: Look up executives group in Authentik
   ansible.builtin.uri:
