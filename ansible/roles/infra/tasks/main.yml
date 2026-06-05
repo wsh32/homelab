@@ -794,21 +794,16 @@
     _found_apps: "{{ _app_lookup_results.results | selectattr('json.pagination.count', 'gt', 0) | list }}"
   no_log: true
 
+- name: Initialize app PK map
+  ansible.builtin.set_fact:
+    _app_pk_map: {}
+  no_log: true
+
 - name: Build app slug → PK map
   ansible.builtin.set_fact:
-    _app_pk_map: >-
-      {{
-        dict(
-          _found_apps | map(attribute='item.slug')
-          | zip(
-              _found_apps
-              | map(attribute='json.results')
-              | map('first')
-              | map(attribute='pk')
-            )
-        )
-      }}
+    _app_pk_map: "{{ _app_pk_map | combine({item.item.slug: item.json.results[0].pk}) }}"
   no_log: true
+  loop: "{{ _found_apps }}"
 
 - name: Bind groups to applications
   ansible.builtin.uri:
