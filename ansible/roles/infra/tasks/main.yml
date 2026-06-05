@@ -804,11 +804,14 @@
       import json, sys
       with open('/tmp/_authentik_app_lookup.json') as f:
           results = json.load(f)
-      pk_map = {
-          r['item']['slug']: r['json']['results'][0]['pk']
-          for r in results
-          if r['json']['pagination']['count'] > 0
-      }
+      pk_map = {}
+      for r in results:
+          slug = r['item']['slug']
+          app_results = r.get('json', {}).get('results', [])
+          if app_results:
+              pk_map[slug] = app_results[0]['pk']
+          else:
+              sys.stderr.write(f"skipping {slug}: not found in Authentik\n")
       print(json.dumps(pk_map))
 
 - name: Build app slug → PK map
