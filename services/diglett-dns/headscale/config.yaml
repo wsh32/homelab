@@ -58,4 +58,3 @@ oidc:
   client_id: ""  # injected by Ansible from /mnt/nas/docker/headscale-oidc.env
   client_secret: ""  # injected by Ansible from /mnt/nas/docker/headscale-oidc.env
   scope: ["openid", "email", "profile"]
-  strip_email_domain: false
