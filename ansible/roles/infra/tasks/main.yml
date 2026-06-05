@@ -612,8 +612,8 @@
     body_format: json
     body:
       name: "headplane"
-      authorization_flow: "{{ _hp_auth_flow_result.json.results[0].pk }}"
-      invalidation_flow: "{{ _hp_invalidation_flow_result.json.results[0].pk }}"
+      authorization_flow: "{{ _auth_flow_result.json.results[0].pk }}"
+      invalidation_flow: "{{ _invalidation_flow_result.json.results[0].pk }}"
       client_type: "confidential"
       redirect_uris:
         - matching_mode: "strict"
