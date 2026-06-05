@@ -493,7 +493,6 @@
     status_code: 200
   register: _auth_flow_result
   no_log: true
-  when: not _provider_exists
 
 - name: Get default invalidation flow
   ansible.builtin.uri:
@@ -504,7 +503,6 @@
     status_code: 200
   register: _invalidation_flow_result
   no_log: true
-  when: not _provider_exists
 
 - name: Create Headscale OAuth2 provider in Authentik
   ansible.builtin.uri:
