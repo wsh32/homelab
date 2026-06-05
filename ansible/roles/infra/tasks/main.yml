@@ -576,6 +576,22 @@
 
 # ── Headplane OIDC bootstrap ──────────────────────────────────────────────────
 
+- name: Check if headplane OIDC provider already exists in Authentik
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/providers/oauth2/?name=headplane"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _hp_existing_result
+  no_log: true
+
+- name: Set headplane provider existence facts
+  ansible.builtin.set_fact:
+    _hp_provider_exists: "{{ _hp_existing_result.json.pagination.count > 0 }}"
+    _hp_existing_provider: "{{ _hp_existing_result.json.results[0] | default({}) }}"
+  no_log: true
+
 - name: Get built-in OIDC scope property mappings (headplane)
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/propertymappings/provider/scope/?page_size=100"
@@ -585,6 +601,7 @@
     status_code: 200
   register: _hp_scope_mappings_result
   no_log: true
+  when: not _hp_provider_exists
 
 - name: Extract standard scope mapping PKs for headplane (openid, email, profile)
   ansible.builtin.set_fact:
@@ -599,8 +616,9 @@
         | map(attribute='pk')
         | list
       }}
+  when: not _hp_provider_exists
 
-- name: Create Headplane OAuth2 provider in Authentik
+- name: Create headplane OAuth2 provider in Authentik
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/providers/oauth2/"
     method: POST
@@ -625,8 +643,9 @@
     status_code: 201
   register: _hp_new_provider
   no_log: true
+  when: not _hp_provider_exists
 
-- name: Create Headplane application in Authentik
+- name: Create headplane application in Authentik
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/core/applications/"
     method: POST
@@ -642,12 +661,44 @@
     status_code: 201
   register: _hp_new_app
   no_log: true
+  when: not _hp_provider_exists
 
-- name: Set headplane OIDC credentials
+- name: Set headplane OIDC credentials from new provider
   ansible.builtin.set_fact:
     _hp_oidc_client_id: "{{ _hp_new_provider.json.client_id }}"
     _hp_oidc_client_secret: "{{ _hp_new_provider.json.client_secret }}"
   no_log: true
+  when: not _hp_provider_exists
+
+- name: Set headplane OIDC credentials from existing provider
+  ansible.builtin.set_fact:
+    _hp_oidc_client_id: "{{ _hp_existing_provider.client_id }}"
+    _hp_oidc_client_secret: "{{ _hp_existing_provider.client_secret }}"
+  no_log: true
+  when: _hp_provider_exists
+
+- name: Look up headplane application PK (provider already existed)
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/core/applications/?slug=headplane"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _hp_existing_app
+  no_log: true
+  when: _hp_provider_exists
+
+- name: Set headplane app PK fact from existing app
+  ansible.builtin.set_fact:
+    _hp_app_pk: "{{ _hp_existing_app.json.results[0].pk }}"
+  no_log: true
+  when: _hp_provider_exists
+
+- name: Set headplane app PK fact from new app
+  ansible.builtin.set_fact:
+    _hp_app_pk: "{{ _hp_new_app.json.pk }}"
+  no_log: true
+  when: not _hp_provider_exists
 
 - name: Write headplane OIDC credentials to NFS for diglett-dns to consume
   ansible.builtin.copy:
