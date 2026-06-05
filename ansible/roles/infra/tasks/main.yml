@@ -789,21 +789,31 @@
   no_log: true
   loop: "{{ authentik_app_bindings }}"
 
+- name: Write app lookup results to temp file
+  ansible.builtin.copy:
+    content: "{{ _app_lookup_results.results | to_json }}"
+    dest: /tmp/_authentik_app_lookup.json
+    mode: "0600"
+  no_log: true
+
 - name: Build app slug → PK map
   ansible.builtin.shell: |
-    python3 - << 'EOF'
+    python3 -c "
     import json
-    results = json.loads({{ _app_lookup_results.results | to_json | tojson }})
-    pk_map = {
-        r['item']['slug']: r['json']['results'][0]['pk']
-        for r in results
-        if r['json']['pagination']['count'] > 0
-    }
+    with open('/tmp/_authentik_app_lookup.json') as f:
+        results = json.load(f)
+    pk_map = {r['item']['slug']: r['json']['results'][0]['pk']
+              for r in results if r['json']['pagination']['count'] > 0}
     print(json.dumps(pk_map))
-    EOF
+    "
   register: _pk_map_raw
   changed_when: false
   no_log: true
+
+- name: Remove app lookup temp file
+  ansible.builtin.file:
+    path: /tmp/_authentik_app_lookup.json
+    state: absent
 
 - name: Set app PK map fact
   ansible.builtin.set_fact:
