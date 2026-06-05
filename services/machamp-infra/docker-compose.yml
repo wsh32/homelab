@@ -164,6 +164,7 @@ services:
       AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD}
       AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL}
       AUTHENTIK_BOOTSTRAP_TOKEN: ${AUTHENTIK_BOOTSTRAP_TOKEN}
+      AUTHENTIK_HOST: ${AUTHENTIK_HOST:-}
     volumes:
       - /mnt/nas/docker/authentik/media:/media
       - /mnt/nas/docker/authentik/custom-templates:/templates
@@ -200,6 +201,7 @@ services:
       AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD}
       AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL}
       AUTHENTIK_BOOTSTRAP_TOKEN: ${AUTHENTIK_BOOTSTRAP_TOKEN}
+      AUTHENTIK_HOST: ${AUTHENTIK_HOST:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /mnt/nas/docker/authentik/media:/media

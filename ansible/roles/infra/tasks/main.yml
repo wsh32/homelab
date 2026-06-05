@@ -134,6 +134,18 @@
   no_log: true
   become: true
 
+- name: Write AUTHENTIK_HOST to homelab.env (sets canonical public URL for OIDC token issuers)
+  ansible.builtin.lineinfile:
+    path: "{{ item }}"
+    regexp: '^AUTHENTIK_HOST='
+    line: "AUTHENTIK_HOST={{ authentik_public_url }}"
+  loop:
+    - /etc/homelab.env
+    - /mnt/nas/docker/infisical-backups/.secrets.env
+  become: true
+  no_log: true
+  when: authentik_public_url is defined
+
 - name: Override Authentik admin email from secrets.yml
   ansible.builtin.lineinfile:
     path: "{{ item }}"
