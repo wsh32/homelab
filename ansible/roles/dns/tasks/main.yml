@@ -233,6 +233,15 @@
   no_log: true
   when: _hp_oidc_env_stat.stat.exists
 
+- name: Inject headscale API key into headplane OIDC config
+  ansible.builtin.lineinfile:
+    path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
+    regexp: '^\s+headscale_api_key:'
+    line: "  headscale_api_key: \"{{ headplane_api_key_role.content | b64decode | trim }}\""
+  notify: Restart diglett-dns stack
+  no_log: true
+  when: headplane_api_key_stat_role.stat.exists
+
 - name: Deploy DNS stack
   ansible.builtin.include_tasks: ../../../tasks/compose-deploy.yml
   vars:
