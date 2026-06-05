@@ -663,11 +663,11 @@
   changed_when: false
 
 # ── Authentik groups ──────────────────────────────────────────────────────────
-# admins  — infra services (Headplane, Grafana, Prometheus, n8n, Authentik)
-# users   — personal services (Jellyfin, PhotoPrism, Calibre-Web, Homepage)
-# admins is the parent of users so admins inherit access to all user services.
+# Groups are declared in ansible/vars/group_config.yml.
+# Parent groups are created first so their PKs are available when creating
+# children. Children inherit their parent's app access in Authentik.
 
-- name: Create admins group in Authentik
+- name: Create parent groups in Authentik
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/core/groups/"
     method: POST
@@ -676,45 +676,56 @@
       Content-Type: "application/json"
     body_format: json
     body:
-      name: "admins"
+      name: "{{ item.name }}"
       is_superuser: false
     status_code: [201, 400]
-  register: _admins_group_create
   no_log: true
+  loop: "{{ authentik_groups }}"
 
-- name: Look up admins group
+- name: Look up all group PKs
   ansible.builtin.uri:
-    url: "http://localhost:9000/api/v3/core/groups/?name=admins"
+    url: "http://localhost:9000/api/v3/core/groups/?name={{ item.name }}"
     method: GET
     headers:
       Authorization: "Bearer {{ _authentik_token }}"
     status_code: 200
-  register: _admins_group_result
+  register: _all_group_results
   no_log: true
+  loop: "{{ authentik_groups }}"
 
-- name: Set admins group PK fact
+- name: Build group name → PK map
   ansible.builtin.set_fact:
-    _admins_group_pk: "{{ _admins_group_result.json.results[0].pk }}"
+    _group_pk_map: >-
+      {{
+        _group_pk_map | default({}) | combine({
+          item.item.name: item.json.results[0].pk
+        })
+      }}
   no_log: true
+  loop: "{{ _all_group_results.results }}"
+  when: item.json.pagination.count > 0
 
-- name: Create users group in Authentik (admins is parent)
+- name: Set parent on child groups
   ansible.builtin.uri:
-    url: "http://localhost:9000/api/v3/core/groups/"
-    method: POST
+    url: "http://localhost:9000/api/v3/core/groups/{{ _group_pk_map[item.1] }}/"
+    method: PATCH
     headers:
       Authorization: "Bearer {{ _authentik_token }}"
       Content-Type: "application/json"
     body_format: json
     body:
-      name: "users"
-      is_superuser: false
-      parent: "{{ _admins_group_pk }}"
-    status_code: [201, 400]
+      parent: "{{ _group_pk_map[item.0.name] }}"
+    status_code: 200
   no_log: true
+  loop: "{{ authentik_groups | selectattr('children', 'defined') | subelements('children') }}"
+  when:
+    - item.0.name in (_group_pk_map | default({}))
+    - item.1 in (_group_pk_map | default({}))
 
 # ── Application group bindings ────────────────────────────────────────────────
 # Driven by authentik_app_bindings in ansible/vars/group_config.yml.
-# Skips apps that don't exist in Authentik yet (not yet OIDC-wired).
+# Uses subelements to flatten (app, group) pairs — each app can have multiple groups.
+# Skips apps not yet in Authentik (not yet OIDC-wired).
 
 - name: Look up application PKs for group bindings
   ansible.builtin.uri:
@@ -727,27 +738,16 @@
   no_log: true
   loop: "{{ authentik_app_bindings }}"
 
-- name: Look up group PKs for bindings
-  ansible.builtin.uri:
-    url: "http://localhost:9000/api/v3/core/groups/?name={{ item }}"
-    method: GET
-    headers:
-      Authorization: "Bearer {{ _authentik_token }}"
-    status_code: 200
-  register: _group_lookup_results
-  no_log: true
-  loop: "{{ authentik_app_bindings | map(attribute='group') | unique | list }}"
-
-- name: Build group name → PK map
+- name: Build app slug → PK map
   ansible.builtin.set_fact:
-    _group_pk_map: >-
+    _app_pk_map: >-
       {{
-        _group_pk_map | default({}) | combine({
-          item.item: item.json.results[0].pk
+        _app_pk_map | default({}) | combine({
+          item.item.slug: item.json.results[0].pk
         })
       }}
   no_log: true
-  loop: "{{ _group_lookup_results.results }}"
+  loop: "{{ _app_lookup_results.results }}"
   when: item.json.pagination.count > 0
 
 - name: Bind groups to applications
@@ -759,15 +759,13 @@
       Content-Type: "application/json"
     body_format: json
     body:
-      target: "{{ item.json.results[0].pk }}"
-      group: "{{ _group_pk_map[authentik_app_bindings[idx].group] }}"
+      target: "{{ _app_pk_map[item.0.slug] }}"
+      group: "{{ _group_pk_map[item.1] }}"
       enabled: true
       order: 0
     status_code: [201, 400]
   no_log: true
-  loop: "{{ _app_lookup_results.results }}"
-  loop_control:
-    index_var: idx
+  loop: "{{ authentik_app_bindings | subelements('groups') }}"
   when:
-    - item.json.pagination.count > 0
-    - authentik_app_bindings[idx].group in (_group_pk_map | default({}))
+    - item.0.slug in (_app_pk_map | default({}))
+    - item.1 in (_group_pk_map | default({}))

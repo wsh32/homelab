@@ -1,30 +1,39 @@
-# Authentik application → group bindings.
-# Each entry restricts an app to a group; users not in the group see
-# an access-denied page from Authentik instead of the app.
+# Authentik groups and application access bindings.
 #
-# Groups:
-#   admins  — infra/ops tools; parent of users (inherits user-tier access)
-#   users   — personal services (media, notes, automation)
+# Groups: define children on a group to have those children inherit its access.
+#   In Authentik, children inherit FROM their parent — so listing admins as a
+#   child of users means admins members also get access to all user-tier apps.
 #
-# Add a new entry here when wiring OIDC for a new service.
+# To add a group: add an entry under authentik_groups.
+# To add access: add the slug + groups to authentik_app_bindings.
+# Apps not yet in Authentik are silently skipped — list them here ahead of
+# their OIDC wiring and the binding is created automatically when it lands.
 
+authentik_groups:
+  - name: users
+    children:
+      - admins   # admins inherit user-tier app access
+  - name: admins
+
+# slug must match the Authentik application slug.
+# groups is a list — an app can be bound to multiple groups.
 authentik_app_bindings:
   # infra tier — admins only
   - slug: headplane
-    group: admins
+    groups: [admins]
   - slug: grafana
-    group: admins
+    groups: [admins]
   - slug: prometheus
-    group: admins
+    groups: [admins]
   - slug: n8n
-    group: admins
+    groups: [admins]
 
   # user tier — all authenticated users
   - slug: jellyfin
-    group: users
+    groups: [users]
   - slug: photoprism
-    group: users
+    groups: [users]
   - slug: calibre-web
-    group: users
+    groups: [users]
   - slug: homepage
-    group: users
+    groups: [users]
