@@ -26,10 +26,9 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "authentik" {
   config {
     ingress_rule {
       hostname = local.authentik_hostname
-      path     = "^/application/o/"
       service  = "http://authentik-server:9000"
     }
-    # Catch-all: reject everything else
+    # Catch-all for other hostnames (none expected)
     ingress_rule {
       service = "http_status:404"
     }
