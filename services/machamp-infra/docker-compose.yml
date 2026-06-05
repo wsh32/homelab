@@ -99,6 +99,12 @@ services:
       - "traefik.http.routers.infisical-home-tls.entrypoints=websecure"
       - "traefik.http.routers.infisical-home-tls.tls=true"
       - "traefik.http.routers.infisical-home-tls.tls.certresolver=step"
+      - "traefik.http.routers.infisical-wsh.rule=Host(`infisical.wsh`)"
+      - "traefik.http.routers.infisical-wsh.entrypoints=web"
+      - "traefik.http.routers.infisical-wsh-tls.rule=Host(`infisical.wsh`)"
+      - "traefik.http.routers.infisical-wsh-tls.entrypoints=websecure"
+      - "traefik.http.routers.infisical-wsh-tls.tls=true"
+      - "traefik.http.routers.infisical-wsh-tls.tls.certresolver=step"
       - "traefik.http.services.infisical-svc.loadbalancer.server.port=8080"
 
   # ── Vaultwarden ────────────────────────────────────────────────────────────
@@ -120,6 +126,12 @@ services:
       - "traefik.http.routers.vault-home-tls.entrypoints=websecure"
       - "traefik.http.routers.vault-home-tls.tls=true"
       - "traefik.http.routers.vault-home-tls.tls.certresolver=step"
+      - "traefik.http.routers.vault-wsh.rule=Host(`vault.wsh`)"
+      - "traefik.http.routers.vault-wsh.entrypoints=web"
+      - "traefik.http.routers.vault-wsh-tls.rule=Host(`vault.wsh`)"
+      - "traefik.http.routers.vault-wsh-tls.entrypoints=websecure"
+      - "traefik.http.routers.vault-wsh-tls.tls=true"
+      - "traefik.http.routers.vault-wsh-tls.tls.certresolver=step"
       - "traefik.http.services.vault-svc.loadbalancer.server.port=80"
 
   litestream:
@@ -176,6 +188,12 @@ services:
       - "traefik.http.routers.auth-home-tls.entrypoints=websecure"
       - "traefik.http.routers.auth-home-tls.tls=true"
       - "traefik.http.routers.auth-home-tls.tls.certresolver=step"
+      - "traefik.http.routers.auth-wsh.rule=Host(`auth.wsh`)"
+      - "traefik.http.routers.auth-wsh.entrypoints=web"
+      - "traefik.http.routers.auth-wsh-tls.rule=Host(`auth.wsh`)"
+      - "traefik.http.routers.auth-wsh-tls.entrypoints=websecure"
+      - "traefik.http.routers.auth-wsh-tls.tls=true"
+      - "traefik.http.routers.auth-wsh-tls.tls.certresolver=step"
       - "traefik.http.services.auth-svc.loadbalancer.server.port=9000"
 
   authentik-worker:
@@ -220,6 +238,16 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.ca-home.rule=Host(`ca.home`)"
       - "traefik.http.routers.ca-home.entrypoints=web"
+      - "traefik.http.routers.ca-home-tls.rule=Host(`ca.home`)"
+      - "traefik.http.routers.ca-home-tls.entrypoints=websecure"
+      - "traefik.http.routers.ca-home-tls.tls=true"
+      - "traefik.http.routers.ca-home-tls.tls.certresolver=step"
+      - "traefik.http.routers.ca-wsh.rule=Host(`ca.wsh`)"
+      - "traefik.http.routers.ca-wsh.entrypoints=web"
+      - "traefik.http.routers.ca-wsh-tls.rule=Host(`ca.wsh`)"
+      - "traefik.http.routers.ca-wsh-tls.entrypoints=websecure"
+      - "traefik.http.routers.ca-wsh-tls.tls=true"
+      - "traefik.http.routers.ca-wsh-tls.tls.certresolver=step"
       - "traefik.http.services.ca-svc.loadbalancer.server.port=80"
 
   # ── Cloudflare Tunnel ─────────────────────────────────────────────────────

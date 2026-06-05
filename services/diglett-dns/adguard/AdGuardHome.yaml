@@ -160,10 +160,11 @@ filtering:
   safebrowsing_block_host: standard-block.dns.adguard.com
   rewrites:
     # DNS rewrites — two-domain architecture:
-    #   *.wsh  → Tailscale HTTPS path (step-ca TLS, personal devices)
-    #   *.home → LAN HTTP path (guests, IoT, no TLS)
+    #   *.wsh  → same LAN IP as *.home; works on LAN directly and remotely via
+    #             Tailscale subnet route advertised by diglett-dns
+    #   *.home → LAN IP (guests, IoT, any device on the network)
     - domain: '*.wsh'
-      answer: machamp-infra.ts.home
+      answer: 192.168.0.32
       enabled: true
     - domain: '*.home'
       answer: 192.168.0.32
