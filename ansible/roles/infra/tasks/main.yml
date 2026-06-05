@@ -556,7 +556,7 @@
   no_log: true
   when: not _provider_exists
 
-- name: Ensure existing provider uses RS256 signing key (idempotent patch)
+- name: Update existing headscale provider signing key
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/providers/oauth2/{{ _existing_provider.pk }}/"
     method: PATCH
@@ -715,7 +715,7 @@
     _hp_app_pk: "{{ _hp_app_result.json.results[0].pk }}"
   no_log: true
 
-- name: Ensure headplane application launch URL is set (idempotent patch)
+- name: Set headplane application launch URL
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/core/applications/{{ _hp_app_pk }}/"
     method: PATCH
@@ -735,7 +735,7 @@
   no_log: true
   when: not _hp_provider_exists
 
-- name: Ensure existing headplane provider has correct redirect URI and signing key (idempotent patch)
+- name: Update existing headplane provider redirect URI and signing key
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/providers/oauth2/{{ _hp_existing_provider.pk }}/"
     method: PATCH
