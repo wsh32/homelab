@@ -177,7 +177,7 @@
 - name: Write Cloudflare Tunnel token to /etc/cloudflare-tunnel.env
   ansible.builtin.copy:
     dest: /etc/cloudflare-tunnel.env
-    content: "CLOUDFLARE_TUNNEL_TOKEN={{ cloudflare_tunnel_token }}\n"
+    content: "TUNNEL_TOKEN={{ cloudflare_tunnel_token }}\n"
     owner: root
     group: root
     mode: "0600"

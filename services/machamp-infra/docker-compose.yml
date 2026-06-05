@@ -199,13 +199,14 @@ services:
 
   # ── Cloudflare Tunnel ─────────────────────────────────────────────────────
   # Exposes only /application/o/ (Authentik OIDC) publicly via Cloudflare Tunnel.
-  # Token written to /etc/cloudflare-tunnel.env by Terraform cloud-init.
+  # Token written to /etc/cloudflare-tunnel.env by Ansible (ansible/roles/infra/tasks/main.yml).
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
     restart: unless-stopped
     command: tunnel --no-autoupdate run
     env_file: /etc/cloudflare-tunnel.env
+    # TUNNEL_TOKEN in env_file is read natively by cloudflared — no tunnel name needed
     depends_on:
       - authentik-server
 
