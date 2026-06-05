@@ -207,6 +207,21 @@ services:
       - /mnt/nas/docker/authentik/media:/media
       - /mnt/nas/docker/authentik/custom-templates:/templates
 
+  # ── CA certificate install page ───────────────────────────────────────────
+  ca-page:
+    image: nginx:alpine
+    container_name: ca-page
+    restart: unless-stopped
+    volumes:
+      - ./ca-page/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./ca-page/index.html:/usr/share/nginx/html/index.html:ro
+      - /mnt/nas/docker/step-ca/certs/root_ca.crt:/certs/root_ca.crt:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ca-home.rule=Host(`ca.home`)"
+      - "traefik.http.routers.ca-home.entrypoints=web"
+      - "traefik.http.services.ca-svc.loadbalancer.server.port=80"
+
   # ── Cloudflare Tunnel ─────────────────────────────────────────────────────
   # Exposes only /application/o/ (Authentik OIDC) publicly via Cloudflare Tunnel.
   # Token written to /etc/cloudflare-tunnel.env by Ansible (ansible/roles/infra/tasks/main.yml).

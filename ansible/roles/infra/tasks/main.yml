@@ -276,6 +276,14 @@
   vars:
     compose_project_src: /home/{{ ansible_user }}/homelab/services/machamp-infra
 
+- name: Ensure step-ca root cert is world-readable (required by ca-page nginx container)
+  ansible.builtin.file:
+    path: /mnt/nas/docker/step-ca/certs/root_ca.crt
+    mode: "o+r"
+  become: true
+  # The file is written by the step-ca container on first init; skip gracefully if not yet present.
+  failed_when: false
+
 - name: Wait for Traefik port 443
   ansible.builtin.wait_for:
     host: localhost
