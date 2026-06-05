@@ -789,21 +789,26 @@
   no_log: true
   loop: "{{ authentik_app_bindings }}"
 
-- name: Filter app lookup results to found apps only
-  ansible.builtin.set_fact:
-    _found_apps: "{{ _app_lookup_results.results | selectattr('json.pagination.count', 'gt', 0) | list }}"
-  no_log: true
-
-- name: Initialize app PK map
-  ansible.builtin.set_fact:
-    _app_pk_map: {}
-  no_log: true
-
 - name: Build app slug → PK map
-  ansible.builtin.set_fact:
-    _app_pk_map: "{{ _app_pk_map | combine({item.item.slug: (item.json.results | first).pk}) }}"
+  ansible.builtin.shell: |
+    python3 - << 'EOF'
+    import json
+    results = json.loads({{ _app_lookup_results.results | to_json | tojson }})
+    pk_map = {
+        r['item']['slug']: r['json']['results'][0]['pk']
+        for r in results
+        if r['json']['pagination']['count'] > 0
+    }
+    print(json.dumps(pk_map))
+    EOF
+  register: _pk_map_raw
+  changed_when: false
   no_log: true
-  loop: "{{ _found_apps }}"
+
+- name: Set app PK map fact
+  ansible.builtin.set_fact:
+    _app_pk_map: "{{ _pk_map_raw.stdout | from_json }}"
+  no_log: true
 
 - name: Bind groups to applications
   ansible.builtin.uri:
