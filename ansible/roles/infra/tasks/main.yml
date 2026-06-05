@@ -662,25 +662,59 @@
   no_log: true
   changed_when: false
 
-# ── Headplane group access restriction ───────────────────────────────────────
+# ── Authentik groups ──────────────────────────────────────────────────────────
+# admins  — infra services (Headplane, Grafana, Prometheus, n8n, Authentik)
+# users   — personal services (Jellyfin, PhotoPrism, Calibre-Web, Homepage)
+# admins is the parent of users so admins inherit access to all user services.
 
-- name: Look up executives group in Authentik
+- name: Create admins group in Authentik
   ansible.builtin.uri:
-    url: "http://localhost:9000/api/v3/core/groups/?name=executives"
+    url: "http://localhost:9000/api/v3/core/groups/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "admins"
+      is_superuser: false
+    status_code: [201, 400]
+  register: _admins_group_create
+  no_log: true
+
+- name: Look up admins group
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/core/groups/?name=admins"
     method: GET
     headers:
       Authorization: "Bearer {{ _authentik_token }}"
     status_code: 200
-  register: _hp_group_result
+  register: _admins_group_result
   no_log: true
 
-- name: Set executives group PK fact
+- name: Set admins group PK fact
   ansible.builtin.set_fact:
-    _hp_group_pk: "{{ _hp_group_result.json.results[0].pk }}"
+    _admins_group_pk: "{{ _admins_group_result.json.results[0].pk }}"
   no_log: true
-  when: _hp_group_result.json.pagination.count > 0
 
-- name: Bind executives group to headplane application
+- name: Create users group in Authentik (admins is parent)
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/core/groups/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "users"
+      is_superuser: false
+      parent: "{{ _admins_group_pk }}"
+    status_code: [201, 400]
+  no_log: true
+
+# ── Application group bindings ────────────────────────────────────────────────
+
+- name: Bind admins group to headplane application
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/policies/bindings/"
     method: POST
@@ -690,9 +724,8 @@
     body_format: json
     body:
       target: "{{ _hp_new_app.json.pk }}"
-      group: "{{ _hp_group_pk }}"
+      group: "{{ _admins_group_pk }}"
       enabled: true
       order: 0
     status_code: 201
   no_log: true
-  when: _hp_group_pk is defined and _hp_binding_result.json.pagination.count == 0
