@@ -581,3 +581,145 @@
   become: true
   no_log: true
   changed_when: false
+
+# ── Authentik user groups ─────────────────────────────────────────────────────
+
+- name: Check if Authentik groups already exist
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/core/groups/?name={{ item }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _group_check
+  loop:
+    - executives
+    - grunts
+  no_log: true
+
+- name: Set group existence facts
+  ansible.builtin.set_fact:
+    _executives_exists: "{{ _group_check.results[0].json.pagination.count > 0 }}"
+    _grunts_exists: "{{ _group_check.results[1].json.pagination.count > 0 }}"
+    _existing_executives_pk: "{{ _group_check.results[0].json.results[0].pk | default('') }}"
+    _existing_grunts_pk: "{{ _group_check.results[1].json.results[0].pk | default('') }}"
+  no_log: true
+
+- name: Create executives group
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/core/groups/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "executives"
+      is_superuser: false
+    status_code: 201
+  register: _new_executives
+  no_log: true
+  when: not _executives_exists
+
+- name: Create grunts group
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/core/groups/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "grunts"
+      is_superuser: false
+    status_code: 201
+  register: _new_grunts
+  no_log: true
+  when: not _grunts_exists
+
+- name: Set group PK facts (resolved from create or existing)
+  ansible.builtin.set_fact:
+    _executives_pk: "{{ _new_executives.json.pk | default(_existing_executives_pk) }}"
+    _grunts_pk: "{{ _new_grunts.json.pk | default(_existing_grunts_pk) }}"
+  no_log: true
+
+# ── Authentik application policy bindings ────────────────────────────────────
+# Binding a group to an application restricts access to that group only.
+# Once any binding exists on an app, unenrolled users are denied by default.
+
+- name: Get Headscale application PK
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/core/applications/?slug=headscale"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _headscale_app_result
+  no_log: true
+
+- name: Set Headscale application PK fact
+  ansible.builtin.set_fact:
+    _headscale_app_pk: "{{ _headscale_app_result.json.results[0].pk }}"
+  when: _headscale_app_result.json.pagination.count > 0
+  no_log: true
+
+- name: Check existing Headscale application bindings
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/policies/bindings/?target={{ _headscale_app_pk }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _headscale_bindings
+  no_log: true
+  when: _headscale_app_pk is defined
+
+- name: Set bound group PKs for Headscale
+  ansible.builtin.set_fact:
+    _headscale_bound_groups: >-
+      {{
+        _headscale_bindings.json.results
+        | selectattr('group', 'ne', None)
+        | map(attribute='group')
+        | list
+      }}
+  when: _headscale_app_pk is defined
+  no_log: true
+
+- name: Bind executives group to Headscale application
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/policies/bindings/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      target: "{{ _headscale_app_pk }}"
+      group: "{{ _executives_pk }}"
+      enabled: true
+      order: 0
+    status_code: 201
+  no_log: true
+  when:
+    - _headscale_app_pk is defined
+    - _executives_pk not in _headscale_bound_groups
+
+- name: Bind grunts group to Headscale application
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/policies/bindings/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      target: "{{ _headscale_app_pk }}"
+      group: "{{ _grunts_pk }}"
+      enabled: true
+      order: 10
+    status_code: 201
+  no_log: true
+  when:
+    - _headscale_app_pk is defined
+    - _grunts_pk not in _headscale_bound_groups

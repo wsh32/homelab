@@ -1,19 +1,35 @@
 {
+  // executives = admins (full tailnet access)
+  // grunts     = guests (media services only)
+  "groups": {
+    "group:executives": ["wesoohoo@gmail.com"]
+  },
   "tagOwners": {
     "tag:infra": ["wesoohoo@gmail.com"]
   },
   "autoApprovers": {
     "routes": {
-      "0.0.0.0/0": ["wesoohoo@gmail.com"],
-      "::/0":       ["wesoohoo@gmail.com"]
+      "0.0.0.0/0": ["group:executives"],
+      "::/0":       ["group:executives"]
     },
-    "exitNode": ["wesoohoo@gmail.com"]
+    "exitNode": ["group:executives"]
   },
   "acls": [
+    // executives get unrestricted access to the entire tailnet
     {
       "action": "accept",
-      "src": ["*"],
-      "dst": ["*:*"]
+      "src":    ["group:executives"],
+      "dst":    ["*:*"]
+    },
+    // grunts (all enrolled users) get media ports only on machamp-services
+    {
+      "action": "accept",
+      "src":    ["*"],
+      "dst":    [
+        "192.168.0.30:8096",  // Jellyfin
+        "192.168.0.30:8083",  // Calibre-Web
+        "192.168.0.30:2342"   // PhotoPrism
+      ]
     }
   ]
 }

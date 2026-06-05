@@ -289,7 +289,14 @@ Infisical stores all machine-read secrets — both service API keys (fetched at 
 `infisical export`) and developer API keys accessed via `infisical run -- <command>` on the
 operator laptop (Claude, Codex, GitHub tokens, etc.).
 Vaultwarden stores all passwords a human types into a browser. The two stores never overlap.
-Authentik provides OIDC SSO for internal services; configure OIDC clients post-deploy.
+Authentik provides OIDC SSO for internal services. Two groups control access:
+
+| Group | Access |
+|-------|--------|
+| `executives` | All services; full Headscale/tailnet access |
+| `grunts` | Headscale enrollment + media services only (Jellyfin, Calibre-Web, PhotoPrism) |
+
+**Adding a new user:** create the user in the Authentik UI (`authentik.home` → Admin → Directory → Users → Create), then add them to the `executives` or `grunts` group. No code changes needed — group membership drives both Authentik application bindings and Headscale ACLs automatically.
 
 **machamp-services** (`192.168.0.30`):
 
