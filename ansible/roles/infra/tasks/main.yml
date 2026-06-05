@@ -793,13 +793,20 @@
   ansible.builtin.set_fact:
     _app_pk_map: >-
       {{
-        _app_pk_map | default({}) | combine(
-          {} if item.json.pagination.count == 0
-          else {item.item.slug: item.json.results[0].pk}
+        dict(
+          _app_lookup_results.results
+          | selectattr('json.pagination.count', '>', 0)
+          | map(attribute='item.slug')
+          | zip(
+              _app_lookup_results.results
+              | selectattr('json.pagination.count', '>', 0)
+              | map(attribute='json.results')
+              | map('first')
+              | map(attribute='pk')
+            )
         )
       }}
   no_log: true
-  loop: "{{ _app_lookup_results.results }}"
 
 - name: Bind groups to applications
   ansible.builtin.uri:
