@@ -9,7 +9,7 @@ locals {
 # Cloudflare Tunnel running on machamp-infra, proxying Authentik's OIDC endpoints.
 # Only /application/o/ is exposed publicly — everything else returns 404.
 # This allows OIDC device enrollment from outside the LAN without a port forward.
-resource "cloudflare_tunnel" "authentik" {
+resource "cloudflare_zero_trust_tunnel_cloudflared" "authentik" {
   account_id = data.cloudflare_zone.main.account_id
   name       = "authentik-oidc"
   secret     = random_id.tunnel_secret.b64_std
@@ -19,9 +19,9 @@ resource "random_id" "tunnel_secret" {
   byte_length = 32
 }
 
-resource "cloudflare_tunnel_config" "authentik" {
+resource "cloudflare_zero_trust_tunnel_cloudflared_config" "authentik" {
   account_id = data.cloudflare_zone.main.account_id
-  tunnel_id  = cloudflare_tunnel.authentik.id
+  tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.authentik.id
 
   config {
     ingress_rule {
@@ -40,7 +40,7 @@ resource "cloudflare_tunnel_config" "authentik" {
 resource "cloudflare_record" "authentik" {
   zone_id = var.cloudflare_zone_id
   name    = var.authentik_subdomain
-  content = "${cloudflare_tunnel.authentik.id}.cfargotunnel.com"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.authentik.id}.cfargotunnel.com"
   type    = "CNAME"
   proxied = true
   ttl     = 1  # auto TTL (required when proxied = true)
@@ -48,7 +48,7 @@ resource "cloudflare_record" "authentik" {
 
 output "authentik_tunnel_token" {
   description = "Cloudflare Tunnel token — written to /etc/cloudflare-tunnel.env on machamp-infra by cloud-init"
-  value       = cloudflare_tunnel.authentik.tunnel_token
+  value       = cloudflare_zero_trust_tunnel_cloudflared.authentik.tunnel_token
   sensitive   = true
 }
 

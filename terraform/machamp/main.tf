@@ -42,7 +42,7 @@ module "infra" {
 
   extra_runcmd = [
     # /etc/cloudflare-tunnel.env is read by the cloudflared container on machamp-infra.
-    "echo 'CLOUDFLARE_TUNNEL_TOKEN=${cloudflare_tunnel.authentik.tunnel_token}' > /etc/cloudflare-tunnel.env",
+    "echo 'CLOUDFLARE_TUNNEL_TOKEN=${cloudflare_zero_trust_tunnel_cloudflared.authentik.tunnel_token}' > /etc/cloudflare-tunnel.env",
     "chmod 600 /etc/cloudflare-tunnel.env",
   ]
 }
