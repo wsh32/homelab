@@ -801,7 +801,7 @@
 
 - name: Build app slug → PK map
   ansible.builtin.set_fact:
-    _app_pk_map: "{{ _app_pk_map | combine({item.item.slug: item.json.results[0].pk}) }}"
+    _app_pk_map: "{{ _app_pk_map | combine({item.item.slug: (item.json.results | first).pk}) }}"
   no_log: true
   loop: "{{ _found_apps }}"
 
