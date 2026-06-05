@@ -136,7 +136,7 @@ services:
 
   # ── Authentik ──────────────────────────────────────────────────────────────
   authentik-server:
-    image: ghcr.io/goauthentik/server:2026.5.2
+    image: ghcr.io/goauthentik/server:2025.6.4
     container_name: authentik-server
     restart: unless-stopped
     command: server
@@ -145,6 +145,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "ak", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
     ports:
       - "9000:9000"
     environment:
@@ -158,6 +164,7 @@ services:
       AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD}
       AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL}
       AUTHENTIK_BOOTSTRAP_TOKEN: ${AUTHENTIK_BOOTSTRAP_TOKEN}
+      AUTHENTIK_HOST: ${AUTHENTIK_HOST:-}
     volumes:
       - /mnt/nas/docker/authentik/media:/media
       - /mnt/nas/docker/authentik/custom-templates:/templates
@@ -172,7 +179,7 @@ services:
       - "traefik.http.services.auth-svc.loadbalancer.server.port=9000"
 
   authentik-worker:
-    image: ghcr.io/goauthentik/server:2026.5.2
+    image: ghcr.io/goauthentik/server:2025.6.4
     container_name: authentik-worker
     restart: unless-stopped
     command: worker
@@ -180,6 +187,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      authentik-server:
         condition: service_healthy
     environment:
       AUTHENTIK_POSTGRESQL__HOST: postgres
@@ -192,10 +201,24 @@ services:
       AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD}
       AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL}
       AUTHENTIK_BOOTSTRAP_TOKEN: ${AUTHENTIK_BOOTSTRAP_TOKEN}
+      AUTHENTIK_HOST: ${AUTHENTIK_HOST:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /mnt/nas/docker/authentik/media:/media
       - /mnt/nas/docker/authentik/custom-templates:/templates
+
+  # ── Cloudflare Tunnel ─────────────────────────────────────────────────────
+  # Exposes only /application/o/ (Authentik OIDC) publicly via Cloudflare Tunnel.
+  # Token written to /etc/cloudflare-tunnel.env by Ansible (ansible/roles/infra/tasks/main.yml).
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    env_file: /etc/cloudflare-tunnel.env
+    # TUNNEL_TOKEN in env_file is read natively by cloudflared — no tunnel name needed
+    depends_on:
+      - authentik-server
 
   # ── PostgreSQL backup ──────────────────────────────────────────────────────
   postgres-backup:

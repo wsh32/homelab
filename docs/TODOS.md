@@ -21,6 +21,45 @@
 
 ---
 
+## Authentik User Groups and Access Control
+
+**What:** Define `grunts` and `executives` groups in Authentik, bind them to applications, and mirror the segmentation in Headscale ACLs.
+
+**Groups:**
+- `executives` — admins. Full access to all services and Headscale enrollment.
+- `grunts` — regular/guest users. Headscale enrollment + media services only.
+
+**Authentik application bindings:**
+| Application | executives | grunts |
+|---|---|---|
+| Headscale OIDC | ✓ | ✓ |
+| Headplane | ✓ | ✗ |
+| Grafana | ✓ (admin role) | ✗ |
+| n8n | ✓ | ✗ |
+| Jellyfin | ✓ | ✓ |
+| Calibre-Web | ✓ | ✓ |
+| PhotoPrism | ✓ | ✓ |
+
+**Headscale ACL changes (`acls.hujson`):**
+- `executives` → access to all tailnet hosts and ports
+- `grunts` → access to the services VM on media ports only (Jellyfin :8096, Calibre-Web :8083, PhotoPrism :2342)
+
+**Work:**
+1. Add Authentik group bootstrap tasks to `ansible/roles/infra/tasks/main.yml`:
+   - `POST /api/v3/core/groups/` to create `executives` and `grunts` (idempotent — skip if exists)
+   - `POST /api/v3/policies/binding/` to bind each group to its allowed applications
+2. Update `services/diglett-dns/headscale/acls.hujson` with group-based ACL rules using Authentik email claims as Headscale user identifiers
+3. Document in `docs/plan.md`: to add a new user, create them in Authentik UI and add to the appropriate group — no code changes needed
+
+**Notes:**
+- Users are created manually in Authentik UI; only group definitions and application bindings live in code
+- Headscale identifies users by email (via `sub_mode: user_email`); ACL rules reference `<email>@<domain>` or wildcard per group
+- Group → Headscale ACL mapping requires that the Authentik group name is surfaced as a claim; alternatively, tag headscale nodes by enrollment group using headscale's user tagging
+
+**Depends on:** Authentik OIDC fully working (Headscale enrollment confirmed).
+
+---
+
 ## NFS Export Strategy
 
 **What:** Define which Alakazam datasets get NFS-exported, to what

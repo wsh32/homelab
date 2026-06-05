@@ -9,3 +9,10 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
     CREATE USER authentik WITH PASSWORD '${AUTHENTIK_DB_PASSWORD}';
     CREATE DATABASE authentik OWNER authentik;
 EOSQL
+
+# Authentik requires pg_trgm and pg_crypto extensions in its database.
+# Must be created as superuser before migrations run.
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname authentik <<-EOSQL
+    CREATE EXTENSION IF NOT EXISTS pg_trgm;
+    CREATE EXTENSION IF NOT EXISTS pgcrypto;
+EOSQL
