@@ -61,6 +61,7 @@ nodes:
         ip: 192.168.0.2
         vm_id: 200
         vm_roles: [services]
+        tailscale_exit_node: true
       diglett-haos:
         ip: 192.168.0.22
         vm_id: 202

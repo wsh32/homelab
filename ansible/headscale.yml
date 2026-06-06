@@ -1,0 +1,140 @@
+---
+# Ensure every managed host is joined to the Headscale network.
+# Generates a fresh 1-hour reusable pre-auth key on each run,
+# expires all previous keys first, and tags enrolled nodes as tag:infra.
+#
+# Usage:
+#   ansible-playbook ansible/headscale.yml
+
+- name: Generate Headscale pre-auth key
+  hosts: diglett-dns
+  gather_facts: false
+
+  tasks:
+    - name: Read headscale server URL
+      ansible.builtin.slurp:
+        src: /etc/headscale.env
+      register: _headscale_env
+      become: true
+
+    - name: Set headscale server URL fact
+      ansible.builtin.set_fact:
+        headscale_server_url: >-
+          {{ _headscale_env.content | b64decode
+             | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\1') | first }}
+
+    - name: List existing pre-auth keys
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale preauthkeys list --output json
+      register: _existing_keys
+      become: true
+
+    - name: Expire all existing pre-auth keys
+      community.docker.docker_container_exec:
+        container: headscale
+        command: "headscale preauthkeys expire --id {{ item }}"
+      loop: "{{ _existing_keys.stdout | from_json | map(attribute='id') | list }}"
+      become: true
+
+    - name: Generate fresh pre-auth key (1h expiry, reusable, tag:infra)
+      community.docker.docker_container_exec:
+        container: headscale
+        command: >-
+          headscale preauthkeys create
+          --reusable
+          --expiration 1h
+          --tags tag:infra
+          --output json
+      register: _new_key
+      become: true
+
+    - name: Set pre-auth key fact
+      ansible.builtin.set_fact:
+        headscale_preauth_key: "{{ (_new_key.stdout | from_json).key }}"
+
+- name: Join all hosts to Headscale
+  hosts: all:!localhost
+  gather_facts: false
+
+  vars:
+    headscale_preauth_key: "{{ hostvars['diglett-dns'].headscale_preauth_key }}"
+    headscale_server_url: "{{ hostvars['diglett-dns'].headscale_server_url }}"
+
+  tasks:
+    - name: Check if tailscale is installed
+      ansible.builtin.stat:
+        path: /usr/bin/tailscale
+      register: _ts_binary
+      become: true
+
+    - name: Install tailscale via official install script
+      ansible.builtin.shell:
+        cmd: curl -fsSL https://tailscale.com/install.sh | sh
+        creates: /usr/bin/tailscale
+      become: true
+      when: not _ts_binary.stat.exists
+
+    - name: Enable and start tailscaled
+      ansible.builtin.systemd:
+        name: tailscaled
+        state: started
+        enabled: true
+      become: true
+
+    - name: Look up existing headscale node by hostname
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale nodes list --output json
+      register: _nodes_list
+      become: true
+      delegate_to: diglett-dns
+
+    - name: Delete existing headscale node for this host
+      community.docker.docker_container_exec:
+        container: headscale
+        command: "headscale nodes delete --identifier {{ item }} --force"
+      loop: >-
+        {{
+          _nodes_list.stdout | from_json
+          | selectattr('given_name', 'equalto', inventory_hostname)
+          | map(attribute='id') | list
+        }}
+      become: true
+      delegate_to: diglett-dns
+
+    - name: Join tailscale network
+      ansible.builtin.command: >-
+        tailscale up
+        --login-server={{ headscale_server_url }}
+        --auth-key={{ headscale_preauth_key }}
+        --accept-routes
+        {{ '--advertise-exit-node' if tailscale_exit_node | default(false) else '' }}
+        --hostname={{ inventory_hostname }}
+        --force-reauth
+        --reset
+      become: true
+
+    - name: Update headscale DNS nameserver to diglett-dns tailscale IP
+      when: inventory_hostname == 'diglett-dns'
+      block:
+        - name: Get diglett-dns tailscale IP
+          ansible.builtin.command: tailscale ip -4
+          register: _diglett_ts_ip
+          changed_when: false
+          become: true
+
+        - name: Update headscale config with diglett-dns tailscale IP
+          ansible.builtin.lineinfile:
+            path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headscale/config.yaml
+            regexp: '^\s+- \d+\.\d+\.\d+\.\d+'
+            line: "      - {{ _diglett_ts_ip.stdout | trim }}  # AdGuard Home on diglett-dns"
+          register: _nameserver_update
+
+        - name: Restart headscale to apply updated nameserver
+          community.docker.docker_container:
+            name: headscale
+            state: started
+            restart: true
+          become: true
+          when: _nameserver_update.changed

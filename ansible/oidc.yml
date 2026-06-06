@@ -23,7 +23,6 @@
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
-      no_log: true
 
   tasks:
     - name: Mount NFS share
@@ -50,13 +49,11 @@
         src: /mnt/nas/docker/headplane-oidc.env
       register: _hp_oidc_env_raw
       become: true
-      no_log: true
 
     - name: Parse headplane OIDC credentials
       ansible.builtin.set_fact:
         _hp_oidc_client_id: "{{ (_hp_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADPLANE_OIDC_CLIENT_ID=(.+)$', '\\1') | first }}"
         _hp_oidc_client_secret: "{{ (_hp_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADPLANE_OIDC_CLIENT_SECRET=(.+)$', '\\1') | first }}"
-      no_log: true
 
     - name: Inject OIDC issuer into headplane config
       ansible.builtin.lineinfile:
@@ -70,7 +67,6 @@
         path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
         regexp: '^\s+client_id:'
         line: "  client_id: \"{{ _hp_oidc_client_id }}\""
-      no_log: true
       notify: Restart headplane
 
     - name: Inject OIDC client secret into headplane config
@@ -78,7 +74,6 @@
         path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
         regexp: '^\s+client_secret:'
         line: "  client_secret: \"{{ _hp_oidc_client_secret }}\""
-      no_log: true
       notify: Restart headplane
 
     - name: Check if headplane API key is provisioned
@@ -92,7 +87,6 @@
         src: /mnt/nas/docker/headplane/api.key
       register: _hp_api_key_raw
       become: true
-      no_log: true
       when: _hp_api_key_stat.stat.exists
 
     - name: Inject headscale API key into headplane OIDC config
@@ -100,7 +94,6 @@
         path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
         regexp: '^\s+headscale_api_key:'
         line: "  headscale_api_key: \"{{ _hp_api_key_raw.content | b64decode | trim }}\""
-      no_log: true
       notify: Restart headplane
       when: _hp_api_key_stat.stat.exists
 
@@ -125,7 +118,6 @@
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
-      no_log: true
 
   tasks:
     - name: Mount NFS share
@@ -153,13 +145,11 @@
         src: /mnt/nas/docker/headscale-oidc.env
       register: _hs_oidc_env_raw
       become: true
-      no_log: true
 
     - name: Parse headscale OIDC credentials
       ansible.builtin.set_fact:
         _hs_oidc_client_id: "{{ (_hs_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADSCALE_OIDC_CLIENT_ID=(.+)$', '\\1') | first }}"
         _hs_oidc_client_secret: "{{ (_hs_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADSCALE_OIDC_CLIENT_SECRET=(.+)$', '\\1') | first }}"
-      no_log: true
 
     - name: Inject OIDC issuer into headscale config
       ansible.builtin.lineinfile:
@@ -173,7 +163,6 @@
         path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headscale/config.yaml
         regexp: '^\s+client_id:'
         line: "  client_id: \"{{ _hs_oidc_client_id }}\""
-      no_log: true
       notify: Restart headscale
 
     - name: Inject OIDC client secret into headscale config
@@ -181,7 +170,13 @@
         path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headscale/config.yaml
         regexp: '^\s+client_secret:'
         line: "  client_secret: \"{{ _hs_oidc_client_secret }}\""
-      no_log: true
+      notify: Restart headscale
+
+    - name: Enable only_start_if_oidc_is_available now that Authentik is up
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headscale/config.yaml
+        regexp: '^\s+only_start_if_oidc_is_available:'
+        line: "  only_start_if_oidc_is_available: true"
       notify: Restart headscale
 
   handlers:

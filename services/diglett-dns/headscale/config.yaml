@@ -53,7 +53,7 @@ dns:
       - 8.8.8.8
 
 oidc:
-  only_start_if_oidc_is_available: true
+  only_start_if_oidc_is_available: false
   issuer: ""  # injected by Ansible: https://auth.<domain>/application/o/headscale/
   client_id: ""  # injected by Ansible from /mnt/nas/docker/headscale-oidc.env
   client_secret: ""  # injected by Ansible from /mnt/nas/docker/headscale-oidc.env
