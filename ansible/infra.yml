@@ -30,6 +30,10 @@
       failed_when: false
       no_log: true
 
+    - name: Load group config (Authentik app→group bindings)
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/vars/group_config.yml"
+
   roles:
     - role: infra
 
