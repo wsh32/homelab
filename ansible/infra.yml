@@ -76,7 +76,7 @@
           --password "{{ _admin_password }}" \
           --organization teamrocket \
           --ignore-if-bootstrapped \
-          --output json
+          --output json 2>&1 | tee /var/lib/infisical/bootstrap-raw.txt
       become: true
       register: bootstrap_result
       changed_when: "'already bootstrapped' not in bootstrap_result.stdout"
@@ -101,24 +101,48 @@
       when: >
         (infisical_client_id | default('')) not in ['', 'REPLACE_ME']
 
-    - name: Fail if bootstrap output unavailable
+    - name: Check bootstrap credentials file exists on machamp-infra
+      ansible.builtin.stat:
+        path: /var/lib/infisical/bootstrap-raw.txt
+      delegate_to: machamp-infra
+      become: true
+      register: _bootstrap_file
+
+    - name: Fail if bootstrap credentials file not found
       ansible.builtin.fail:
         msg: >
-          Infisical was already bootstrapped but machine identity credentials are
-          missing from ansible/secrets.yml.  Set infisical_project_id,
-          infisical_client_id, and infisical_client_secret manually.
-      when: >
-        'already bootstrapped' in hostvars['machamp-infra']['bootstrap_result'].stdout
+          /var/lib/infisical/bootstrap-raw.txt not found on machamp-infra.
+          Run infra.yml first so Phase 1 can bootstrap Infisical and save
+          credentials, or set infisical_project_id, infisical_client_id, and
+          infisical_client_secret manually in ansible/secrets.yml.
+      when: not _bootstrap_file.stat.exists
 
-    - name: Parse bootstrap output
-      ansible.builtin.set_fact:
-        _bootstrap: "{{ hostvars['machamp-infra']['bootstrap_result'].stdout | from_json }}"
+    - name: Extract bootstrap JSON from file on machamp-infra
+      ansible.builtin.shell: |
+        python3 -c "
+import json, re, sys
+with open('/var/lib/infisical/bootstrap-raw.txt') as f:
+    content = f.read()
+m = re.search(r'\{[\s\S]+\}', content)
+if not m:
+    print('ERROR: no JSON found in bootstrap-raw.txt', file=sys.stderr)
+    sys.exit(1)
+data = json.loads(m.group(0))
+if 'identity' not in data or 'organization' not in data:
+    print('ERROR: bootstrap output lacks identity/organization', file=sys.stderr)
+    sys.exit(1)
+print(json.dumps(data))
+"
+      delegate_to: machamp-infra
+      become: true
+      register: _bootstrap_json
+      no_log: true
 
     - name: Set Infisical host, bootstrap token, and org ID
       ansible.builtin.set_fact:
         _infisical_host: "{{ infisical_host | default('http://192.168.0.32:8080') }}"
-        _bootstrap_token: "{{ _bootstrap.identity.credentials.token }}"
-        _org_id: "{{ _bootstrap.organization.id }}"
+        _bootstrap_token: "{{ (_bootstrap_json.stdout | from_json).identity.credentials.token }}"
+        _org_id: "{{ (_bootstrap_json.stdout | from_json).organization.id }}"
       no_log: true
 
     - name: Create machamp-services project in Infisical
