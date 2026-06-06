@@ -12,8 +12,9 @@
 #   ansible-playbook ansible/services.yml
 #   ansible-playbook ansible/services.yml --limit machamp-services
 #
-# Note: arr-init.yml is NOT imported here — it is operational (requires live services
-# and Infisical secrets injected at runtime). Run it separately:
+# Note: arr-init.yml is NOT imported here — it requires the compose stack to already
+# be running (it polls for healthy services) and secrets injected at the control node
+# via `infisical run --`. Run it after `docker compose up -d` on machamp-services:
 #   infisical run --env-file /etc/infisical.env -- ansible-playbook ansible/arr-init.yml
 
 # NVIDIA drivers first — installs drivers and reboots if needed so Docker
