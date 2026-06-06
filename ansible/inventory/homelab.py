@@ -83,6 +83,8 @@ def build_inventory():
                     if role not in groups:
                         groups[role] = {'hosts': []}
                     groups[role]['hosts'].append(vmname)
+            if vmattrs.get('tailscale_exit_node'):
+                hostvars[vmname]['tailscale_exit_node'] = True
 
     return {**groups, '_meta': {'hostvars': hostvars}}
 
