@@ -231,16 +231,6 @@ services:
       COUCHDB_USER: ${COUCHDB_USER}
       COUCHDB_PASSWORD: ${COUCHDB_PASSWORD}
 
-  # ── Quartz (Obsidian vault publishing) ─────────────────────────────────────
-  quartz:
-    image: ghcr.io/jackyzha0/quartz:v4
-    container_name: quartz
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    volumes:
-      - /mnt/nas/media/obsidian-vault:/vault:ro
-
   # ── Homepage dashboard ─────────────────────────────────────────────────────
   homepage:
     image: ghcr.io/gethomepage/homepage:latest
