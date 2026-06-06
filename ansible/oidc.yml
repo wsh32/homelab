@@ -172,6 +172,13 @@
         line: "  client_secret: \"{{ _hs_oidc_client_secret }}\""
       notify: Restart headscale
 
+    - name: Enable only_start_if_oidc_is_available now that Authentik is up
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headscale/config.yaml
+        regexp: '^\s+only_start_if_oidc_is_available:'
+        line: "  only_start_if_oidc_is_available: true"
+      notify: Restart headscale
+
   handlers:
     - name: Restart headscale
       community.docker.docker_container:
