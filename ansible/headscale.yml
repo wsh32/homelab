@@ -94,4 +94,3 @@
         --hostname={{ inventory_hostname }}
         --force-reauth
       become: true
-      no_log: true
