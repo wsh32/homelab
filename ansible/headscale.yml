@@ -26,7 +26,7 @@
     - name: List existing pre-auth keys
       community.docker.docker_container_exec:
         container: headscale
-        command: headscale preauthkeys list --user infra --output json
+        command: headscale preauthkeys list --output json
       register: _existing_keys
       become: true
 
@@ -42,7 +42,6 @@
         container: headscale
         command: >-
           headscale preauthkeys create
-          --user infra
           --reusable
           --expiration 1h
           --tags tag:infra
