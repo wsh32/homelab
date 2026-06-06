@@ -62,6 +62,10 @@ docs/                          — architecture docs, plan, TODOs
 2. Assign a VM ID and IP from the node's reserved range
 3. Run `terraform plan` to verify before applying
 
+## Ansible task naming
+
+- Task names describe **what** the task does, not why it exists or who it's for. No parenthetical context like `(migration for existing installs)`, `(idempotent)`, `(first run only)`, etc.
+
 ## Things to avoid
 
 - Don't commit `terraform.tfvars`, `.env`, `*.tfstate`, or any file containing real credentials
