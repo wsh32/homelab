@@ -494,15 +494,33 @@
 - name: Register Vaultwarden service account (idempotent)
   ansible.builtin.shell: |
     set -e
-    source /etc/homelab.env
-    VW_EMAIL="$VAULTWARDEN_SVC_EMAIL" \
-    VW_PASSWORD="$VAULTWARDEN_SVC_PASSWORD" \
+    svc_email=$(grep '^VAULTWARDEN_SVC_EMAIL='    /etc/homelab.env | cut -d= -f2-)
+    svc_password=$(grep '^VAULTWARDEN_SVC_PASSWORD=' /etc/homelab.env | cut -d= -f2-)
+    VW_EMAIL="$svc_email" \
+    VW_PASSWORD="$svc_password" \
     VW_URL="http://{{ _vw_container_ip.stdout | trim }}" \
-    python3 /tmp/vw_register.py
+    python3 /tmp/vw_register.py 2>/tmp/vw_reg_err.txt
   register: _vw_svc_reg
   changed_when: "'registered' in _vw_svc_reg.stdout"
+  failed_when: false
   become: true
   no_log: true
+
+- name: Show Vaultwarden registration error output (safe — contains no credentials)
+  ansible.builtin.shell: cat /tmp/vw_reg_err.txt 2>/dev/null || true
+  become: true
+  register: _vw_reg_err
+  changed_when: false
+
+- name: Display registration error
+  ansible.builtin.debug:
+    msg: "{{ _vw_reg_err.stdout }}"
+  when: _vw_reg_err.stdout | length > 0
+
+- name: Fail if registration returned non-zero
+  ansible.builtin.fail:
+    msg: "Vaultwarden service account registration failed — see error above"
+  when: _vw_svc_reg.rc != 0
 
 - name: Remove service account registration script
   ansible.builtin.file:
