@@ -1,6 +1,6 @@
 {
   "tagOwners": {
-    "tag:infra": ["wesoohoo@gmail.com", "infra"]
+    "tag:infra": ["wesoohoo@gmail.com"]
   },
   "autoApprovers": {
     "routes": {
