@@ -8,14 +8,14 @@
 #   - Alakazam NFS must be reachable at 192.168.0.4:/mnt/apps/docker
 #
 # Usage:
-#   ansible-playbook ansible/dns.yml          # Phase 1 only (default)
-#   ansible-playbook ansible/dns.yml --tags phase2   # Phase 2 only (after infra.yml)
-#   ansible-playbook ansible/dns.yml --tags phase1,phase2  # both phases
+#   ansible-playbook ansible/dns.yml                        # bootstrap only (default)
+#   ansible-playbook ansible/dns.yml --tags inject-oidc     # OIDC injection only (after infra.yml)
+#   ansible-playbook ansible/dns.yml --tags bootstrap,inject-oidc  # both phases
 
 - name: Deploy DNS stack
   hosts: diglett-dns
   gather_facts: true
-  tags: [phase1]
+  tags: [bootstrap]
 
   vars:
     network: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
@@ -34,7 +34,7 @@
 - name: Bootstrap Headscale
   hosts: diglett-dns
   gather_facts: false
-  tags: [phase1]
+  tags: [bootstrap]
 
   tasks:
     - name: Wait for Headscale to be ready
@@ -275,7 +275,7 @@
 - name: Write pre-auth key to terraform.tfvars
   hosts: localhost
   gather_facts: false
-  tags: [phase1]
+  tags: [bootstrap]
 
   vars:
     preauth_key: "{{ hostvars['diglett-dns'].headscale_preauth_key | default('') }}"
@@ -310,7 +310,7 @@
 - name: Inject Authentik OIDC credentials into Headplane
   hosts: diglett-dns
   gather_facts: false
-  tags: [phase2]
+  tags: [inject-oidc]
 
   vars:
     network: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
