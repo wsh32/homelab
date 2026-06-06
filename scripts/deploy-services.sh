@@ -31,7 +31,7 @@ if echo "$CHANGED" | grep -q "^services/diglett-deploy/"; then
   deploy_service "diglett-deploy" "services/diglett-deploy"
 fi
 
-if echo "$CHANGED" | grep -q "^services/machamp/"; then
-  deploy_service "machamp-services" "services/machamp"
+if echo "$CHANGED" | grep -q "^services/machamp-services/"; then
+  deploy_service "machamp-services" "services/machamp-services"
 fi
 
