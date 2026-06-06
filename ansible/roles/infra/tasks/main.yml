@@ -131,7 +131,6 @@
     fi
   register: secrets_result
   changed_when: "'changed' in secrets_result.stdout"
-  no_log: true
   become: true
 
 - name: Write AUTHENTIK_HOST to homelab.env (sets canonical public URL for OIDC token issuers)
@@ -143,7 +142,6 @@
     - /etc/homelab.env
     - /mnt/nas/docker/infisical-backups/.secrets.env
   become: true
-  no_log: true
   when: authentik_public_url is defined
 
 - name: Override Authentik admin email from secrets.yml
@@ -155,7 +153,6 @@
     - /etc/homelab.env
     - /mnt/nas/docker/infisical-backups/.secrets.env
   become: true
-  no_log: true
   when: authentik_admin_email is defined
 
 - name: Override Authentik admin password from secrets.yml
@@ -167,7 +164,6 @@
     - /etc/homelab.env
     - /mnt/nas/docker/infisical-backups/.secrets.env
   become: true
-  no_log: true
   when: authentik_admin_password is defined
 
 - name: Ensure /etc/homelab.env has correct permissions
@@ -194,7 +190,6 @@
     group: root
     mode: "0600"
   become: true
-  no_log: true
   when: cloudflare_tunnel_token is defined
 
 - name: Check if postgres data directory is empty
@@ -244,7 +239,6 @@
       ansible.builtin.shell: |
         gunzip -c {{ _latest_pg_backup }} | docker exec -i postgres psql -U postgres
       become: true
-      no_log: true
 
 - name: Check if vaultwarden database exists
   ansible.builtin.stat:
@@ -323,7 +317,6 @@
     grep '^VAULTWARDEN_ADMIN_TOKEN=' /etc/homelab.env | cut -d= -f2- | grep -q '^\$argon2' && echo hashed || echo plain
   register: vw_token_state
   changed_when: false
-  no_log: true
   become: true
 
 - name: Wait for Vaultwarden container to be running (needed for hash command)
@@ -355,7 +348,6 @@
     echo changed
   register: vw_hash_result
   changed_when: "'changed' in vw_hash_result.stdout"
-  no_log: true
   become: true
   when: vw_token_state.stdout == 'plain'
 
@@ -405,13 +397,11 @@
   ansible.builtin.shell: grep '^AUTHENTIK_BOOTSTRAP_TOKEN=' /etc/homelab.env | cut -d= -f2-
   register: _authentik_token_raw
   changed_when: false
-  no_log: true
   become: true
 
 - name: Set Authentik API token fact
   ansible.builtin.set_fact:
     _authentik_token: "{{ _authentik_token_raw.stdout | trim }}"
-  no_log: true
 
 - name: Wait for Authentik API to be ready (post-migration setup and blueprints can take extra time)
   ansible.builtin.uri:
@@ -425,7 +415,6 @@
   delay: 5
   until: _api_ready.status == 200
   changed_when: false
-  no_log: true
 
 - name: Check if Headscale OIDC provider already exists in Authentik
   ansible.builtin.uri:
@@ -435,13 +424,11 @@
       Authorization: "Bearer {{ _authentik_token }}"
     status_code: 200
   register: _existing_provider_result
-  no_log: true
 
 - name: Set provider existence facts
   ansible.builtin.set_fact:
     _provider_exists: "{{ _existing_provider_result.json.pagination.count > 0 }}"
     _existing_provider: "{{ _existing_provider_result.json.results[0] | default({}) }}"
-  no_log: true
 
 - name: Get Authentik self-signed certificate for RS256 token signing
   ansible.builtin.uri:
@@ -451,12 +438,10 @@
       Authorization: "Bearer {{ _authentik_token }}"
     status_code: 200
   register: _certs_result
-  no_log: true
 
 - name: Set signing key fact (first available cert with a private key)
   ansible.builtin.set_fact:
     _signing_key_pk: "{{ _certs_result.json.results[0].pk }}"
-  no_log: true
 
 - name: Get built-in OIDC scope property mappings
   ansible.builtin.uri:
@@ -466,7 +451,6 @@
       Authorization: "Bearer {{ _authentik_token }}"
     status_code: 200
   register: _scope_mappings_result
-  no_log: true
   when: not _provider_exists
 
 - name: Extract standard scope mapping PKs (openid, email, profile)
@@ -492,7 +476,6 @@
       Authorization: "Bearer {{ _authentik_token }}"
     status_code: 200
   register: _auth_flow_result
-  no_log: true
 
 - name: Get default invalidation flow
   ansible.builtin.uri:
@@ -502,7 +485,6 @@
       Authorization: "Bearer {{ _authentik_token }}"
     status_code: 200
   register: _invalidation_flow_result
-  no_log: true
 
 - name: Create Headscale OAuth2 provider in Authentik
   ansible.builtin.uri:
@@ -528,7 +510,6 @@
       refresh_token_validity: "days=30"
     status_code: 201
   register: _new_provider
-  no_log: true
   when: not _provider_exists
 
 - name: Create Headscale application in Authentik
@@ -544,21 +525,18 @@
       slug: "headscale"
       provider: "{{ _new_provider.json.pk }}"
     status_code: [201, 400]  # 400 = application slug already exists, treat as idempotent
-  no_log: true
   when: not _provider_exists
 
 - name: Set OIDC client credentials
   ansible.builtin.set_fact:
     _oidc_client_id: "{{ _new_provider.json.client_id }}"
     _oidc_client_secret: "{{ _new_provider.json.client_secret }}"
-  no_log: true
   when: not _provider_exists
 
 - name: Set OIDC client credentials from existing provider
   ansible.builtin.set_fact:
     _oidc_client_id: "{{ _existing_provider.client_id }}"
     _oidc_client_secret: "{{ _existing_provider.client_secret }}"
-  no_log: true
   when: _provider_exists
 
 - name: Write OIDC credentials to NFS for diglett-dns to consume
@@ -571,7 +549,6 @@
     group: root
     mode: "0600"
   become: true
-  no_log: true
   changed_when: false
 
 # ── Headplane OIDC bootstrap ──────────────────────────────────────────────────
@@ -584,13 +561,11 @@
       Authorization: "Bearer {{ _authentik_token }}"
     status_code: 200
   register: _hp_existing_result
-  no_log: true
 
 - name: Set headplane provider existence facts
   ansible.builtin.set_fact:
     _hp_provider_exists: "{{ _hp_existing_result.json.pagination.count > 0 }}"
     _hp_existing_provider: "{{ _hp_existing_result.json.results[0] | default({}) }}"
-  no_log: true
 
 - name: Get built-in OIDC scope property mappings (headplane)
   ansible.builtin.uri:
@@ -600,7 +575,6 @@
       Authorization: "Bearer {{ _authentik_token }}"
     status_code: 200
   register: _hp_scope_mappings_result
-  no_log: true
   when: not _hp_provider_exists
 
 - name: Extract standard scope mapping PKs for headplane (openid, email, profile)
@@ -642,7 +616,6 @@
       refresh_token_validity: "days=30"
     status_code: 201
   register: _hp_new_provider
-  no_log: true
   when: not _hp_provider_exists
 
 - name: Create headplane application in Authentik
@@ -660,21 +633,18 @@
       meta_launch_url: "{{ headplane_public_url }}/admin"
     status_code: 201
   register: _hp_new_app
-  no_log: true
   when: not _hp_provider_exists
 
 - name: Set headplane OIDC credentials from new provider
   ansible.builtin.set_fact:
     _hp_oidc_client_id: "{{ _hp_new_provider.json.client_id }}"
     _hp_oidc_client_secret: "{{ _hp_new_provider.json.client_secret }}"
-  no_log: true
   when: not _hp_provider_exists
 
 - name: Set headplane OIDC credentials from existing provider
   ansible.builtin.set_fact:
     _hp_oidc_client_id: "{{ _hp_existing_provider.client_id }}"
     _hp_oidc_client_secret: "{{ _hp_existing_provider.client_secret }}"
-  no_log: true
   when: _hp_provider_exists
 
 - name: Look up headplane application PK (provider already existed)
@@ -685,19 +655,16 @@
       Authorization: "Bearer {{ _authentik_token }}"
     status_code: 200
   register: _hp_existing_app
-  no_log: true
   when: _hp_provider_exists
 
 - name: Set headplane app PK fact from existing app
   ansible.builtin.set_fact:
     _hp_app_pk: "{{ _hp_existing_app.json.results[0].pk }}"
-  no_log: true
   when: _hp_provider_exists
 
 - name: Set headplane app PK fact from new app
   ansible.builtin.set_fact:
     _hp_app_pk: "{{ _hp_new_app.json.pk }}"
-  no_log: true
   when: not _hp_provider_exists
 
 - name: Write headplane OIDC credentials to NFS for diglett-dns to consume
@@ -710,7 +677,6 @@
     group: root
     mode: "0600"
   become: true
-  no_log: true
   changed_when: false
 
 # ── Authentik groups ──────────────────────────────────────────────────────────
@@ -730,7 +696,6 @@
       name: "{{ item.name }}"
       is_superuser: false
     status_code: [201, 400]
-  no_log: true
   loop: "{{ authentik_groups }}"
 
 - name: Look up all group PKs
@@ -741,7 +706,6 @@
       Authorization: "Bearer {{ _authentik_token }}"
     status_code: 200
   register: _all_group_results
-  no_log: true
   loop: "{{ authentik_groups }}"
 
 - name: Build group name → PK map
@@ -752,7 +716,6 @@
           item.item.name: item.json.results[0].pk
         })
       }}
-  no_log: true
   loop: "{{ _all_group_results.results }}"
   when: item.json.pagination.count > 0
 
@@ -767,7 +730,6 @@
     body:
       parent: "{{ _group_pk_map[item.0.name] }}"
     status_code: 200
-  no_log: true
   loop: "{{ authentik_groups | selectattr('children', 'defined') | subelements('children') }}"
   when:
     - item.0.name in (_group_pk_map | default({}))
@@ -786,7 +748,6 @@
       Authorization: "Bearer {{ _authentik_token }}"
     status_code: 200
   register: _app_lookup_results
-  no_log: true
   loop: "{{ authentik_app_bindings }}"
 
 - name: Write app lookup results to temp file
@@ -794,7 +755,6 @@
     content: "{{ _app_lookup_results.results | to_json }}"
     dest: /tmp/_authentik_app_lookup.json
     mode: "0600"
-  no_log: true
 
 - name: Write app PK map script
   ansible.builtin.copy:
@@ -830,7 +790,6 @@
 - name: Set app PK map fact
   ansible.builtin.set_fact:
     _app_pk_map: "{{ _pk_map_raw.stdout | from_json }}"
-  no_log: true
 
 - name: Bind groups to applications
   ansible.builtin.uri:
@@ -846,7 +805,6 @@
       enabled: true
       order: 0
     status_code: [201, 400]
-  no_log: true
   loop: "{{ authentik_app_bindings | subelements('groups') }}"
   when:
     - item.0.slug in (_app_pk_map | default({}))

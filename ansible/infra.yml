@@ -28,7 +28,6 @@
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
-      no_log: true
 
     - name: Load group config (Authentik app→group bindings)
       ansible.builtin.include_vars:
@@ -47,13 +46,11 @@
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
-      no_log: true
 
     - name: Resolve credentials into facts
       ansible.builtin.set_fact:
         _admin_email: "{{ infisical_admin_email | default('admin@homelab.local') }}"
         _admin_password: "{{ infisical_admin_password | default(lookup('env', 'INFISICAL_ADMIN_PASSWORD')) }}"
-      no_log: true
 
     - name: Fail if no admin password available
       ansible.builtin.fail:
@@ -81,6 +78,5 @@
           --ignore-if-bootstrapped \
           --output json
       become: true
-      no_log: true
       register: bootstrap_result
       changed_when: "'already bootstrapped' not in bootstrap_result.stdout"

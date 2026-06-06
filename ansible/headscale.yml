@@ -48,12 +48,10 @@
           --output json
       register: _new_key
       become: true
-      no_log: true
 
     - name: Set pre-auth key fact
       ansible.builtin.set_fact:
         headscale_preauth_key: "{{ (_new_key.stdout | from_json).key }}"
-      no_log: true
 
 - name: Join all hosts to Headscale
   hosts: all:!localhost
