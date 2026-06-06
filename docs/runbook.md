@@ -360,49 +360,93 @@ Each service role:
 5. Runs any headless init (Jellyfin wizard, Servarr linking, etc.)
 6. Stores the admin password in Vaultwarden
 
-Vaultwarden account creation is attempted automatically via `bw register`. If the
-Bitwarden CLI doesn't support registration against Vaultwarden, the playbook will
-pause with instructions for the one manual browser step.
+Vaultwarden account creation is a one-time manual browser step — see **Phase 4, step 13** below.
 
 ---
 
 ## Phase 4 — Post-bootstrap
 
-### 13. TLS — trust the step-ca root CA
+### 13. Set up Vaultwarden
 
-step-ca is initialized by the `site.yml` Ansible role. Copy the root CA cert to your
-operator laptop and trust it:
+**Step 1 — Trust the step-ca root CA on your devices**
 
 ```bash
-scp ubuntu@192.168.0.30:/tmp/homelab-root-ca.crt ~/homelab-root-ca.crt
+ssh ubuntu@192.168.0.32 'docker exec step-ca cat /home/step/certs/root_ca.crt' > ~/team-rocket-ca.crt
 
 # macOS
 sudo security add-trusted-cert -d -r trustRoot \
-  -k /Library/Keychains/System.keychain ~/homelab-root-ca.crt
+  -k /Library/Keychains/System.keychain ~/team-rocket-ca.crt
 
 # Linux (Ubuntu)
-sudo cp ~/homelab-root-ca.crt /usr/local/share/ca-certificates/homelab-root-ca.crt
+sudo cp ~/team-rocket-ca.crt /usr/local/share/ca-certificates/team-rocket-ca.crt
 sudo update-ca-certificates
 ```
 
-Repeat on every personal device that will use `*.wsh` services.
+Repeat on every personal device that will access `.home` services over HTTPS.
+
+**Step 2 — Register your account (one-time, manual)**
+
+`VAULTWARDEN_SIGNUPS_ALLOWED=true` is set on first provision.
+
+1. Go to **https://vault.home** and register your account
+2. After registering, disable signups:
+   ```bash
+   ssh ubuntu@192.168.0.32 '
+     sudo sed -i "s/VAULTWARDEN_SIGNUPS_ALLOWED=true/VAULTWARDEN_SIGNUPS_ALLOWED=false/" /etc/homelab.env
+     sudo sed -i "s/VAULTWARDEN_SIGNUPS_ALLOWED=true/VAULTWARDEN_SIGNUPS_ALLOWED=false/" /mnt/nas/docker/infisical-backups/.secrets.env
+     docker restart vaultwarden
+   '
+   ```
+
+**Step 3 — Store generated secrets in Vaultwarden**
+
+Retrieve the values from machamp-infra:
+```bash
+ssh ubuntu@192.168.0.32 'sudo grep -E "VAULTWARDEN_ADMIN_TOKEN|AUTHENTIK_BOOTSTRAP_PASSWORD|POSTGRES_PASSWORD" /etc/homelab.env'
+ssh ubuntu@192.168.0.2  'sudo cat /mnt/nas/docker/headplane/api.key'
+```
+
+Create the following items:
+
+| Name | Type | Username | Password / Value | URL |
+|------|------|----------|------------------|-----|
+| Vaultwarden Admin | Login | *(none)* | `VAULTWARDEN_ADMIN_TOKEN` (plaintext before Ansible hashed it) | `https://vault.home/admin` |
+| Authentik | Login | `akadmin` | `AUTHENTIK_BOOTSTRAP_PASSWORD` | `https://auth.home` |
+| Infisical | Login | `admin@homelab.local` | your `INFISICAL_ADMIN_PASSWORD` | `https://infisical.home` |
+| AdGuard | Login | `admin` | plaintext AdGuard password | `https://adguard.home` |
+| PostgreSQL | Login | `postgres` | `POSTGRES_PASSWORD` | `192.168.0.32` |
+| Headplane API Key | Secure Note | *(none)* | contents of `/mnt/nas/docker/headplane/api.key` | *(none)* |
+
+> **Note on the Vaultwarden admin token:** Ansible hashes the token with Argon2 on first deploy. The admin panel accepts the original plaintext hex string. If you've lost it, generate a new one (`openssl rand -hex 32`), replace it in `/etc/homelab.env` and the NFS sentinel, then re-run `ansible-playbook ansible/infra.yml` to rehash.
+
+Automation of this step is tracked in `docs/impl-todos.md` (automate via `bw` CLI).
+
+**Step 4 — Configure the Bitwarden client**
+
+In the Bitwarden browser extension or app:
+1. Click the gear icon → **Settings**
+2. Set **Server URL** to `https://vault.home`
+3. Log in with your registered account
 
 ### 14. Verify DNS resolution
 
 From a device on the LAN:
 ```bash
-dig jellyfin.home @192.168.0.2   # should return 192.168.0.30
+dig jellyfin.home @192.168.0.2   # should return 192.168.0.32 (Traefik on machamp-infra)
+dig infisical.home @192.168.0.2  # should return 192.168.0.32
 ```
 
-From a device on Tailscale:
+Check AdGuard DNS rewrites are active at **https://adguard.home** → Filters → DNS rewrites:
+- `*.home` → A `192.168.0.32`
+
+Smoke test all `.home` routes:
 ```bash
-dig jellyfin.wsh                  # should return services VM Tailscale IP
-curl -k https://jellyfin.wsh      # should reach Jellyfin
+for host in infisical vault auth traefik headplane adguard jellyfin grafana; do
+  code=$(curl -sk -o /dev/null -w "%{http_code}" https://${host}.home)
+  echo "$host.home → $code"
+done
+# Expect 200, 301, 302, or 401 — not 000 (unreachable) or 502 (bad gateway)
 ```
-
-Check AdGuard DNS rewrites are active at `http://diglett-dns.home` → Filters → DNS rewrites:
-- `*.wsh` → CNAME `machamp-services.ts.home`
-- `*.home` → A `192.168.0.30`
 
 ### 15. Add external API keys to Infisical
 
