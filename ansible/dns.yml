@@ -169,16 +169,6 @@
         enabled: true
       become: true
 
-    - name: Join diglett-dns to headscale
-      ansible.builtin.command: >-
-        tailscale up
-        --login-server={{ headscale_server_url }}
-        --auth-key={{ headscale_preauth_key }}
-        --advertise-exit-node
-        --hostname=diglett-dns
-        --force-reauth
-      become: true
-
     - name: Get diglett-dns tailscale IP
       ansible.builtin.command: tailscale ip -4
       register: diglett_ts_ip
