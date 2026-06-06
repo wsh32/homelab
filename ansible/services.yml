@@ -1,6 +1,6 @@
 ---
 # Configure service VMs (machamp-services): Docker, NFS mounts, Infisical secrets,
-# and the machamp-services compose stack.
+# compose stack, and NVIDIA drivers (via gpu.yml import).
 # Run after base.yml. Requires Infisical (machamp-infra) to be up for secret export.
 #
 # Prerequisites:
@@ -11,6 +11,10 @@
 # Usage:
 #   ansible-playbook ansible/services.yml
 #   ansible-playbook ansible/services.yml --limit machamp-services
+#
+# Note: arr-init.yml is NOT imported here — it is operational (requires live services
+# and Infisical secrets injected at runtime). Run it separately:
+#   infisical run --env-file /etc/infisical.env -- ansible-playbook ansible/arr-init.yml
 
 - name: Configure service VMs
   hosts: services
@@ -145,3 +149,7 @@
         state: link
         force: true
       become: true
+
+# NVIDIA drivers for GPU-enabled VMs (targets the `gpu` group, which includes
+# machamp-services). No-op on VMs without the gpu role.
+- import_playbook: gpu.yml
