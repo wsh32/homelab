@@ -27,7 +27,7 @@
 
   tasks:
     - name: Mount NFS share
-      ansible.builtin.include_tasks: ../tasks/nfs-mount.yml
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/nfs-mount.yml"
       vars:
         nfs_mount_path: /mnt/nas/docker
         nfs_source_path: "{{ nas_ip }}:/mnt/apps/docker"
@@ -129,10 +129,11 @@
 
   tasks:
     - name: Mount NFS share
-      ansible.builtin.include_tasks: ../tasks/nfs-mount.yml
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/nfs-mount.yml"
       vars:
         nfs_mount_path: /mnt/nas/docker
         nfs_source_path: "{{ nas_ip }}:/mnt/apps/docker"
+
 
     - name: Check if headscale OIDC credentials are available on NFS
       ansible.builtin.stat:
