@@ -33,8 +33,8 @@
     - name: Expire all existing pre-auth keys
       community.docker.docker_container_exec:
         container: headscale
-        command: "headscale preauthkeys expire --key {{ item }}"
-      loop: "{{ _existing_keys.stdout | from_json | map(attribute='key') | list }}"
+        command: "headscale preauthkeys expire --id {{ item }}"
+      loop: "{{ _existing_keys.stdout | from_json | map(attribute='id') | list }}"
       become: true
 
     - name: Generate fresh pre-auth key (1h expiry, reusable, tag:infra)
