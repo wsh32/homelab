@@ -4,7 +4,7 @@
 # Run after base.yml. Requires Infisical (machamp-infra) to be up for secret export.
 #
 # Prerequisites:
-#   - Alakazam NFS reachable at 192.168.0.4:/mnt/apps/docker and :/mnt/apps/media
+#   - Alakazam NFS reachable at 192.168.0.4:/mnt/apps/docker, :/mnt/pool/media, :/mnt/pool/photos
 #   - ansible/secrets.yml contains infisical_client_id/secret/project_id
 #   - Infisical machine identity created for machamp-services (see secrets.yml.example)
 #
@@ -50,13 +50,13 @@
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/nfs-mount.yml"
       vars:
         nfs_mount_path: /mnt/nas/media
-        nfs_source_path: "{{ nas_media_path | default(nas_ip + ':/mnt/apps/media') }}"
+        nfs_source_path: "{{ nas_media_path | default(nas_ip + ':/mnt/pool/media') }}"
 
     - name: Mount NFS photos share
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/nfs-mount.yml"
       vars:
         nfs_mount_path: /mnt/nas/photos
-        nfs_source_path: "{{ nas_photos_path | default(nas_ip + ':/mnt/apps/photos') }}"
+        nfs_source_path: "{{ nas_photos_path | default(nas_ip + ':/mnt/pool/photos') }}"
 
     # ── Infisical CLI ───────────────────────────────────────────────────────────
 
