@@ -68,18 +68,35 @@
         group: root
       become: true
 
-    - name: Bootstrap Infisical via docker exec
-      ansible.builtin.shell: |
-        docker exec infisical infisical bootstrap \
-          --domain http://localhost:8080 \
-          --email "{{ _admin_email }}" \
-          --password "{{ _admin_password }}" \
-          --organization teamrocket \
-          --ignore-if-bootstrapped \
-          --output json 2>&1 | tee /var/lib/infisical/bootstrap-raw.txt
+    - name: Wait for Infisical port to be open
+      ansible.builtin.wait_for:
+        host: localhost
+        port: 8080
+        timeout: 120
+
+    - name: Bootstrap Infisical via REST API
+      ansible.builtin.uri:
+        url: "http://localhost:8080/api/v1/admin/bootstrap"
+        method: POST
+        body_format: json
+        body:
+          email: "{{ _admin_email }}"
+          password: "{{ _admin_password }}"
+          organization: teamrocket
+        status_code: [200, 201, 400, 409]
+      register: _bootstrap_api
+      no_log: true
+
+    - name: Save bootstrap credentials to file
+      ansible.builtin.copy:
+        content: "{{ _bootstrap_api.json | to_json }}"
+        dest: /var/lib/infisical/bootstrap.json
+        mode: "0600"
+        owner: root
+        group: root
       become: true
-      register: bootstrap_result
-      changed_when: "'already bootstrapped' not in bootstrap_result.stdout"
+      when: _bootstrap_api.status in [200, 201]
+      no_log: true
 
 # ── Phase 2: Create machamp-services machine identity in Infisical ───────────
 #
@@ -103,7 +120,7 @@
 
     - name: Check bootstrap credentials file exists on machamp-infra
       ansible.builtin.stat:
-        path: /var/lib/infisical/bootstrap-raw.txt
+        path: /var/lib/infisical/bootstrap.json
       delegate_to: machamp-infra
       become: true
       register: _bootstrap_file
@@ -111,46 +128,17 @@
     - name: Fail if bootstrap credentials file not found
       ansible.builtin.fail:
         msg: >
-          /var/lib/infisical/bootstrap-raw.txt not found on machamp-infra.
-          Run infra.yml first so Phase 1 can bootstrap Infisical and save
-          credentials, or set infisical_project_id, infisical_client_id, and
-          infisical_client_secret manually in ansible/secrets.yml.
+          /var/lib/infisical/bootstrap.json not found on machamp-infra.
+          Infisical was bootstrapped before credentials were captured.
+          Options: (A) wipe the Infisical instance (docker compose down,
+          remove its volumes, docker compose up -d) and re-run infra.yml —
+          Phase 1 will re-bootstrap and save credentials automatically.
+          Or (B) create a machine identity manually in the Infisical UI and
+          set infisical_project_id, infisical_client_id, and
+          infisical_client_secret in ansible/secrets.yml.
       when: not _bootstrap_file.stat.exists
 
-    - name: Write bootstrap JSON extraction script
-      ansible.builtin.copy:
-        dest: /tmp/extract_bootstrap_json.py
-        mode: "0700"
-        content: |
-          import json, re, sys
-          with open('/var/lib/infisical/bootstrap-raw.txt') as f:
-              content = f.read()
-          preview = content[:300].replace('\n', ' ')
-          m = re.search(r'\{[\s\S]+\}', content)
-          if not m:
-              sys.exit('ERROR: no JSON object found in bootstrap-raw.txt. '
-                       'File content preview: ' + preview)
-          try:
-              data = json.loads(m.group(0))
-          except json.JSONDecodeError as e:
-              sys.exit('ERROR: JSON parse failed: ' + str(e) + '. Preview: ' + preview)
-          if 'identity' not in data or 'organization' not in data:
-              sys.exit('ERROR: bootstrap JSON missing expected keys. '
-                       'Got keys: ' + str(list(data.keys())))
-          with open('/var/lib/infisical/bootstrap.json', 'w') as f:
-              json.dump(data, f)
-          print('ok')
-      delegate_to: machamp-infra
-      become: true
-
-    - name: Extract bootstrap JSON to /var/lib/infisical/bootstrap.json
-      ansible.builtin.command:
-        cmd: python3 /tmp/extract_bootstrap_json.py
-      delegate_to: machamp-infra
-      become: true
-      register: _bootstrap_extract
-
-    - name: Read bootstrap JSON from file
+    - name: Read bootstrap credentials from file
       ansible.builtin.slurp:
         src: /var/lib/infisical/bootstrap.json
       delegate_to: machamp-infra
