@@ -216,6 +216,15 @@
         _org_id: "{{ (_bootstrap_raw.content | b64decode | from_json).organization.id }}"
       no_log: true
 
+    - name: Check if machamp-services project already exists
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/projects/slug/machamp-services"
+        headers:
+          Authorization: "Bearer {{ _bootstrap_token }}"
+        status_code: [200, 404]
+      register: _project_check
+      no_log: true
+
     - name: Create machamp-services project in Infisical
       ansible.builtin.uri:
         url: "{{ _infisical_host }}/api/v1/projects"
@@ -227,25 +236,34 @@
           projectName: "machamp-services"
           slug: "machamp-services"
           type: "secret-manager"
-        status_code: [200, 201, 409]
-      register: _project
+        status_code: [200, 201]
+      register: _project_new
       no_log: true
-
-    - name: Re-fetch project by slug if it already existed
-      ansible.builtin.uri:
-        url: "{{ _infisical_host }}/api/v1/projects/machamp-services"
-        headers:
-          Authorization: "Bearer {{ _bootstrap_token }}"
-        status_code: 200
-      register: _project_existing
-      no_log: true
-      when: _project.status == 409
+      when: _project_check.status == 404
 
     - name: Resolve project ID
       ansible.builtin.set_fact:
         _project_id: >-
-          {{ _project.json.project.id if _project.status != 409
-             else _project_existing.json.project.id }}
+          {{ _project_new.json.project.id if _project_check.status == 404
+             else _project_check.json.project.id }}
+      no_log: true
+
+    - name: Check if machamp-services identity already exists
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/identities?organizationId={{ _org_id }}"
+        headers:
+          Authorization: "Bearer {{ _bootstrap_token }}"
+        status_code: 200
+      register: _identities_list
+      no_log: true
+
+    - name: Resolve existing identity ID if present
+      ansible.builtin.set_fact:
+        _existing_identity_id: >-
+          {{ (_identities_list.json.identities
+              | selectattr('identity.name', 'equalto', 'machamp-services')
+              | map(attribute='identity.id')
+              | first | default('')) }}
       no_log: true
 
     - name: Create machine identity for machamp-services
@@ -260,42 +278,66 @@
           organizationId: "{{ _org_id }}"
           role: "no-access"
         status_code: [200, 201]
-      register: _identity
+      register: _identity_new
+      no_log: true
+      when: _existing_identity_id == ''
+
+    - name: Resolve identity ID
+      ansible.builtin.set_fact:
+        _identity_id: >-
+          {{ _identity_new.json.identity.id if _existing_identity_id == ''
+             else _existing_identity_id }}
       no_log: true
 
     - name: Add identity to machamp-services project
       ansible.builtin.uri:
-        url: "{{ _infisical_host }}/api/v1/projects/{{ _project_id }}/identity-memberships/{{ _identity.json.identity.id }}"
+        url: "{{ _infisical_host }}/api/v1/projects/{{ _project_id }}/identity-memberships/{{ _identity_id }}"
         method: POST
         headers:
           Authorization: "Bearer {{ _bootstrap_token }}"
         body_format: json
         body:
           role: "member"
-        status_code: [200, 201]
+        status_code: [200, 201, 400, 409]
+      no_log: true
+
+    - name: Check if Universal Auth already configured for identity
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity_id }}"
+        headers:
+          Authorization: "Bearer {{ _bootstrap_token }}"
+        status_code: [200, 404]
+      register: _ua_check
       no_log: true
 
     - name: Configure Universal Auth for identity
       ansible.builtin.uri:
-        url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity.json.identity.id }}"
+        url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity_id }}"
         method: POST
         headers:
           Authorization: "Bearer {{ _bootstrap_token }}"
         body_format: json
         body:
-          identityId: "{{ _identity.json.identity.id }}"
           accessTokenTrustedIps:
             - ipAddress: "0.0.0.0/0"
             - ipAddress: "::/0"
           accessTokenTTL: 7200
           accessTokenMaxTTL: 43200
         status_code: [200, 201]
-      register: _ua
+      register: _ua_new
+      no_log: true
+      when: _ua_check.status == 404
+
+    - name: Resolve Universal Auth client ID
+      ansible.builtin.set_fact:
+        _ua_client_id: >-
+          {{ _ua_new.json.identityUniversalAuth.clientId if _ua_check.status == 404
+             else _ua_check.json.identityUniversalAuth.clientId }}
       no_log: true
 
     - name: Create Universal Auth client secret
       ansible.builtin.uri:
-        url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity.json.identity.id }}/client-secrets"
+        url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity_id }}/client-secrets"
         method: POST
         headers:
           Authorization: "Bearer {{ _bootstrap_token }}"
@@ -316,7 +358,7 @@
       ansible.builtin.lineinfile:
         path: "{{ playbook_dir }}/secrets.yml"
         regexp: '^infisical_client_id:'
-        line: 'infisical_client_id: "{{ _ua.json.identityUniversalAuth.clientId }}"'
+        line: 'infisical_client_id: "{{ _ua_client_id }}"'
         create: true
 
     - name: Write client secret to secrets.yml
