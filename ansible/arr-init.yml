@@ -566,11 +566,22 @@
         status_code: 201
       when: not (jellyseerr_public.json.initialized | default(false))
 
+    - name: Disable local account sign-up in Jellyseerr
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/settings/main"
+        method: POST
+        headers:
+          X-Api-Key: "{{ jellyseerr_api_key }}"
+        body_format: json
+        body:
+          localLogin: false
+        status_code: 200
+
     # ── Block 10: Recyclarr — run one-shot sync ──────────────────────────────
 
     - name: Copy Recyclarr config to NFS
       ansible.builtin.synchronize:
-        src: "{{ playbook_dir }}/../services/machamp/config/recyclarr/"
+        src: "{{ playbook_dir }}/../services/machamp-services/config/recyclarr/"
         dest: /mnt/nas/docker/recyclarr/
         recursive: true
 

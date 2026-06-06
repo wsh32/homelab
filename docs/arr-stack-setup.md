@@ -159,13 +159,6 @@ Expected runtime: ~3–5 minutes on a clean install.
 
 ## 7. Post-init manual steps
 
-### Jellyseerr — disable open registration
-
-Once you've verified your account works, prevent anyone on the LAN from self-registering:
-
-1. Open `http://jellyseerr.home` → Settings → Users
-2. Disable **Allow New Local User Sign Up**
-
 ### Jellyfin — verify NVENC
 
 1. Open `https://jellyfin.wsh` → Dashboard → Playback
