@@ -1,7 +1,6 @@
 ---
-# Deploy the DNS stack (AdGuard Home + Headscale + cloudflared) to diglett-dns,
-# then bootstrap Headscale (create infra user, pre-auth key, webui API key).
-# Idempotent: safe to re-run.
+# Phase 1: Deploy DNS stack and bootstrap Headscale.
+# Run this before machamp VMs exist (Authentik is not yet available).
 #
 # Prerequisites:
 #   - diglett-dns VM must be up and cloud-init must have completed
@@ -9,11 +8,14 @@
 #   - Alakazam NFS must be reachable at 192.168.0.4:/mnt/apps/docker
 #
 # Usage:
-#   ansible-playbook ansible/dns.yml
+#   ansible-playbook ansible/dns.yml          # Phase 1 only (default)
+#   ansible-playbook ansible/dns.yml --tags phase2   # Phase 2 only (after infra.yml)
+#   ansible-playbook ansible/dns.yml --tags phase1,phase2  # both phases
 
 - name: Deploy DNS stack
   hosts: diglett-dns
   gather_facts: true
+  tags: [phase1]
 
   vars:
     network: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
@@ -32,6 +34,7 @@
 - name: Bootstrap Headscale
   hosts: diglett-dns
   gather_facts: false
+  tags: [phase1]
 
   tasks:
     - name: Wait for Headscale to be ready
@@ -272,6 +275,7 @@
 - name: Write pre-auth key to terraform.tfvars
   hosts: localhost
   gather_facts: false
+  tags: [phase1]
 
   vars:
     preauth_key: "{{ hostvars['diglett-dns'].headscale_preauth_key | default('') }}"
@@ -295,3 +299,114 @@
     - name: Display pre-auth key
       ansible.builtin.debug:
         msg: "Headscale pre-auth key written to terraform.tfvars: {{ preauth_key }}"
+
+# ── Phase 2: Inject Authentik OIDC credentials into Headplane ────────────────
+# Run after infra.yml has bootstrapped Authentik and written
+# /mnt/nas/docker/headplane-oidc.env to NFS.
+#
+# Usage:
+#   ansible-playbook ansible/dns.yml --tags phase2
+
+- name: Inject Authentik OIDC credentials into Headplane
+  hosts: diglett-dns
+  gather_facts: false
+  tags: [phase2]
+
+  vars:
+    network: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
+    nas_ip: "{{ network.nodes.alakazam.ip }}"
+
+  pre_tasks:
+    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      failed_when: false
+      no_log: true
+
+  tasks:
+    - name: Mount NFS share
+      ansible.builtin.include_tasks: ../tasks/nfs-mount.yml
+      vars:
+        nfs_mount_path: /mnt/nas/docker
+        nfs_source_path: "{{ nas_ip }}:/mnt/apps/docker"
+
+    - name: Check if headplane OIDC credentials are available on NFS
+      ansible.builtin.stat:
+        path: /mnt/nas/docker/headplane-oidc.env
+      register: _hp_oidc_env_stat
+      become: true
+
+    - name: Fail if headplane OIDC env not yet written by infra.yml
+      ansible.builtin.fail:
+        msg: >
+          /mnt/nas/docker/headplane-oidc.env not found.
+          Run ansible-playbook ansible/infra.yml first to bootstrap Authentik
+          and write the OIDC credentials to NFS.
+      when: not _hp_oidc_env_stat.stat.exists
+
+    - name: Read headplane OIDC credentials from NFS
+      ansible.builtin.slurp:
+        src: /mnt/nas/docker/headplane-oidc.env
+      register: _hp_oidc_env_raw
+      become: true
+      no_log: true
+
+    - name: Parse headplane OIDC credentials
+      ansible.builtin.set_fact:
+        _hp_oidc_client_id: "{{ (_hp_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADPLANE_OIDC_CLIENT_ID=(.+)$', '\\1') | first }}"
+        _hp_oidc_client_secret: "{{ (_hp_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADPLANE_OIDC_CLIENT_SECRET=(.+)$', '\\1') | first }}"
+      no_log: true
+
+    - name: Inject OIDC issuer into headplane config
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
+        regexp: '^\s+issuer:'
+        line: "  issuer: \"{{ authentik_public_url }}/application/o/headplane/\""
+      notify: Restart headplane
+
+    - name: Inject OIDC client ID into headplane config
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
+        regexp: '^\s+client_id:'
+        line: "  client_id: \"{{ _hp_oidc_client_id }}\""
+      no_log: true
+      notify: Restart headplane
+
+    - name: Inject OIDC client secret into headplane config
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
+        regexp: '^\s+client_secret:'
+        line: "  client_secret: \"{{ _hp_oidc_client_secret }}\""
+      no_log: true
+      notify: Restart headplane
+
+    - name: Check if headplane API key is provisioned
+      ansible.builtin.stat:
+        path: /mnt/nas/docker/headplane/api.key
+      register: _hp_api_key_stat
+      become: true
+
+    - name: Read headplane API key
+      ansible.builtin.slurp:
+        src: /mnt/nas/docker/headplane/api.key
+      register: _hp_api_key_raw
+      become: true
+      no_log: true
+      when: _hp_api_key_stat.stat.exists
+
+    - name: Inject headscale API key into headplane OIDC config
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
+        regexp: '^\s+headscale_api_key:'
+        line: "  headscale_api_key: \"{{ _hp_api_key_raw.content | b64decode | trim }}\""
+      no_log: true
+      notify: Restart headplane
+      when: _hp_api_key_stat.stat.exists
+
+  handlers:
+    - name: Restart headplane
+      community.docker.docker_container:
+        name: headplane
+        state: started
+        restart: true
+      become: true
