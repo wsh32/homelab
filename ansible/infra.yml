@@ -265,7 +265,7 @@
 
     - name: Add identity to machamp-services project
       ansible.builtin.uri:
-        url: "{{ _infisical_host }}/api/v1/{{ _project_id }}/identity-memberships/{{ _identity.json.identity.id }}"
+        url: "{{ _infisical_host }}/api/v1/projects/{{ _project_id }}/identity-memberships/{{ _identity.json.identity.id }}"
         method: POST
         headers:
           Authorization: "Bearer {{ _bootstrap_token }}"
