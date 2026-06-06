@@ -115,7 +115,7 @@
       printf "INFISICAL_ENCRYPTION_KEY=%s\n"   "$(openssl rand -hex 16)" >> "$tmp"
       printf "VAULTWARDEN_ADMIN_TOKEN=%s\n"    "$(openssl rand -hex 32)" >> "$tmp"
       printf "VAULTWARDEN_SIGNUPS_ALLOWED=true\n"                         >> "$tmp"
-      printf "VAULTWARDEN_SVC_EMAIL=%s\n"      "infra-svc@homelab.local"  >> "$tmp"
+      printf "VAULTWARDEN_SVC_EMAIL=%s\n"      "infra@team.rocket"         >> "$tmp"
       printf "VAULTWARDEN_SVC_PASSWORD=%s\n"   "$(openssl rand -hex 24)"  >> "$tmp"
       printf "AUTHENTIK_DB_PASSWORD=%s\n"      "$(openssl rand -hex 16)"  >> "$tmp"
       printf "AUTHENTIK_SECRET_KEY=%s\n"       "$(openssl rand -hex 32)"  >> "$tmp"
@@ -174,6 +174,29 @@
     owner: root
     group: root
     mode: "0600"
+  become: true
+
+- name: Backfill VAULTWARDEN_SVC_EMAIL if missing (existing installs pre-dating this var)
+  ansible.builtin.lineinfile:
+    path: "{{ item }}"
+    regexp: '^VAULTWARDEN_SVC_EMAIL='
+    line: "VAULTWARDEN_SVC_EMAIL=infra@team.rocket"
+  loop:
+    - /etc/homelab.env
+    - /mnt/nas/docker/infisical-backups/.secrets.env
+  become: true
+
+- name: Backfill VAULTWARDEN_SVC_PASSWORD if missing (existing installs pre-dating this var)
+  ansible.builtin.shell: |
+    if ! grep -q '^VAULTWARDEN_SVC_PASSWORD=' /etc/homelab.env; then
+      pw=$(openssl rand -hex 24)
+      printf 'VAULTWARDEN_SVC_PASSWORD=%s\n' "$pw" >> /etc/homelab.env
+      printf 'VAULTWARDEN_SVC_PASSWORD=%s\n' "$pw" \
+        >> /mnt/nas/docker/infisical-backups/.secrets.env 2>/dev/null || true
+      echo changed
+    fi
+  register: _vw_svc_pw_backfill
+  changed_when: "'changed' in _vw_svc_pw_backfill.stdout"
   become: true
 
 - name: Link /etc/homelab.env as compose .env for variable substitution
@@ -442,7 +465,7 @@
       enc_priv  = aes_cbc_hmac_encrypt(sym_key[:32], sym_key[32:], priv_der)
 
       payload = {
-          "name": "Infra Service",
+          "name": "infra@team.rocket",
           "email": email,
           "masterPasswordHash": master_pw_hash,
           "masterPasswordHint": "",
