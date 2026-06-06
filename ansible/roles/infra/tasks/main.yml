@@ -110,13 +110,15 @@
     local_env=/etc/homelab.env
     if [ ! -f "$nfs_secrets" ]; then
       tmp=$(mktemp)
-      printf "POSTGRES_PASSWORD=%s\n"       "$(openssl rand -hex 16)" > "$tmp"
-      printf "INFISICAL_AUTH_SECRET=%s\n"   "$(openssl rand -hex 32)" >> "$tmp"
-      printf "INFISICAL_ENCRYPTION_KEY=%s\n" "$(openssl rand -hex 16)" >> "$tmp"
-      printf "VAULTWARDEN_ADMIN_TOKEN=%s\n" "$(openssl rand -hex 32)" >> "$tmp"
-      printf "VAULTWARDEN_SIGNUPS_ALLOWED=true\n"                      >> "$tmp"
-      printf "AUTHENTIK_DB_PASSWORD=%s\n"      "$(openssl rand -hex 16)" >> "$tmp"
-      printf "AUTHENTIK_SECRET_KEY=%s\n"       "$(openssl rand -hex 32)" >> "$tmp"
+      printf "POSTGRES_PASSWORD=%s\n"          "$(openssl rand -hex 16)" > "$tmp"
+      printf "INFISICAL_AUTH_SECRET=%s\n"      "$(openssl rand -hex 32)" >> "$tmp"
+      printf "INFISICAL_ENCRYPTION_KEY=%s\n"   "$(openssl rand -hex 16)" >> "$tmp"
+      printf "VAULTWARDEN_ADMIN_TOKEN=%s\n"    "$(openssl rand -hex 32)" >> "$tmp"
+      printf "VAULTWARDEN_SIGNUPS_ALLOWED=true\n"                         >> "$tmp"
+      printf "VAULTWARDEN_SVC_EMAIL=%s\n"      "infra-svc@homelab.local"  >> "$tmp"
+      printf "VAULTWARDEN_SVC_PASSWORD=%s\n"   "$(openssl rand -hex 24)"  >> "$tmp"
+      printf "AUTHENTIK_DB_PASSWORD=%s\n"      "$(openssl rand -hex 16)"  >> "$tmp"
+      printf "AUTHENTIK_SECRET_KEY=%s\n"       "$(openssl rand -hex 32)"  >> "$tmp"
       printf "AUTHENTIK_BOOTSTRAP_PASSWORD=%s\n" "$(openssl rand -hex 16)" >> "$tmp"
       printf "AUTHENTIK_BOOTSTRAP_EMAIL=%s\n"  "akadmin@homelab.local"    >> "$tmp"
       printf "AUTHENTIK_BOOTSTRAP_TOKEN=%s\n"  "$(openssl rand -hex 32)"  >> "$tmp"
@@ -358,6 +360,182 @@
     restart: true
   become: true
   when: vw_hash_result.changed | default(false)
+
+# ── Vaultwarden service account ───────────────────────────────────────────────
+# Creates a headless service account used by Ansible to retrieve secrets from
+# the vault without operator credentials. Credentials are stored in /etc/homelab.env.
+
+- name: Wait for Vaultwarden to accept HTTP connections (after admin token restart)
+  ansible.builtin.shell: |
+    vw_ip=$(docker inspect vaultwarden --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{break}}{{end}}')
+    curl -sf "http://$vw_ip/alive"
+  become: true
+  register: _vw_alive
+  retries: 20
+  delay: 3
+  until: _vw_alive.rc == 0
+  changed_when: false
+
+- name: Write Vaultwarden service account registration script
+  ansible.builtin.copy:
+    dest: /tmp/vw_register.py
+    owner: root
+    mode: "0700"
+    content: |
+      #!/usr/bin/env python3
+      """Register a Vaultwarden account using the Bitwarden protocol.
+      Prints 'registered' on success, 'exists' if the account is already present.
+      Env vars: VW_EMAIL, VW_PASSWORD, VW_URL (http://<container-ip>)
+      """
+      import base64, hashlib, json, os, sys
+      from urllib import request as urllib_request, error as urllib_error
+      from cryptography.hazmat.primitives import hashes, hmac as crypto_hmac
+      from cryptography.hazmat.primitives.asymmetric import rsa
+      from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+      from cryptography.hazmat.primitives.kdf.hkdf import HKDFExpand
+      from cryptography.hazmat.primitives.serialization import (
+          Encoding, NoEncryption, PrivateFormat, PublicFormat
+      )
+      from cryptography.hazmat.backends import default_backend
+
+      email    = os.environ["VW_EMAIL"].lower()
+      password = os.environ["VW_PASSWORD"].encode()
+      vw_url   = os.environ["VW_URL"].rstrip("/")
+      kdf_iters = 600000
+      backend   = default_backend()
+
+      # PBKDF2 master key + master password hash
+      master_key = hashlib.pbkdf2_hmac("sha256", password, email.encode(), kdf_iters)
+      master_pw_hash = base64.b64encode(
+          hashlib.pbkdf2_hmac("sha256", master_key, password, 1)
+      ).decode()
+
+      # Stretch master key (Bitwarden HKDF-Expand)
+      enc_key = HKDFExpand(hashes.SHA256(), 32, b"enc", backend).derive(master_key)
+      mac_key = HKDFExpand(hashes.SHA256(), 32, b"mac", backend).derive(master_key)
+
+      def aes_cbc_hmac_encrypt(ek, mk, pt):
+          iv  = os.urandom(16)
+          pad = 16 - (len(pt) % 16)
+          padded = pt + bytes([pad]) * pad
+          enc = Cipher(algorithms.AES(ek), modes.CBC(iv), backend=backend).encryptor()
+          ct  = enc.update(padded) + enc.finalize()
+          mac = crypto_hmac.HMAC(mk, hashes.SHA256(), backend=backend)
+          mac.update(iv + ct)
+          md  = mac.finalize()
+          return (
+              f"2.{base64.b64encode(iv).decode()}"
+              f"|{base64.b64encode(ct).decode()}"
+              f"|{base64.b64encode(md).decode()}"
+          )
+
+      # Random 512-bit account symmetric key, encrypted with stretched master key
+      sym_key     = os.urandom(64)
+      account_key = aes_cbc_hmac_encrypt(enc_key, mac_key, sym_key)
+
+      # RSA key pair — private key encrypted with account symmetric key
+      rsa_priv  = rsa.generate_private_key(65537, 2048, backend=backend)
+      pub_der   = rsa_priv.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+      priv_der  = rsa_priv.private_bytes(Encoding.DER, PrivateFormat.PKCS8, NoEncryption())
+      enc_priv  = aes_cbc_hmac_encrypt(sym_key[:32], sym_key[32:], priv_der)
+
+      payload = {
+          "name": "Infra Service",
+          "email": email,
+          "masterPasswordHash": master_pw_hash,
+          "masterPasswordHint": "",
+          "key": account_key,
+          "keys": {
+              "publicKey": base64.b64encode(pub_der).decode(),
+              "encryptedPrivateKey": enc_priv,
+          },
+          "kdf": 0,
+          "kdfIterations": kdf_iters,
+          "kdfMemory": None,
+          "kdfParallelism": None,
+      }
+
+      req = urllib_request.Request(
+          f"{vw_url}/identity/accounts/register",
+          data=json.dumps(payload).encode(),
+          headers={"Content-Type": "application/json"},
+      )
+      try:
+          urllib_request.urlopen(req)
+          print("registered")
+      except urllib_error.HTTPError as e:
+          body = e.read().decode()
+          if e.code == 400 and any(
+              k in body.lower() for k in ["already", "taken", "user already exists"]
+          ):
+              print("exists")
+          else:
+              sys.stderr.write(f"HTTP {e.code}: {body}\n")
+              sys.exit(1)
+  become: true
+
+- name: Register Vaultwarden service account (idempotent)
+  ansible.builtin.shell: |
+    set -e
+    source /etc/homelab.env
+    vw_ip=$(docker inspect vaultwarden \
+      --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{break}}{{end}}')
+    VW_EMAIL="$VAULTWARDEN_SVC_EMAIL" \
+    VW_PASSWORD="$VAULTWARDEN_SVC_PASSWORD" \
+    VW_URL="http://$vw_ip" \
+    python3 /tmp/vw_register.py
+  register: _vw_svc_reg
+  changed_when: "'registered' in _vw_svc_reg.stdout"
+  become: true
+  no_log: true
+
+- name: Remove service account registration script
+  ansible.builtin.file:
+    path: /tmp/vw_register.py
+    state: absent
+  become: true
+
+- name: Disable Vaultwarden self-registration now that service account exists
+  ansible.builtin.lineinfile:
+    path: "{{ item }}"
+    regexp: '^VAULTWARDEN_SIGNUPS_ALLOWED='
+    line: "VAULTWARDEN_SIGNUPS_ALLOWED=false"
+  loop:
+    - /etc/homelab.env
+    - /mnt/nas/docker/infisical-backups/.secrets.env
+  become: true
+  when: _vw_svc_reg.changed
+
+- name: Restart Vaultwarden to apply disabled signups
+  community.docker.docker_container:
+    name: vaultwarden
+    state: started
+    restart: true
+  become: true
+  when: _vw_svc_reg.changed
+
+- name: Install step-ca root certificate so bw CLI trusts vault.home TLS
+  ansible.builtin.copy:
+    src: /mnt/nas/docker/step-ca/certs/root_ca.crt
+    dest: /usr/local/share/ca-certificates/step-ca.crt
+    remote_src: true
+    owner: root
+    mode: "0644"
+  become: true
+  failed_when: false
+  register: _step_ca_cert
+
+- name: Update CA certificates to trust step-ca root
+  ansible.builtin.command: update-ca-certificates
+  become: true
+  changed_when: true
+  when: _step_ca_cert.changed
+
+- name: Install Bitwarden CLI via snap (used by infra.yml PIA seeding)
+  community.general.snap:
+    name: bw
+    state: present
+  become: true
 
 - name: Wait for postgres to be ready
   ansible.builtin.shell: docker exec postgres pg_isready -U postgres

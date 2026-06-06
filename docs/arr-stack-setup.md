@@ -26,15 +26,17 @@ to `ansible/secrets.yml` automatically. No manual Infisical UI steps needed.
 
 PIA credentials can be seeded in two ways:
 
-**Option A — Automatic from Vaultwarden** (recommended): Add to `ansible/secrets.yml`:
-```yaml
-bitwarden_server_url: "https://vault.home"
-bitwarden_email: "admin@homelab.local"
-bitwarden_password: "yourpassword"
-pia_vault_item: "PIA VPN"      # Vaultwarden item name
-```
-Then re-run `ansible-playbook ansible/infra.yml`. It will pull PIA credentials from
-the Vaultwarden item and push them to Infisical automatically.
+**Option A — Automatic from Vaultwarden** (recommended): The infra role creates a
+Vaultwarden service account (`infra-svc@homelab.local`) automatically. After running
+`ansible-playbook ansible/infra.yml`:
+1. Log into Vaultwarden at `https://vault.home` as `infra-svc@homelab.local`
+   (password is in `/etc/homelab.env` on `machamp-infra` as `VAULTWARDEN_SVC_PASSWORD`)
+2. Create a login item named **PIA VPN** with your PIA username and password
+3. Re-run `ansible-playbook ansible/infra.yml` — Phase 3 reads the item via `bw` CLI
+   on `machamp-infra` and pushes credentials to Infisical
+
+If the vault item uses a different name, set `pia_vault_item: "My Item Name"` in
+`ansible/secrets.yml`.
 
 **Option B — Manual**: Add directly in the Infisical web UI:
 

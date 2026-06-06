@@ -271,10 +271,16 @@
 
 # ── Phase 3: Seed PIA credentials from Vaultwarden ───────────────────────────
 #
-# Pulls PIA_USERNAME and PIA_PASSWORD from a Vaultwarden item and pushes them
-# to Infisical. Skipped if bitwarden_* vars are not defined in secrets.yml or
-# if PIA_USERNAME already exists in Infisical.
-- name: Seed PIA credentials from Vaultwarden
+# Reads PIA_USERNAME and PIA_PASSWORD from the Vaultwarden service account on
+# machamp-infra (created by the infra role) and pushes them to Infisical.
+# Requires:
+#   - infra role to have run (service account created, bw snap installed)
+#   - Operator to have added a login item named "PIA VPN" to the service
+#     account's vault (infra-svc@homelab.local)
+#   - pia_vault_item in secrets.yml if the item name differs from "PIA VPN"
+#
+# Skipped automatically if PIA_USERNAME is already populated in Infisical.
+- name: Seed PIA credentials from Vaultwarden via machamp-infra service account
   hosts: localhost
   gather_facts: false
 
@@ -283,14 +289,6 @@
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
-
-    - name: Skip play if Vaultwarden credentials not configured in secrets.yml
-      ansible.builtin.meta: end_play
-      when: >
-        (bitwarden_server_url | default('')) == '' or
-        (bitwarden_email | default('')) == '' or
-        (bitwarden_password | default('')) == '' or
-        (pia_vault_item | default('')) == ''
 
     - name: Skip play if machine identity not configured
       ansible.builtin.meta: end_play
@@ -305,6 +303,7 @@
         _client_secret: "{{ infisical_client_secret }}"
         _project_id: "{{ infisical_project_id }}"
         _environment: "{{ infisical_environment | default('prod') }}"
+        _pia_vault_item: "{{ pia_vault_item | default('PIA VPN') }}"
 
     - name: Get machine identity access token
       ansible.builtin.uri:
@@ -338,26 +337,55 @@
         _pia_check.status == 200 and
         (_pia_check.json.secret.secretValue | default('')) != ''
 
-    - name: Clear any existing Bitwarden session
+    - name: Read Vaultwarden service account credentials from machamp-infra
+      ansible.builtin.slurp:
+        src: /etc/homelab.env
+      delegate_to: machamp-infra
+      become: true
+      register: _homelab_env_raw
+
+    - name: Parse service account credentials
+      ansible.builtin.set_fact:
+        _vw_svc_email: >-
+          {{ (_homelab_env_raw.content | b64decode)
+             | regex_search('(?m)^VAULTWARDEN_SVC_EMAIL=(.+)', '\\1')
+             | first | default('') }}
+        _vw_svc_password: >-
+          {{ (_homelab_env_raw.content | b64decode)
+             | regex_search('(?m)^VAULTWARDEN_SVC_PASSWORD=(.+)', '\\1')
+             | first | default('') }}
+      no_log: true
+
+    - name: Fail if service account credentials not found in homelab.env
+      ansible.builtin.fail:
+        msg: >
+          VAULTWARDEN_SVC_EMAIL or VAULTWARDEN_SVC_PASSWORD not found in
+          /etc/homelab.env on machamp-infra. Run ansible-playbook ansible/infra.yml first.
+      when: _vw_svc_email == '' or _vw_svc_password == ''
+
+    - name: Clear any existing bw session on machamp-infra
       ansible.builtin.command: bw logout
+      delegate_to: machamp-infra
       failed_when: false
       changed_when: false
 
-    - name: Configure Bitwarden server URL
-      ansible.builtin.command:
-        cmd: "bw config server {{ bitwarden_server_url }}"
+    - name: Configure bw server to vault.home on machamp-infra
+      ansible.builtin.command: bw config server https://vault.home
+      delegate_to: machamp-infra
       changed_when: false
 
-    - name: Login to Bitwarden and capture session token
+    - name: Login to Vaultwarden as service account on machamp-infra
       ansible.builtin.shell:
-        cmd: "bw login {{ bitwarden_email }} {{ bitwarden_password }} --raw --nointeraction"
+        cmd: "bw login {{ _vw_svc_email }} {{ _vw_svc_password }} --raw --nointeraction"
+      delegate_to: machamp-infra
       register: _bw_session
       changed_when: false
       no_log: true
 
     - name: Retrieve PIA username from Vaultwarden
       ansible.builtin.command:
-        cmd: "bw get username {{ pia_vault_item | quote }}"
+        cmd: "bw get username {{ _pia_vault_item | quote }}"
+      delegate_to: machamp-infra
       environment:
         BW_SESSION: "{{ _bw_session.stdout }}"
       register: _pia_username
@@ -366,15 +394,17 @@
 
     - name: Retrieve PIA password from Vaultwarden
       ansible.builtin.command:
-        cmd: "bw get password {{ pia_vault_item | quote }}"
+        cmd: "bw get password {{ _pia_vault_item | quote }}"
+      delegate_to: machamp-infra
       environment:
         BW_SESSION: "{{ _bw_session.stdout }}"
       register: _pia_password
       changed_when: false
       no_log: true
 
-    - name: Logout from Bitwarden
+    - name: Logout from Vaultwarden on machamp-infra
       ansible.builtin.command: bw logout
+      delegate_to: machamp-infra
       environment:
         BW_SESSION: "{{ _bw_session.stdout }}"
       changed_when: false
@@ -395,4 +425,6 @@
 
     - name: Report PIA credentials seeded
       ansible.builtin.debug:
-        msg: "PIA credentials seeded from Vaultwarden item '{{ pia_vault_item }}' into Infisical."
+        msg: >
+          PIA credentials seeded from Vaultwarden item '{{ _pia_vault_item }}'
+          (service account: {{ _vw_svc_email }}) into Infisical.
