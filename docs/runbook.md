@@ -391,18 +391,20 @@ Repeat on every personal device that will use `*.wsh` services.
 
 From a device on the LAN:
 ```bash
-dig jellyfin.home @192.168.0.2   # should return 192.168.0.30
+dig jellyfin.home @192.168.0.2   # should return 192.168.0.32
+dig jellyfin.wsh @192.168.0.2    # should also return 192.168.0.32
+curl https://jellyfin.home        # should reach Jellyfin over HTTPS
 ```
 
-From a device on Tailscale:
+From a device on Tailscale (remote):
 ```bash
-dig jellyfin.wsh                  # should return services VM Tailscale IP
-curl -k https://jellyfin.wsh      # should reach Jellyfin
+dig jellyfin.wsh                  # should return 192.168.0.32
+curl https://jellyfin.wsh         # should reach Jellyfin via subnet route through diglett-dns
 ```
 
-Check AdGuard DNS rewrites are active at `http://diglett-dns.home` → Filters → DNS rewrites:
-- `*.wsh` → CNAME `machamp-services.ts.home`
-- `*.home` → A `192.168.0.30`
+Check AdGuard DNS rewrites are active at `https://adguard.home` → Filters → DNS rewrites:
+- `*.wsh` → A `192.168.0.32`
+- `*.home` → A `192.168.0.32`
 
 ### 15. Add external API keys to Infisical
 

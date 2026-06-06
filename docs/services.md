@@ -24,9 +24,10 @@ TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/boo
 
 | Service | Notes |
 |---------|-------|
-| AdGuard Home | LAN DNS resolver. Pre-seeded config — no setup wizard. DNS rewrites: `*.wsh` → CNAME `machamp-services.ts.home`, `*.home` → A `192.168.0.30` |
-| Headscale | Self-hosted Tailscale coordination server. Pushes AdGuard's Tailscale IP as the DNS resolver for `.wsh` and `.home` to all tailnet members |
+| AdGuard Home | LAN DNS resolver. Pre-seeded config — no setup wizard. DNS rewrites: `*.wsh` → A `192.168.0.32`, `*.home` → A `192.168.0.32` |
+| Headscale | Self-hosted Tailscale coordination server. Pushes AdGuard's address as the global DNS resolver to all tailnet members |
 | cloudflared | Cloudflare Tunnel — exposes Headscale publicly without open ports or a static IP |
+| Tailscale subnet router | Advertises `192.168.0.0/24` to the tailnet so remote devices can reach LAN IPs via `.wsh` |
 | Tailscale exit node | Primary exit node for the tailnet |
 
 ### diglett-haos (`192.168.0.22`)
@@ -52,8 +53,8 @@ TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/boo
 
 | Service | Notes |
 |---------|-------|
-| Traefik | Reverse proxy. Two entrypoints: `web` (port 80, `*.home`) and `websecure` (port 443, `*.wsh`) |
-| step-ca | Local CA. Issues wildcard `*.wsh` TLS certs; Traefik uses it as the ACME endpoint |
+| Traefik | Reverse proxy. Port 80 (HTTP → HTTPS redirect) and port 443 (HTTPS). Serves both `*.home` and `*.wsh` on both entrypoints |
+| step-ca | Local CA. Issues TLS certs for `*.wsh` and `*.home` via ACME; Traefik uses it as the cert resolver |
 | Jellyfin | Media server. Quadro P2200 passthrough for hardware transcoding |
 | Radarr | Movie library management |
 | Sonarr | TV library management |

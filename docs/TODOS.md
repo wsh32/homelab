@@ -91,19 +91,21 @@ and breaks `.home` domain resolution.
 
 ---
 
-## Tailscale `.wsh` Routing + LAN Access Lockdown
+## Tailscale Subnet Router + LAN Access Lockdown
 
-**What:** Re-add `.wsh` Traefik routers once Tailscale is fully up, and add IP allowlist middleware to restrict sensitive services on the LAN.
+**What:** Configure diglett-dns as a Tailscale subnet router so `.wsh` works when remote, and add IP allowlist middleware to restrict sensitive services from LAN guests.
 
-**Why:** All services are currently exposed on `.home` (LAN, no auth) for simplicity during bring-up. Tailscale routing and per-service IP allowlists are the next layer.
+**Why:** `.wsh` Traefik routers and DNS rewrites are already deployed (both resolve to `192.168.0.32`). The remaining work is the runtime Tailscale setup and per-service access hardening.
 
 **Work:**
-1. Wire up Tailscale (diglett-dns joining headscale, subnet router, DNS)
-2. Restore `*.wsh` AdGuard rewrite to `machamp-infra.ts.home` and add `.wsh` routers in `services-vm.yml` and docker-compose labels for each service
-3. Add Traefik IP allowlist middleware (source range `192.168.0.0/24`) for sensitive services that should never be publicly reachable even over Tailscale: `traefik.home`, `prometheus.home`, `couchdb.home`, `infisical.home`
-4. Consider moving Servarr (.home only, no .wsh) since they don't need remote access
+1. Register diglett-dns on the Headscale tailnet (install Tailscale client on the VM, generate a pre-auth key, join with `--login-server`)
+2. Enable subnet routing on diglett-dns: `tailscale up --advertise-routes=192.168.0.0/24`
+3. Approve the subnet route in Headscale: `headscale routes enable -r <route-id>` (or via Headplane)
+4. Update `headscale/config.yaml` `nameservers.global` placeholder (`0.0.0.0`) with the actual diglett-dns Tailscale IP after it joins
+5. Add Traefik IP allowlist middleware (source range `192.168.0.0/24`) for sensitive services that should be restricted to personal devices: `traefik.home`, `prometheus.home`, `couchdb.home`, `infisical.home`
+6. Consider removing `.wsh` routers for Servarr (no remote access needed for Radarr/Sonarr/Prowlarr)
 
-**Depends on:** Tailscale fully operational.
+**Depends on:** diglett-dns VM deployed and running Headscale.
 
 ---
 

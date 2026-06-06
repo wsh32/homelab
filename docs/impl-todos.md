@@ -24,14 +24,15 @@ Goal: every VM in `network.yml` is provisioned and passes `ansible-playbook ansi
 
 ## MVP — core plumbing working: secrets, DNS, TLS, reverse proxy
 
-Goal: `*.wsh` resolves and loads over HTTPS; `*.home` resolves and loads over HTTP; Infisical is seeded; all services running.
+Goal: `*.wsh` and `*.home` both resolve and load over HTTPS; remote access via `.wsh` works over Tailscale subnet route; Infisical is seeded; all services running.
 
 - [ ] **Write `ansible/bootstrap-infisical.yml`** — waits for Infisical healthy; runs `infisical bootstrap`; creates a scoped machine identity per VM; writes `client_id`, `client_secret`, `workspace_id` to `/etc/infisical.env` (mode 0600) on each VM that needs secrets
 - [ ] **Add Infisical export systemd unit to VM cloud-init** — for Docker Compose VMs, add a systemd unit that runs `infisical export --format dotenv > /etc/homelab.env` (reading from `/etc/infisical.env`) before Docker Compose starts; Docker Compose stacks reference `env_file: /etc/homelab.env`
 - [ ] **Write `ansible/site.yml`** — top-level playbook that applies all service roles in dependency order; each role generates its own secrets, seeds them to Infisical, writes config, starts containers
 - [ ] **Add secret seeding to each service Ansible role** — for each service (Radarr, Sonarr, Prowlarr, CouchDB, n8n, Grafana, PhotoPrism, Calibre-Web, Jellyfin): generate API key/password, `infisical secrets set KEY=value`, write config, store admin password in Vaultwarden via `bw` CLI
 - [ ] **Set AdGuard admin password hash** — generate bcrypt hash, replace `CHANGEME_BCRYPT_HASH_HERE` in `services/diglett-dns/adguard/AdGuardHome.yaml`, commit
-- [ ] **Initialize step-ca** — Ansible role for step-ca: `step ca init`, export root CA cert; operator installs root CA on personal devices once
+- [ ] **Initialize step-ca** — Ansible role for step-ca: `step ca init`, export root CA cert; operator installs root CA on personal devices once (or fetches from `https://ca.home`)
+- [ ] **Register diglett-dns as Tailscale subnet router** — install Tailscale on diglett-dns VM, join the Headscale tailnet, run `tailscale up --advertise-routes=192.168.0.0/24`, approve the route in Headscale; update `headscale/config.yaml` `nameservers.global` placeholder with actual diglett-dns Tailscale IP
 - [ ] **Set Headscale domain in config** — replace placeholder `server_url` in `services/diglett-dns/headscale/config.yml` with the Cloudflare Tunnel public URL; commit
 - [ ] **Automate Vaultwarden secret storage via `bw` CLI** — after the one manual browser registration, write a script (or Ansible task in `ansible/roles/infra/`) that reads generated secrets from `/etc/homelab.env` on machamp-infra over SSH and uses `bw` CLI on the operator machine to create the following items in Vaultwarden:
   - `Vaultwarden Admin` (Login, no username, password = `VAULTWARDEN_ADMIN_TOKEN`, URL = `https://vault.home/admin`)

@@ -18,7 +18,7 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
 - **VM IDs**: Diglett VMs use 200–299, Machamp VMs use 100–199.
 - **IP addresses**: physical nodes use 192.168.0.4–19 (`.7` = alakazam-deploy), diglett-dns VM is special-cased at `.2`, Diglett VMs use 192.168.0.21–29, Machamp VMs use 192.168.0.30–49.
 - **Docker Compose**: persistent data always mounts to `/mnt/nas/<dataset>/<service>` (Alakazam NFS). Never use named volumes for stateful data — it must survive VM recreation.
-- **Traefik routing**: each service gets `.home` routers only (LAN). `.wsh` Tailscale routing is planned but not yet active — see TODOS.md. See DNS Architecture in `docs/plan.md` for the full two-domain design.
+- **Traefik routing**: each service gets both `.home` and `.wsh` routers pointing to the same backend. Both domains resolve to `192.168.0.32` (Traefik); `.wsh` works remotely via Tailscale subnet route through diglett-dns. See DNS Architecture in `docs/plan.md` for the full design.
   ```yaml
   - "traefik.http.routers.<name>-home.rule=Host(`<name>.home`)"
   - "traefik.http.routers.<name>-home.entrypoints=web"
@@ -26,11 +26,16 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
   - "traefik.http.routers.<name>-home-tls.entrypoints=websecure"
   - "traefik.http.routers.<name>-home-tls.tls=true"
   - "traefik.http.routers.<name>-home-tls.tls.certresolver=step"
+  - "traefik.http.routers.<name>-wsh.rule=Host(`<name>.wsh`)"
+  - "traefik.http.routers.<name>-wsh.entrypoints=web"
+  - "traefik.http.routers.<name>-wsh-tls.rule=Host(`<name>.wsh`)"
+  - "traefik.http.routers.<name>-wsh-tls.entrypoints=websecure"
+  - "traefik.http.routers.<name>-wsh-tls.tls=true"
+  - "traefik.http.routers.<name>-wsh-tls.tls.certresolver=step"
   - "traefik.http.services.<name>-svc.loadbalancer.server.port=<port>"
   ```
-  TLS cert resolver is `step` (local step-ca CA), not `letsencrypt`. Both HTTP and HTTPS
-  are served on `.home` — devices with the step-ca root cert installed get HTTPS, others
-  fall back to HTTP.
+  TLS cert resolver is `step` (local step-ca CA), not `letsencrypt`. Port 80 redirects to
+  HTTPS globally. Both `.home` and `.wsh` are served on both entrypoints.
 - **Headless config**: all services are configured without the web UI. Two accepted exceptions: HAOS (restored from backup) and Vaultwarden (one manual browser registration). See "Headless Service Configuration" in `docs/plan.md`.
 
 ## Repo structure

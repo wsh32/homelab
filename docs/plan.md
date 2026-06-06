@@ -63,39 +63,48 @@ All physical nodes and VMs join Tailscale. VM auth keys are provisioned automati
 
 ## DNS Architecture
 
-Two domains serve different audiences without subnet routing or internet exposure:
+Both domains resolve to the same LAN IP — `192.168.0.32` (Traefik on machamp-infra). Remote
+access via `.wsh` works transparently via a Tailscale subnet route advertised by diglett-dns.
 
-| Domain | Path | DNS resolution | Protocol | Audience |
-|--------|------|----------------|----------|----------|
-| `*.wsh` | Tailscale | AdGuard CNAME → `machamp-services.ts.home` | HTTPS (step-ca TLS) | Personal devices on Tailscale |
-| `*.home` | LAN | AdGuard A → `192.168.0.30` | HTTP | Any LAN device (including guests) |
+| Domain | Audience | TLS |
+|--------|----------|-----|
+| `*.wsh` | Personal devices — on LAN or remote via Tailscale | HTTPS via step-ca |
+| `*.home` | Any LAN device (guests, IoT, devices without the CA cert) | HTTPS via step-ca |
 
 **How resolution works:**
 
-- Headscale pushes AdGuard's Tailscale IP as the authoritative resolver for both `.wsh` and
-  `.home` to all tailnet members via `dns_config` → `nameservers`.
-- On-tailnet devices query AdGuard over Tailscale. `*.wsh` resolves to
-  `machamp-services.ts.home` (Tailscale MagicDNS), which each node resolves locally from its
-  peer map to the services VM's Tailscale IP. Traefik answers on port 443 with a valid
-  step-ca TLS cert.
-- LAN-only devices (guests, IoT) use AdGuard via the LAN IP `192.168.0.2`. `*.home` resolves
-  to `192.168.0.30` directly. Traefik answers on port 80, plain HTTP.
-- A device on the LAN with Tailscale uses the `*.wsh` path (Tailscale is preferred);
-  `*.home` is the fallback for non-Tailscale LAN clients.
+- AdGuard rewrites both `*.wsh` and `*.home` to `A 192.168.0.32` (Traefik on machamp-infra).
+- Headscale pushes AdGuard's address as the global DNS resolver to all tailnet members via
+  `dns_config` → `nameservers`.
+- **On LAN:** all clients query AdGuard at `192.168.0.2`. Both domains resolve directly to
+  `192.168.0.32`; traffic goes straight to Traefik over the LAN.
+- **On Tailscale (remote):** clients query AdGuard over Tailscale. Both domains resolve to
+  `192.168.0.32`. Traffic to `192.168.0.32` routes through the subnet route advertised by
+  diglett-dns (which exposes `192.168.0.0/24` to the tailnet), then on to Traefik. diglett-dns
+  is the only node that must be reachable for remote access — it is already the DNS server and
+  Headscale host, so this adds no new single point of failure.
+
+**Why two domains if they resolve to the same IP?**
+
+- `*.wsh` is the preferred domain for personal devices. Nicer hostnames, bookmarkable.
+- `*.home` is the fallback for guests and IoT devices that don't use Tailscale.
+- Per-service access control: sensitive services can be restricted to `.wsh` only (omit the
+  `-home` Traefik router) so LAN guests can't reach them.
 
 **TLS:**
 
-- `*.wsh` — step-ca local CA issues a wildcard cert. Traefik uses ACME against the local
-  step-ca endpoint (`step` cert resolver). Personal devices trust the step-ca root CA
-  (installed once per device).
-- `*.home` — plain HTTP. LAN fallback for guests; no TLS required.
+- Both `*.wsh` and `*.home` use step-ca (local CA). Traefik requests certs via ACME against
+  the local step-ca endpoint (`step` cert resolver). Personal devices trust the step-ca root CA
+  (installed once per device from `https://ca.wsh` or `https://ca.home`).
+- Guests who haven't installed the root CA get a browser TLS warning on `.home` but can still
+  proceed — or they can install the cert first via the CA page.
 - Let's Encrypt is not used — it does not issue certs for private TLDs like `.wsh` or `.home`.
 
 **Per-service exposure control:**
 
 Each service defaults to being exposed on both domains. To restrict:
-- Tailscale-only: include only the `-wsh` Traefik router, omit `-home`.
-- LAN-only: include only the `-home` router, omit `-wsh`.
+- Personal devices only: include only the `-wsh` Traefik router, omit `-home`.
+- LAN-only (no remote access): include only the `-home` router, omit `-wsh`.
 - Both (default): include both routers.
 
 ---
@@ -253,6 +262,7 @@ services that depend on those external keys.
 |---------|-------|
 | AdGuard Home | DNS + ad blocking; 8.8.8.8 as fallback upstream |
 | Tailscale exit node (primary) | Coupled with DNS VM; acceptable since exit node is used infrequently |
+| Tailscale subnet router | Advertises `192.168.0.0/24` to the tailnet; enables `.wsh` remote access without per-service Tailscale IPs |
 | Headscale | Tailscale coordination server; public HTTPS on port 443 via Eero port forward (TCP 443 → 192.168.0.2). TLS via Let's Encrypt DNS-01 (Cloudflare). |
 | cloudflare-ddns | Keeps the `headscale.wesleysoohoo.me` A record pointed at the current home IP |
 
@@ -295,7 +305,7 @@ Authentik provides OIDC SSO for internal services; configure OIDC clients post-d
 
 | Service | Notes |
 |---------|-------|
-| Traefik | Reverse proxy; two entrypoints: `web` (80, `*.home`) and `websecure` (443, `*.wsh`) |
+| Traefik | Reverse proxy; two entrypoints: `web` (80, HTTP→HTTPS redirect) and `websecure` (443, TLS). Serves both `*.home` and `*.wsh` on both entrypoints |
 | step-ca | Local CA; issues wildcard `*.wsh` cert; Traefik ACME uses local step-ca endpoint |
 | Authentik | OIDC identity provider; SSO for headplane and future services |
 | Jellyfin | Media server; GPU transcoding |
@@ -321,7 +331,7 @@ persistent data lives on Alakazam NFS, so services redeploy by retargeting Terra
 
 | Service | Notes |
 |---------|-------|
-| Traefik | Reverse proxy; `web` (80, `*.home`) and `websecure` (443, `*.wsh`) |
+| Traefik | Reverse proxy; `web` (80, redirect) and `websecure` (443, TLS). Serves both `*.home` and `*.wsh` |
 | step-ca | Local CA; issues wildcard `*.wsh` cert (migrates with services VM) |
 | Jellyfin | GPU transcoding via P2200 (migrates with services VM) |
 | Servarr stack | Radarr, Sonarr, Prowlarr |
@@ -350,10 +360,10 @@ a valid config on startup and skips the wizard entirely.
 - Admin password stored as bcrypt hash in the config file; plaintext in Vaultwarden
 - Upstream DNS: `8.8.8.8`, `8.8.4.4`
 - DNS rewrites (committed in `AdGuardHome.yaml`):
-  - `*.wsh` → CNAME `machamp-services.ts.home` (Tailscale MagicDNS hostname for the services VM)
-  - `*.home` → A record `192.168.0.30` (services VM LAN IP)
-- Headscale pushes the AdGuard VM's Tailscale IP as the DNS resolver for `.wsh` and `.home`
-  to all tailnet members via `dns_config` → `nameservers`
+  - `*.wsh` → A record `192.168.0.32` (Traefik on machamp-infra)
+  - `*.home` → A record `192.168.0.32` (same target)
+- Headscale pushes the AdGuard VM's address as the DNS resolver for all tailnet members
+  via `dns_config` → `nameservers`
 
 ### Infisical
 
@@ -437,39 +447,46 @@ All workspaces use a local file backend on an NFS mount from Alakazam.
 
 ## Reverse Proxy
 
-Single Traefik instance on Machamp (services VM at `192.168.0.30`) serves all services across
-all nodes. Diglett-hosted services (Infisical, Vaultwarden) are configured as external backends
-pointing at their local IPs (e.g. `192.168.0.32`). All nodes are on the same LAN so Traefik
-on Machamp reaches them directly.
+Single Traefik instance on machamp-infra (`192.168.0.32`) serves all services across all nodes.
+Services running on machamp-services (`192.168.0.30`) are configured as external backends by
+local IP in `services/machamp-infra/traefik/dynamic/services-vm.yml`. All nodes are on the
+same LAN so Traefik reaches them directly.
 
 Traefik listens on two entrypoints:
 
-| Entrypoint | Port | Protocol | Domain | Audience |
-|------------|------|----------|--------|----------|
-| `web` | 80 | HTTP | `*.home` | LAN devices (including guests without Tailscale) |
-| `websecure` | 443 | HTTPS | `*.wsh` | Tailscale-connected devices; TLS via step-ca local CA |
+| Entrypoint | Port | Behavior |
+|------------|------|----------|
+| `web` | 80 | Global HTTP → HTTPS redirect |
+| `websecure` | 443 | HTTPS; TLS via step-ca local CA |
 
-Each service gets two Docker Compose router labels:
+Both `*.home` and `*.wsh` are served on both entrypoints. HTTP requests are redirected to
+HTTPS. Each service gets four Traefik router labels — two per domain (HTTP + HTTPS):
 
 ```yaml
-# Tailscale path — HTTPS, personal devices
-- "traefik.http.routers.<name>-wsh.rule=Host(`<name>.wsh`)"
-- "traefik.http.routers.<name>-wsh.entrypoints=websecure"
-- "traefik.http.routers.<name>-wsh.tls=true"
-# LAN fallback — HTTP, guests
+# .home domain
 - "traefik.http.routers.<name>-home.rule=Host(`<name>.home`)"
 - "traefik.http.routers.<name>-home.entrypoints=web"
-# Backend
+- "traefik.http.routers.<name>-home-tls.rule=Host(`<name>.home`)"
+- "traefik.http.routers.<name>-home-tls.entrypoints=websecure"
+- "traefik.http.routers.<name>-home-tls.tls=true"
+- "traefik.http.routers.<name>-home-tls.tls.certresolver=step"
+# .wsh domain
+- "traefik.http.routers.<name>-wsh.rule=Host(`<name>.wsh`)"
+- "traefik.http.routers.<name>-wsh.entrypoints=web"
+- "traefik.http.routers.<name>-wsh-tls.rule=Host(`<name>.wsh`)"
+- "traefik.http.routers.<name>-wsh-tls.entrypoints=websecure"
+- "traefik.http.routers.<name>-wsh-tls.tls=true"
+- "traefik.http.routers.<name>-wsh-tls.tls.certresolver=step"
+# Backend (shared)
 - "traefik.http.services.<name>-svc.loadbalancer.server.port=<port>"
 ```
 
-To restrict a service to Tailscale-only, omit the `-home` router. To restrict to LAN-only,
-omit the `-wsh` router. Both routers share the same backend service, so the same container
-serves both domains.
+To restrict a service to personal devices only, omit the `-home` and `-home-tls` routers. To
+restrict to LAN-only guests (no remote access), omit the `-wsh` and `-wsh-tls` routers.
 
-TLS: Traefik uses a local ACME endpoint (`step` cert resolver) pointing at step-ca.
-step-ca issues a wildcard cert for `*.wsh`. No Let's Encrypt — Let's Encrypt does not issue
-certs for private TLDs. `*.home` is HTTP only (LAN fallback for guests; no TLS needed).
+TLS: Traefik uses a local ACME endpoint (`step` cert resolver) pointing at step-ca on
+machamp-infra. step-ca issues per-domain certs for both `*.wsh` and `*.home`. No Let's
+Encrypt — it does not issue certs for private TLDs.
 
 ---
 
@@ -674,7 +691,8 @@ NUT clients: Machamp, Diglett, Alakazam (shut down gracefully on power loss)
 | Terraform state backend | Local file backend on Alakazam NFS (`/mnt/terraform-state`) for all workspaces. NFS mounted on the deploy VM at bootstrap; state files at `machamp/terraform.tfstate`, `diglett/terraform.tfstate`. |
 | Physical device management | Ansible push, same model as VMs. One-time bootstrap via `scripts/bootstrap-physical.sh` (installs Tailscale only). All further config pushed via `ansible-playbook ansible/physical.yml` from alakazam-deploy. |
 | Deployment automation | Manual. Operator SSHes to alakazam-deploy and runs `./scripts/deploy.sh`. No webhook, no CI. Simpler and sufficient for a personal homelab. |
-| DNS domain strategy | Two domains: `*.wsh` (Tailscale/HTTPS, personal devices) and `*.home` (LAN/HTTP, guests). Avoids subnet routing; guests can reach services without Tailscale. Single Traefik instance handles both. |
-| TLS for private TLDs | Let's Encrypt does not issue certs for `.wsh` or `.home`. `*.wsh` uses step-ca (local CA, wildcard cert, Traefik ACME). `*.home` is plain HTTP (LAN only, acceptable). |
-| AdGuard DNS rewrites | `*.wsh` CNAME → `machamp-services.ts.home` (MagicDNS). `*.home` A → `192.168.0.30` (LAN IP). Headscale `dns_config` pushes AdGuard's Tailscale IP as resolver for both TLDs to all tailnet members. |
+| DNS domain strategy | Two domains: `*.wsh` (personal devices, on LAN or remote via Tailscale) and `*.home` (any LAN device including guests). Both resolve to the same LAN IP. Remote access via `.wsh` works via Tailscale subnet route advertised by diglett-dns. Single Traefik instance handles both. |
+| TLS for private TLDs | Let's Encrypt does not issue certs for `.wsh` or `.home`. Both domains use step-ca (local CA, per-domain certs via Traefik ACME). Guests without the root CA installed get a browser warning on `.home` but can install the cert from `ca.home`. |
+| AdGuard DNS rewrites | Both `*.wsh` and `*.home` A → `192.168.0.32` (Traefik on machamp-infra). Headscale `dns_config` pushes AdGuard's address as the global resolver for all tailnet members. |
+| Tailscale subnet routing | diglett-dns is registered on the Headscale tailnet and advertises `192.168.0.0/24`. This is what makes `*.wsh` work when remote — DNS resolves to a LAN IP, and Tailscale routes the traffic through diglett-dns to reach it. No per-service Tailscale IPs needed. |
 | Per-service network exposure | Each service defines which domains it exposes via presence/absence of `-wsh` and `-home` Traefik router labels. Default is both. |
