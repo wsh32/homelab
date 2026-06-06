@@ -241,12 +241,17 @@
       no_log: true
       when: _project_check.status == 404
 
-    - name: Resolve project ID
+    - name: Resolve project ID (newly created)
       ansible.builtin.set_fact:
-        _project_id: >-
-          {{ _project_new.json.project.id if _project_check.status == 404
-             else _project_check.json.project.id }}
+        _project_id: "{{ _project_new.json.project.id }}"
       no_log: true
+      when: _project_check.status == 404
+
+    - name: Resolve project ID (existing)
+      ansible.builtin.set_fact:
+        _project_id: "{{ _project_check.json.project.id }}"
+      no_log: true
+      when: _project_check.status != 404
 
     - name: Check if machamp-services identity already exists
       ansible.builtin.uri:
@@ -282,12 +287,17 @@
       no_log: true
       when: _existing_identity_id == ''
 
-    - name: Resolve identity ID
+    - name: Resolve identity ID (newly created)
       ansible.builtin.set_fact:
-        _identity_id: >-
-          {{ _identity_new.json.identity.id if _existing_identity_id == ''
-             else _existing_identity_id }}
+        _identity_id: "{{ _identity_new.json.identity.id }}"
       no_log: true
+      when: _existing_identity_id == ''
+
+    - name: Resolve identity ID (existing)
+      ansible.builtin.set_fact:
+        _identity_id: "{{ _existing_identity_id }}"
+      no_log: true
+      when: _existing_identity_id != ''
 
     - name: Add identity to machamp-services project
       ansible.builtin.uri:
@@ -328,12 +338,17 @@
       no_log: true
       when: _ua_check.status == 404
 
-    - name: Resolve Universal Auth client ID
+    - name: Resolve Universal Auth client ID (newly configured)
       ansible.builtin.set_fact:
-        _ua_client_id: >-
-          {{ _ua_new.json.identityUniversalAuth.clientId if _ua_check.status == 404
-             else _ua_check.json.identityUniversalAuth.clientId }}
+        _ua_client_id: "{{ _ua_new.json.identityUniversalAuth.clientId }}"
       no_log: true
+      when: _ua_check.status == 404
+
+    - name: Resolve Universal Auth client ID (existing)
+      ansible.builtin.set_fact:
+        _ua_client_id: "{{ _ua_check.json.identityUniversalAuth.clientId }}"
+      no_log: true
+      when: _ua_check.status != 404
 
     - name: Create Universal Auth client secret
       ansible.builtin.uri:
