@@ -31,6 +31,7 @@ resource "proxmox_virtual_environment_file" "user_data" {
   lifecycle {
     ignore_changes = [source_raw]
   }
+}
 
 resource "proxmox_virtual_environment_vm" "vm" {
   node_name   = var.node_name
