@@ -2,11 +2,9 @@
 # Idempotent initialization playbook for the machamp arr/media stack.
 # Replaces scripts/servarr-init.sh and scripts/jellyfin-init.sh.
 #
-# Run from alakazam-deploy after `docker compose up -d` on machamp-services:
-#   infisical run --env-file /etc/infisical.env -- ansible-playbook ansible/arr-init.yml
-#
-# Secrets are read from the shell environment (injected by `infisical run --`).
-# Services are accessed on localhost via their published 127.0.0.1 ports.
+# Imported by site.yml after services.yml has started the compose stack.
+# Secrets are read from /etc/homelab.env on machamp-services (populated by
+# services.yml via Infisical export). No infisical run -- wrapper needed.
 
 - name: Initialize arr and media stack on machamp-services
   hosts: machamp-services
@@ -19,13 +17,25 @@
     jellyfin_url: "http://localhost:8096"
     bazarr_url: "http://localhost:6767"
     jellyseerr_url: "http://localhost:5055"
-    prowlarr_api_key: "{{ lookup('env', 'PROWLARR_API_KEY') }}"
-    radarr_api_key: "{{ lookup('env', 'RADARR_API_KEY') }}"
-    sonarr_api_key: "{{ lookup('env', 'SONARR_API_KEY') }}"
-    bazarr_api_key: "{{ lookup('env', 'BAZARR_API_KEY') }}"
-    jellyseerr_api_key: "{{ lookup('env', 'JELLYSEERR_API_KEY') }}"
-    jellyfin_admin_password: "{{ lookup('env', 'JELLYFIN_ADMIN_PASSWORD') }}"
     qbittorrent_webui_port: 8080
+
+  pre_tasks:
+    - name: Load secrets from /etc/homelab.env
+      ansible.builtin.slurp:
+        src: /etc/homelab.env
+      register: _homelab_env_raw
+      become: true
+
+    - name: Set API key facts from homelab.env
+      ansible.builtin.set_fact:
+        prowlarr_api_key: "{{ _env | regex_search('(?m)^PROWLARR_API_KEY=(.+)$', '\\1') | first }}"
+        radarr_api_key: "{{ _env | regex_search('(?m)^RADARR_API_KEY=(.+)$', '\\1') | first }}"
+        sonarr_api_key: "{{ _env | regex_search('(?m)^SONARR_API_KEY=(.+)$', '\\1') | first }}"
+        bazarr_api_key: "{{ _env | regex_search('(?m)^BAZARR_API_KEY=(.+)$', '\\1') | first }}"
+        jellyseerr_api_key: "{{ _env | regex_search('(?m)^JELLYSEERR_API_KEY=(.+)$', '\\1') | first }}"
+        jellyfin_admin_password: "{{ _env | regex_search('(?m)^JELLYFIN_ADMIN_PASSWORD=(.+)$', '\\1') | first }}"
+      vars:
+        _env: "{{ _homelab_env_raw.content | b64decode }}"
 
   tasks:
 

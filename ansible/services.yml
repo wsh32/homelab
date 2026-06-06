@@ -12,10 +12,8 @@
 #   ansible-playbook ansible/services.yml
 #   ansible-playbook ansible/services.yml --limit machamp-services
 #
-# Note: arr-init.yml is NOT imported here — it requires the compose stack to already
-# be running (it polls for healthy services) and secrets injected at the control node
-# via `infisical run --`. Run it after `docker compose up -d` on machamp-services:
-#   infisical run --env-file /etc/infisical.env -- ansible-playbook ansible/arr-init.yml
+# Note: arr-init.yml is imported by site.yml after this playbook, once the compose
+# stack is running. It reads secrets from /etc/homelab.env on the target directly.
 
 # NVIDIA drivers first — installs drivers and reboots if needed so Docker
 # picks up the nvidia runtime on a clean kernel load.
@@ -153,4 +151,11 @@
         dest: /home/{{ ansible_user }}/homelab/services/machamp-services/.env
         state: link
         force: true
+      become: true
+
+    - name: Start machamp-services compose stack
+      community.docker.docker_compose_v2:
+        project_src: /home/{{ ansible_user }}/homelab/services/machamp-services
+        state: present
+        pull: missing
       become: true
