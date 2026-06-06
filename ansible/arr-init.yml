@@ -2,9 +2,9 @@
 # Idempotent initialization playbook for the machamp arr/media stack.
 # Replaces scripts/servarr-init.sh and scripts/jellyfin-init.sh.
 #
-# Imported by site.yml after services.yml has started the compose stack.
+# Imported by site.yml after media.yml has started the compose stack.
 # Secrets are read from /etc/homelab.env on machamp-services (populated by
-# services.yml via Infisical export). No infisical run -- wrapper needed.
+# media.yml via Infisical export). No infisical run -- wrapper needed.
 
 - name: Initialize arr and media stack on machamp-services
   hosts: machamp-services

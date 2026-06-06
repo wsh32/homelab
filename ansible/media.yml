@@ -1,0 +1,157 @@
+---
+# Configure machamp-services: NVIDIA drivers (via gpu.yml import),
+# NFS mounts, Infisical secrets, and compose stack.
+# Run after services.yml. Requires Infisical (machamp-infra) to be up for secret export.
+#
+# Prerequisites:
+#   - Alakazam NFS reachable at 192.168.0.4:/mnt/apps/docker, :/mnt/pool/media, :/mnt/pool/photos
+#   - ansible/secrets.yml contains infisical_client_id/secret/project_id
+#   - Infisical machine identity created for machamp-services (see secrets.yml.example)
+#
+# Usage:
+#   ansible-playbook ansible/media.yml
+#
+# Note: arr-init.yml is imported by site.yml after this playbook, once the compose
+# stack is running. It reads secrets from /etc/homelab.env on the target directly.
+
+# NVIDIA drivers first — installs drivers and reboots if needed so Docker
+# picks up the nvidia runtime on a clean kernel load.
+- import_playbook: gpu.yml
+
+- name: Configure machamp-services (NFS, Infisical, compose stack)
+  hosts: machamp-services
+  gather_facts: true
+
+  vars:
+    network: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
+    nas_ip: "{{ network.nodes.alakazam.ip }}"
+
+  pre_tasks:
+    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      failed_when: false
+
+  tasks:
+
+    # ── NFS mounts ─────────────────────────────────────────────────────────────
+
+    - name: Mount NFS docker config share
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/nfs-mount.yml"
+      vars:
+        nfs_mount_path: /mnt/nas/docker
+        nfs_source_path: "{{ nas_ip }}:/mnt/apps/docker"
+
+    - name: Mount NFS media share
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/nfs-mount.yml"
+      vars:
+        nfs_mount_path: /mnt/nas/media
+        nfs_source_path: "{{ nas_media_path | default(nas_ip + ':/mnt/pool/media') }}"
+
+    - name: Mount NFS photos share
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/nfs-mount.yml"
+      vars:
+        nfs_mount_path: /mnt/nas/photos
+        nfs_source_path: "{{ nas_photos_path | default(nas_ip + ':/mnt/pool/photos') }}"
+
+    # ── Infisical CLI ───────────────────────────────────────────────────────────
+
+    - name: Add Infisical CLI apt repository
+      ansible.builtin.shell:
+        cmd: curl -1sLf 'https://dl.cloudsmith.io/public/infisical/infisical-cli/setup.deb.sh' | bash
+        creates: /etc/apt/sources.list.d/infisical-infisical-cli.list
+      become: true
+
+    - name: Install Infisical CLI
+      ansible.builtin.apt:
+        name: infisical
+        state: present
+        update_cache: true
+      become: true
+
+    # Write machine identity credentials so the VM can re-export secrets without
+    # Ansible (e.g. on cron or after a secret rotation).
+    - name: Write /etc/infisical.env (machine identity for on-VM use)
+      ansible.builtin.copy:
+        dest: /etc/infisical.env
+        mode: "0600"
+        owner: root
+        group: root
+        content: |
+          INFISICAL_CLIENT_ID={{ infisical_client_id }}
+          INFISICAL_CLIENT_SECRET={{ infisical_client_secret }}
+          INFISICAL_PROJECT_ID={{ infisical_project_id }}
+          INFISICAL_ENVIRONMENT={{ infisical_environment | default('prod') }}
+      become: true
+      when:
+        - infisical_client_id is defined
+        - infisical_client_secret is defined
+        - infisical_project_id is defined
+
+    - name: Export Infisical secrets to /etc/homelab.env
+      ansible.builtin.shell:
+        cmd: |
+          infisical export \
+            --format dotenv \
+            --projectId {{ infisical_project_id }} \
+            --env {{ infisical_environment | default('prod') }} \
+            --domain {{ infisical_host | default('http://192.168.0.32:8080') }}
+        executable: /bin/bash
+      environment:
+        INFISICAL_CLIENT_ID: "{{ infisical_client_id }}"
+        INFISICAL_CLIENT_SECRET: "{{ infisical_client_secret }}"
+      register: infisical_export_result
+      changed_when: true
+      become: true
+      when:
+        - infisical_client_id is defined
+        - infisical_client_secret is defined
+        - infisical_project_id is defined
+
+    - name: Write /etc/homelab.env from Infisical export
+      ansible.builtin.copy:
+        dest: /etc/homelab.env
+        content: "{{ infisical_export_result.stdout }}\n"
+        mode: "0600"
+        owner: root
+        group: root
+      become: true
+      when:
+        - infisical_export_result is not skipped
+        - infisical_export_result.stdout is defined
+
+    # ── Compose stack ───────────────────────────────────────────────────────────
+
+    - name: Ensure homelab services directory exists on VM
+      ansible.builtin.file:
+        path: /home/{{ ansible_user }}/homelab/services/machamp-services
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+      become: true
+
+    - name: Sync machamp-services compose stack to VM
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../services/machamp-services/"
+        dest: /home/{{ ansible_user }}/homelab/services/machamp-services/
+        delete: true
+        recursive: true
+        rsync_opts:
+          - "--chown={{ ansible_user }}:{{ ansible_user }}"
+          - "--exclude=.env"
+
+    - name: Symlink .env → /etc/homelab.env for compose variable substitution
+      ansible.builtin.file:
+        src: /etc/homelab.env
+        dest: /home/{{ ansible_user }}/homelab/services/machamp-services/.env
+        state: link
+        force: true
+      become: true
+
+    - name: Start machamp-services compose stack
+      community.docker.docker_compose_v2:
+        project_src: /home/{{ ansible_user }}/homelab/services/machamp-services
+        state: present
+        pull: missing
+      become: true
