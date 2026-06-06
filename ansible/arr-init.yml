@@ -3,8 +3,13 @@
 # Replaces scripts/servarr-init.sh and scripts/jellyfin-init.sh.
 #
 # Imported by site.yml after media.yml has started the compose stack.
-# Secrets are read from /etc/homelab.env on machamp-services (populated by
-# media.yml via Infisical export). No infisical run -- wrapper needed.
+#
+# On first run: reads Infisical push credentials from /etc/infisical.env,
+# auto-generates any missing secrets, harvests arr API keys from service
+# config files, and pushes everything back to Infisical.
+# Only PIA_USERNAME and PIA_PASSWORD must be seeded manually.
+#
+# Subsequent runs: all keys already in homelab.env; no Infisical writes occur.
 
 - name: Initialize arr and media stack on machamp-services
   hosts: machamp-services
@@ -18,8 +23,35 @@
     bazarr_url: "http://localhost:6767"
     jellyseerr_url: "http://localhost:5055"
     qbittorrent_webui_port: 8080
+    infisical_host: "http://192.168.0.32:8080"
 
   pre_tasks:
+
+    # Allow infisical_host override from secrets.yml on the control node
+    - name: Load local secrets file if present
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      failed_when: false
+
+    # ── Load Infisical push credentials from the target ──────────────────────
+
+    - name: Load /etc/infisical.env (push credentials)
+      ansible.builtin.slurp:
+        src: /etc/infisical.env
+      register: _infisical_env_raw
+      become: true
+
+    - name: Set Infisical push credentials
+      ansible.builtin.set_fact:
+        _inf_client_id: "{{ _inf | regex_search('(?m)^INFISICAL_CLIENT_ID=(.+)$', '\\1') | first }}"
+        _inf_client_secret: "{{ _inf | regex_search('(?m)^INFISICAL_CLIENT_SECRET=(.+)$', '\\1') | first }}"
+        _inf_project_id: "{{ _inf | regex_search('(?m)^INFISICAL_PROJECT_ID=(.+)$', '\\1') | first }}"
+        _inf_environment: "{{ (_inf | regex_search('(?m)^INFISICAL_ENVIRONMENT=(.+)$', '\\1') or ['prod']) | first }}"
+      vars:
+        _inf: "{{ _infisical_env_raw.content | b64decode }}"
+
+    # ── Load current secrets (default '' for keys not yet in Infisical) ──────
+
     - name: Load secrets from /etc/homelab.env
       ansible.builtin.slurp:
         src: /etc/homelab.env
@@ -28,14 +60,81 @@
 
     - name: Set API key facts from homelab.env
       ansible.builtin.set_fact:
-        prowlarr_api_key: "{{ _env | regex_search('(?m)^PROWLARR_API_KEY=(.+)$', '\\1') | first }}"
-        radarr_api_key: "{{ _env | regex_search('(?m)^RADARR_API_KEY=(.+)$', '\\1') | first }}"
-        sonarr_api_key: "{{ _env | regex_search('(?m)^SONARR_API_KEY=(.+)$', '\\1') | first }}"
-        bazarr_api_key: "{{ _env | regex_search('(?m)^BAZARR_API_KEY=(.+)$', '\\1') | first }}"
-        jellyseerr_api_key: "{{ _env | regex_search('(?m)^JELLYSEERR_API_KEY=(.+)$', '\\1') | first }}"
-        jellyfin_admin_password: "{{ _env | regex_search('(?m)^JELLYFIN_ADMIN_PASSWORD=(.+)$', '\\1') | first }}"
+        prowlarr_api_key: "{{ (_env | regex_search('(?m)^PROWLARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        radarr_api_key: "{{ (_env | regex_search('(?m)^RADARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        sonarr_api_key: "{{ (_env | regex_search('(?m)^SONARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        bazarr_api_key: "{{ (_env | regex_search('(?m)^BAZARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        jellyseerr_api_key: "{{ (_env | regex_search('(?m)^JELLYSEERR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        jellyfin_admin_password: "{{ (_env | regex_search('(?m)^JELLYFIN_ADMIN_PASSWORD=(.+)$', '\\1') or ['']) | first }}"
       vars:
         _env: "{{ _homelab_env_raw.content | b64decode }}"
+
+    # ── Generate secrets we control (only if absent) ─────────────────────────
+
+    - name: Record which secrets need generation
+      ansible.builtin.set_fact:
+        _jellyfin_password_new: "{{ jellyfin_admin_password == '' }}"
+        _bazarr_key_new: "{{ bazarr_api_key == '' }}"
+        _jellyseerr_key_new: "{{ jellyseerr_api_key == '' }}"
+
+    - name: Generate Jellyfin admin password
+      ansible.builtin.set_fact:
+        jellyfin_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=24, chars=['ascii_letters', 'digits']) }}"
+      when: _jellyfin_password_new
+
+    - name: Generate Bazarr API key
+      ansible.builtin.set_fact:
+        bazarr_api_key: "{{ lookup('ansible.builtin.password', '/dev/null', length=32, chars=['0123456789abcdef']) }}"
+      when: _bazarr_key_new
+
+    - name: Generate Jellyseerr API key (placeholder — real key retrieved after init)
+      ansible.builtin.set_fact:
+        jellyseerr_api_key: "placeholder"
+      when: _jellyseerr_key_new
+
+    - name: Push generated secrets to Infisical
+      ansible.builtin.shell:
+        cmd: |
+          infisical secrets set \
+            {% if _jellyfin_password_new %}"JELLYFIN_ADMIN_PASSWORD={{ jellyfin_admin_password }}" {% endif %}\
+            {% if _bazarr_key_new %}"BAZARR_API_KEY={{ bazarr_api_key }}" {% endif %}\
+            --projectId "{{ _inf_project_id }}" \
+            --env "{{ _inf_environment }}" \
+            --domain "{{ infisical_host }}"
+        executable: /bin/bash
+      environment:
+        INFISICAL_CLIENT_ID: "{{ _inf_client_id }}"
+        INFISICAL_CLIENT_SECRET: "{{ _inf_client_secret }}"
+      become: true
+      when: _jellyfin_password_new or _bazarr_key_new
+      changed_when: true
+
+    - name: Re-export /etc/homelab.env after generating keys
+      ansible.builtin.shell:
+        cmd: |
+          infisical export \
+            --format dotenv \
+            --projectId "{{ _inf_project_id }}" \
+            --env "{{ _inf_environment }}" \
+            --domain "{{ infisical_host }}"
+        executable: /bin/bash
+      environment:
+        INFISICAL_CLIENT_ID: "{{ _inf_client_id }}"
+        INFISICAL_CLIENT_SECRET: "{{ _inf_client_secret }}"
+      register: _homelab_env_refresh
+      become: true
+      when: _jellyfin_password_new or _bazarr_key_new
+      changed_when: true
+
+    - name: Write refreshed /etc/homelab.env
+      ansible.builtin.copy:
+        dest: /etc/homelab.env
+        content: "{{ _homelab_env_refresh.stdout }}\n"
+        mode: "0600"
+        owner: root
+        group: root
+      become: true
+      when: _jellyfin_password_new or _bazarr_key_new
 
   tasks:
 
@@ -127,16 +226,18 @@
         mode: "0777"
       become: true
 
-    # ── Block 2: Wait for services healthy ──────────────────────────────────
+    # ── Block 2: Wait for services healthy ───────────────────────────────────
+    # Accept 401 (Unauthorized) as "service is up" — API keys may not be in
+    # homelab.env yet on first run; we harvest them from config files below.
 
     - name: Wait for Prowlarr
       ansible.builtin.uri:
         url: "{{ prowlarr_url }}/api/v1/system/status"
         headers:
           X-Api-Key: "{{ prowlarr_api_key }}"
-        status_code: 200
+        status_code: [200, 401]
       register: prowlarr_status
-      until: prowlarr_status.status == 200
+      until: prowlarr_status.status in [200, 401]
       retries: 40
       delay: 10
 
@@ -145,9 +246,9 @@
         url: "{{ radarr_url }}/api/v3/system/status"
         headers:
           X-Api-Key: "{{ radarr_api_key }}"
-        status_code: 200
+        status_code: [200, 401]
       register: radarr_status
-      until: radarr_status.status == 200
+      until: radarr_status.status in [200, 401]
       retries: 40
       delay: 10
 
@@ -156,9 +257,9 @@
         url: "{{ sonarr_url }}/api/v3/system/status"
         headers:
           X-Api-Key: "{{ sonarr_api_key }}"
-        status_code: 200
+        status_code: [200, 401]
       register: sonarr_status
-      until: sonarr_status.status == 200
+      until: sonarr_status.status in [200, 401]
       retries: 40
       delay: 10
 
@@ -170,6 +271,95 @@
       until: jellyfin_health.status == 200
       retries: 40
       delay: 10
+
+    # ── Block 2.5: Harvest arr API keys from service config files ────────────
+
+    - name: Record which arr API keys need harvesting
+      ansible.builtin.set_fact:
+        _radarr_key_new: "{{ radarr_api_key == '' }}"
+        _sonarr_key_new: "{{ sonarr_api_key == '' }}"
+        _prowlarr_key_new: "{{ prowlarr_api_key == '' }}"
+
+    - name: Read Radarr API key from config.xml
+      ansible.builtin.shell: grep -oP '(?<=<ApiKey>)[^<]+' /mnt/nas/docker/radarr/config/config.xml
+      register: _radarr_key_file
+      become: true
+      changed_when: false
+      when: _radarr_key_new
+
+    - name: Set Radarr API key from config
+      ansible.builtin.set_fact:
+        radarr_api_key: "{{ _radarr_key_file.stdout | trim }}"
+      when: _radarr_key_new and (_radarr_key_file.stdout | default('') | trim) != ''
+
+    - name: Read Sonarr API key from config.xml
+      ansible.builtin.shell: grep -oP '(?<=<ApiKey>)[^<]+' /mnt/nas/docker/sonarr/config/config.xml
+      register: _sonarr_key_file
+      become: true
+      changed_when: false
+      when: _sonarr_key_new
+
+    - name: Set Sonarr API key from config
+      ansible.builtin.set_fact:
+        sonarr_api_key: "{{ _sonarr_key_file.stdout | trim }}"
+      when: _sonarr_key_new and (_sonarr_key_file.stdout | default('') | trim) != ''
+
+    - name: Read Prowlarr API key from config.xml
+      ansible.builtin.shell: grep -oP '(?<=<ApiKey>)[^<]+' /mnt/nas/docker/prowlarr/config/config.xml
+      register: _prowlarr_key_file
+      become: true
+      changed_when: false
+      when: _prowlarr_key_new
+
+    - name: Set Prowlarr API key from config
+      ansible.builtin.set_fact:
+        prowlarr_api_key: "{{ _prowlarr_key_file.stdout | trim }}"
+      when: _prowlarr_key_new and (_prowlarr_key_file.stdout | default('') | trim) != ''
+
+    - name: Push harvested arr API keys to Infisical
+      ansible.builtin.shell:
+        cmd: |
+          infisical secrets set \
+            {% if _radarr_key_new %}"RADARR_API_KEY={{ radarr_api_key }}" {% endif %}\
+            {% if _sonarr_key_new %}"SONARR_API_KEY={{ sonarr_api_key }}" {% endif %}\
+            {% if _prowlarr_key_new %}"PROWLARR_API_KEY={{ prowlarr_api_key }}" {% endif %}\
+            --projectId "{{ _inf_project_id }}" \
+            --env "{{ _inf_environment }}" \
+            --domain "{{ infisical_host }}"
+        executable: /bin/bash
+      environment:
+        INFISICAL_CLIENT_ID: "{{ _inf_client_id }}"
+        INFISICAL_CLIENT_SECRET: "{{ _inf_client_secret }}"
+      become: true
+      when: _radarr_key_new or _sonarr_key_new or _prowlarr_key_new
+      changed_when: true
+
+    - name: Re-export /etc/homelab.env after harvesting arr keys
+      ansible.builtin.shell:
+        cmd: |
+          infisical export \
+            --format dotenv \
+            --projectId "{{ _inf_project_id }}" \
+            --env "{{ _inf_environment }}" \
+            --domain "{{ infisical_host }}"
+        executable: /bin/bash
+      environment:
+        INFISICAL_CLIENT_ID: "{{ _inf_client_id }}"
+        INFISICAL_CLIENT_SECRET: "{{ _inf_client_secret }}"
+      register: _homelab_env_refresh2
+      become: true
+      when: _radarr_key_new or _sonarr_key_new or _prowlarr_key_new
+      changed_when: true
+
+    - name: Write refreshed /etc/homelab.env (arr keys)
+      ansible.builtin.copy:
+        dest: /etc/homelab.env
+        content: "{{ _homelab_env_refresh2.stdout }}\n"
+        mode: "0600"
+        owner: root
+        group: root
+      become: true
+      when: _radarr_key_new or _sonarr_key_new or _prowlarr_key_new
 
     # ── Block 3: Jellyfin startup wizard ────────────────────────────────────
 
@@ -251,40 +441,6 @@
           path: /data/movies
         status_code: 201
       when: radarr_folders.json | selectattr('path', 'equalto', '/data/movies') | list | length == 0
-
-    - name: Get Radarr download clients
-      ansible.builtin.uri:
-        url: "{{ radarr_url }}/api/v3/downloadclient"
-        headers:
-          X-Api-Key: "{{ radarr_api_key }}"
-        return_content: true
-      register: radarr_dlclients
-
-    - name: Update Radarr download client path from /downloads to /data/downloads/complete
-      ansible.builtin.uri:
-        url: "{{ radarr_url }}/api/v3/downloadclient/{{ item.id }}"
-        method: PUT
-        headers:
-          X-Api-Key: "{{ radarr_api_key }}"
-        body_format: json
-        body: >-
-          {{
-            item | combine({
-              'fields': item.fields | map(
-                'combine',
-                {}
-              ) | list
-            })
-          }}
-        status_code: 202
-      loop: >-
-        {{
-          radarr_dlclients.json
-          | selectattr('fields', 'defined')
-          | selectattr('fields', 'selectattr', 'name', 'equalto', 'movieDirectory')
-          | list
-        }}
-      when: radarr_dlclients.json | length > 0
 
     - name: Trigger Radarr library rescan
       ansible.builtin.uri:
@@ -482,6 +638,8 @@
       when: sonarr_dlclients_check.json | selectattr('name', 'equalto', 'qBittorrent') | list | length == 0
 
     # ── Block 9: Jellyseerr initialization ──────────────────────────────────
+    # Uses session cookie from auth response so jellyseerr_api_key isn't
+    # needed during init. The real API key is retrieved after init and stored.
 
     - name: Check Jellyseerr initialization status
       ansible.builtin.uri:
@@ -489,18 +647,6 @@
         status_code: 200
         return_content: true
       register: jellyseerr_public
-
-    - name: Wait for Bazarr
-      ansible.builtin.uri:
-        url: "{{ bazarr_url }}/api/system/status"
-        headers:
-          X-Api-Key: "{{ bazarr_api_key }}"
-        status_code: 200
-      register: bazarr_status
-      until: bazarr_status.status == 200
-      retries: 20
-      delay: 10
-      when: not (jellyseerr_public.json.initialized | default(false))
 
     - name: Initialize Jellyseerr with Jellyfin
       ansible.builtin.uri:
@@ -513,8 +659,28 @@
           username: admin
           password: "{{ jellyfin_admin_password }}"
         status_code: 200
+        return_content: true
       register: jellyseerr_auth
       when: not (jellyseerr_public.json.initialized | default(false))
+
+    # Retrieve the Jellyseerr API key via session cookie from the auth response
+    - name: Retrieve Jellyseerr API key from settings
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/settings/main"
+        headers:
+          Cookie: "{{ (jellyseerr_auth.set_cookie | default('')).split(';')[0] }}"
+        status_code: 200
+        return_content: true
+      register: _jellyseerr_settings
+      when: not (jellyseerr_public.json.initialized | default(false)) and jellyseerr_auth is not skipped
+
+    - name: Set Jellyseerr API key from settings response
+      ansible.builtin.set_fact:
+        jellyseerr_api_key: "{{ _jellyseerr_settings.json.apiKey }}"
+      when: >
+        not (jellyseerr_public.json.initialized | default(false))
+        and _jellyseerr_settings is not skipped
+        and _jellyseerr_settings.json.apiKey is defined
 
     - name: Configure Jellyseerr Jellyfin server settings
       ansible.builtin.uri:
@@ -586,6 +752,50 @@
         body:
           localLogin: false
         status_code: 200
+
+    # Push the Jellyseerr API key to Infisical now that we have it
+    - name: Push Jellyseerr API key to Infisical
+      ansible.builtin.shell:
+        cmd: |
+          infisical secrets set \
+            "JELLYSEERR_API_KEY={{ jellyseerr_api_key }}" \
+            --projectId "{{ _inf_project_id }}" \
+            --env "{{ _inf_environment }}" \
+            --domain "{{ infisical_host }}"
+        executable: /bin/bash
+      environment:
+        INFISICAL_CLIENT_ID: "{{ _inf_client_id }}"
+        INFISICAL_CLIENT_SECRET: "{{ _inf_client_secret }}"
+      become: true
+      when: _jellyseerr_key_new and jellyseerr_api_key != 'placeholder' and jellyseerr_api_key != ''
+      changed_when: true
+
+    - name: Re-export /etc/homelab.env after Jellyseerr key
+      ansible.builtin.shell:
+        cmd: |
+          infisical export \
+            --format dotenv \
+            --projectId "{{ _inf_project_id }}" \
+            --env "{{ _inf_environment }}" \
+            --domain "{{ infisical_host }}"
+        executable: /bin/bash
+      environment:
+        INFISICAL_CLIENT_ID: "{{ _inf_client_id }}"
+        INFISICAL_CLIENT_SECRET: "{{ _inf_client_secret }}"
+      register: _homelab_env_refresh3
+      become: true
+      when: _jellyseerr_key_new and jellyseerr_api_key != 'placeholder' and jellyseerr_api_key != ''
+      changed_when: true
+
+    - name: Write final /etc/homelab.env
+      ansible.builtin.copy:
+        dest: /etc/homelab.env
+        content: "{{ _homelab_env_refresh3.stdout }}\n"
+        mode: "0600"
+        owner: root
+        group: root
+      become: true
+      when: _jellyseerr_key_new and jellyseerr_api_key != 'placeholder' and jellyseerr_api_key != ''
 
     # ── Block 10: Recyclarr — run one-shot sync ──────────────────────────────
 
