@@ -13,7 +13,7 @@
   hosts: proxmox
   gather_facts: false
   vars_files:
-    - ../network.yml
+    - "{{ playbook_dir }}/../network.yml"
 
   pre_tasks:
     - name: Verify host is defined in network.yml
