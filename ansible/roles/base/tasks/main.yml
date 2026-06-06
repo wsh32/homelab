@@ -41,10 +41,16 @@
     name: America/Los_Angeles
   become: true
 
+- name: Check if netplan is available
+  ansible.builtin.stat:
+    path: /usr/sbin/netplan
+  register: _netplan_bin
+
 - name: Re-apply netplan to ensure systemd-resolved picks up DNS config
   ansible.builtin.command: netplan apply
   become: true
   changed_when: false
+  when: _netplan_bin.stat.exists
 
 - name: Disable password authentication in SSH
   ansible.builtin.lineinfile:
