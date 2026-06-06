@@ -56,6 +56,12 @@
     regexp: '\.local/bin.*PATH'
     state: present
 
+- name: Install Bitwarden CLI via snap
+  community.general.snap:
+    name: bw
+    state: present
+  become: true
+
 - name: Configure SSH agent in .bashrc
   ansible.builtin.blockinfile:
     path: "{{ ansible_env.HOME }}/.bashrc"
