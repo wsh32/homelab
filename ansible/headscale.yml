@@ -1,31 +1,68 @@
 ---
 # Ensure every managed host is joined to the Headscale network.
-# Always re-asserts the correct tailnet — handles rotated keys and
-# nodes removed from headscale. --force-reauth is required because
-# headscale does not support the interactive OAuth fallback.
-#
-# Requires ansible/secrets.yml to exist (written by dns.yml).
-# Run dns.yml first if secrets.yml is missing.
+# Generates a fresh 1-hour reusable pre-auth key on each run,
+# expires all previous keys first, and tags enrolled nodes as tag:infra.
 #
 # Usage:
 #   ansible-playbook ansible/headscale.yml
+
+- name: Generate Headscale pre-auth key
+  hosts: diglett-dns
+  gather_facts: false
+
+  tasks:
+    - name: Read headscale server URL
+      ansible.builtin.slurp:
+        src: /etc/headscale.env
+      register: _headscale_env
+      become: true
+
+    - name: Set headscale server URL fact
+      ansible.builtin.set_fact:
+        headscale_server_url: >-
+          {{ _headscale_env.content | b64decode
+             | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\1') | first }}
+
+    - name: List existing pre-auth keys
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale preauthkeys list --user infra --output json
+      register: _existing_keys
+      become: true
+
+    - name: Expire all existing pre-auth keys
+      community.docker.docker_container_exec:
+        container: headscale
+        command: "headscale preauthkeys expire --key {{ item }}"
+      loop: "{{ _existing_keys.stdout | from_json | map(attribute='key') | list }}"
+      become: true
+
+    - name: Generate fresh pre-auth key (1h expiry, reusable, tag:infra)
+      community.docker.docker_container_exec:
+        container: headscale
+        command: >-
+          headscale preauthkeys create
+          --user infra
+          --reusable
+          --expiration 1h
+          --tags tag:infra
+          --output json
+      register: _new_key
+      become: true
+      no_log: true
+
+    - name: Set pre-auth key fact
+      ansible.builtin.set_fact:
+        headscale_preauth_key: "{{ (_new_key.stdout | from_json).key }}"
+      no_log: true
 
 - name: Join all hosts to Headscale
   hosts: all:!localhost
   gather_facts: false
 
-  pre_tasks:
-    - name: Load headscale credentials from secrets.yml
-      ansible.builtin.include_vars:
-        file: "{{ playbook_dir }}/secrets.yml"
-      no_log: true
-
-    - name: Fail if headscale credentials are missing
-      ansible.builtin.fail:
-        msg: "headscale_preauth_key or headscale_server_url missing in secrets.yml — run dns.yml first"
-      when: >
-        headscale_preauth_key | default('') == '' or
-        headscale_server_url | default('') == ''
+  vars:
+    headscale_preauth_key: "{{ hostvars['diglett-dns'].headscale_preauth_key }}"
+    headscale_server_url: "{{ hostvars['diglett-dns'].headscale_server_url }}"
 
   tasks:
     - name: Check if tailscale is installed
