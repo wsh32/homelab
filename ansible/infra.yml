@@ -80,3 +80,319 @@
       become: true
       register: bootstrap_result
       changed_when: "'already bootstrapped' not in bootstrap_result.stdout"
+
+# ── Phase 2: Create Infisical machine identity for machamp-services ───────────
+#
+# Creates a Universal Auth machine identity and writes client_id / client_secret
+# back to ansible/secrets.yml so subsequent playbooks (media.yml, arr-init.yml)
+# can use it without manual UI steps.
+#
+# Skipped automatically if infisical_client_id is already populated in secrets.yml.
+- name: Create Infisical machine identity for machamp-services
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Load secrets.yml
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      failed_when: false
+
+    - name: Skip play if machine identity already configured
+      ansible.builtin.meta: end_play
+      when: >
+        (infisical_client_id | default('')) not in ['', 'REPLACE_ME']
+
+    - name: Resolve Infisical admin credentials
+      ansible.builtin.set_fact:
+        _infisical_host: "{{ infisical_host | default('http://192.168.0.32:8080') }}"
+        _admin_email: "{{ infisical_admin_email | default('admin@homelab.local') }}"
+        _admin_password: "{{ infisical_admin_password | default(lookup('env', 'INFISICAL_ADMIN_PASSWORD')) }}"
+
+    - name: Fail if no admin password available
+      ansible.builtin.fail:
+        msg: "Set infisical_admin_password in ansible/secrets.yml or pass INFISICAL_ADMIN_PASSWORD=<pass>"
+      when: _admin_password == ''
+
+    - name: Login to Infisical as admin
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/auth/login"
+        method: POST
+        body_format: json
+        body:
+          email: "{{ _admin_email }}"
+          password: "{{ _admin_password }}"
+        status_code: 200
+      register: _inf_login
+      no_log: true
+
+    - name: Get organizations
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/organization"
+        headers:
+          Authorization: "Bearer {{ _inf_login.json.token }}"
+        status_code: 200
+      register: _orgs
+
+    - name: Get workspaces (projects)
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/workspace"
+        headers:
+          Authorization: "Bearer {{ _inf_login.json.token }}"
+        status_code: 200
+      register: _workspaces
+
+    - name: Set org and project IDs
+      ansible.builtin.set_fact:
+        _org_id: "{{ _orgs.json.organizations[0].id }}"
+        _project_id: "{{ _workspaces.json.workspaces[0].id }}"
+
+    - name: List identities in organization
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/organization/{{ _org_id }}/identities"
+        headers:
+          Authorization: "Bearer {{ _inf_login.json.token }}"
+        status_code: 200
+      register: _identities
+
+    - name: Find existing machamp-services identity
+      ansible.builtin.set_fact:
+        _existing_identity: >-
+          {{ _identities.json.identities
+             | selectattr('identity.name', 'equalto', 'machamp-services')
+             | list | first | default({}) }}
+
+    - name: Create machine identity if not exists
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/identities"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_login.json.token }}"
+        body_format: json
+        body:
+          name: machamp-services
+          organizationId: "{{ _org_id }}"
+          role: no-access
+        status_code: [200, 201]
+      register: _new_identity
+      when: _existing_identity == {}
+
+    - name: Set identity ID
+      ansible.builtin.set_fact:
+        _identity_id: >-
+          {{ _new_identity.json.identity.id
+             if not (_new_identity.skipped | default(false))
+             else _existing_identity.identity.id }}
+
+    - name: Check if Universal Auth already configured
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity_id }}"
+        headers:
+          Authorization: "Bearer {{ _inf_login.json.token }}"
+        status_code: [200, 404]
+      register: _ua_check
+
+    - name: Configure Universal Auth on identity
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity_id }}"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_login.json.token }}"
+        body_format: json
+        body:
+          accessTokenTTL: 2592000
+          accessTokenMaxTTL: 2592000
+          accessTokenNumUsesLimit: 0
+          clientSecretTrustedIps:
+            - ipAddress: "0.0.0.0/0"
+          accessTokenTrustedIps:
+            - ipAddress: "0.0.0.0/0"
+        status_code: [200, 201]
+      when: _ua_check.status == 404
+
+    - name: Add identity to project with member role
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/workspace/{{ _project_id }}/identity-memberships/{{ _identity_id }}"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_login.json.token }}"
+        body_format: json
+        body:
+          roles:
+            - role: member
+        status_code: [200, 201, 400, 409]
+      register: _membership
+
+    - name: Get Universal Auth details (client ID)
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity_id }}"
+        headers:
+          Authorization: "Bearer {{ _inf_login.json.token }}"
+        status_code: 200
+      register: _ua_info
+
+    - name: Create client secret
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity_id }}/client-secrets"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_login.json.token }}"
+        body_format: json
+        body:
+          description: ansible
+          numUsesLimit: 0
+          ttl: 0
+        status_code: [200, 201]
+      register: _secret_result
+      no_log: true
+
+    - name: Write infisical_project_id to secrets.yml
+      ansible.builtin.lineinfile:
+        path: "{{ playbook_dir }}/secrets.yml"
+        regexp: '^infisical_project_id:'
+        line: 'infisical_project_id: "{{ _project_id }}"'
+
+    - name: Write infisical_client_id to secrets.yml
+      ansible.builtin.lineinfile:
+        path: "{{ playbook_dir }}/secrets.yml"
+        regexp: '^infisical_client_id:'
+        line: 'infisical_client_id: "{{ _ua_info.json.universalAuth.clientId }}"'
+
+    - name: Write infisical_client_secret to secrets.yml
+      ansible.builtin.lineinfile:
+        path: "{{ playbook_dir }}/secrets.yml"
+        regexp: '^infisical_client_secret:'
+        line: 'infisical_client_secret: "{{ _secret_result.json.clientSecretData.clientSecretValue }}"'
+      no_log: true
+
+    - name: Report machine identity created
+      ansible.builtin.debug:
+        msg: "Machine identity 'machamp-services' created. Credentials written to ansible/secrets.yml."
+
+# ── Phase 3: Seed PIA credentials from Vaultwarden ───────────────────────────
+#
+# Pulls PIA_USERNAME and PIA_PASSWORD from a Vaultwarden item and pushes them
+# to Infisical. Skipped if bitwarden_* vars are not defined in secrets.yml or
+# if PIA_USERNAME already exists in Infisical.
+- name: Seed PIA credentials from Vaultwarden
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Load secrets.yml
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      failed_when: false
+
+    - name: Skip play if Vaultwarden credentials not configured in secrets.yml
+      ansible.builtin.meta: end_play
+      when: >
+        (bitwarden_server_url | default('')) == '' or
+        (bitwarden_email | default('')) == '' or
+        (bitwarden_password | default('')) == '' or
+        (pia_vault_item | default('')) == ''
+
+    - name: Skip play if machine identity not configured
+      ansible.builtin.meta: end_play
+      when: >
+        (infisical_client_id | default('')) in ['', 'REPLACE_ME'] or
+        (infisical_client_secret | default('')) in ['', 'REPLACE_ME']
+
+    - name: Resolve Infisical settings
+      ansible.builtin.set_fact:
+        _infisical_host: "{{ infisical_host | default('http://192.168.0.32:8080') }}"
+        _client_id: "{{ infisical_client_id }}"
+        _client_secret: "{{ infisical_client_secret }}"
+        _project_id: "{{ infisical_project_id }}"
+        _environment: "{{ infisical_environment | default('prod') }}"
+
+    - name: Get machine identity access token
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/auth/universal-auth/login"
+        method: POST
+        body_format: json
+        body:
+          clientId: "{{ _client_id }}"
+          clientSecret: "{{ _client_secret }}"
+        status_code: 200
+      register: _ua_login
+      no_log: true
+
+    - name: Check if PIA_USERNAME already set in Infisical
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v3/secrets/raw/PIA_USERNAME"
+        headers:
+          Authorization: "Bearer {{ _ua_login.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _project_id }}"
+          environment: "{{ _environment }}"
+          secretPath: /
+        status_code: [200, 404]
+      register: _pia_check
+      no_log: true
+
+    - name: Skip play if PIA_USERNAME already populated in Infisical
+      ansible.builtin.meta: end_play
+      when: >
+        _pia_check.status == 200 and
+        (_pia_check.json.secret.secretValue | default('')) != ''
+
+    - name: Clear any existing Bitwarden session
+      ansible.builtin.command: bw logout
+      failed_when: false
+      changed_when: false
+
+    - name: Configure Bitwarden server URL
+      ansible.builtin.command:
+        cmd: "bw config server {{ bitwarden_server_url }}"
+      changed_when: false
+
+    - name: Login to Bitwarden and capture session token
+      ansible.builtin.shell:
+        cmd: "bw login {{ bitwarden_email }} {{ bitwarden_password }} --raw --nointeraction"
+      register: _bw_session
+      changed_when: false
+      no_log: true
+
+    - name: Retrieve PIA username from Vaultwarden
+      ansible.builtin.command:
+        cmd: "bw get username {{ pia_vault_item | quote }}"
+      environment:
+        BW_SESSION: "{{ _bw_session.stdout }}"
+      register: _pia_username
+      changed_when: false
+      no_log: true
+
+    - name: Retrieve PIA password from Vaultwarden
+      ansible.builtin.command:
+        cmd: "bw get password {{ pia_vault_item | quote }}"
+      environment:
+        BW_SESSION: "{{ _bw_session.stdout }}"
+      register: _pia_password
+      changed_when: false
+      no_log: true
+
+    - name: Logout from Bitwarden
+      ansible.builtin.command: bw logout
+      environment:
+        BW_SESSION: "{{ _bw_session.stdout }}"
+      changed_when: false
+      failed_when: false
+
+    - name: Push PIA credentials to Infisical
+      ansible.builtin.command:
+        cmd: >
+          infisical secrets set
+          "PIA_USERNAME={{ _pia_username.stdout }}"
+          "PIA_PASSWORD={{ _pia_password.stdout }}"
+          --projectId "{{ _project_id }}"
+          --env "{{ _environment }}"
+          --domain "{{ _infisical_host }}"
+          --token "{{ _ua_login.json.accessToken }}"
+      changed_when: true
+      no_log: true
+
+    - name: Report PIA credentials seeded
+      ansible.builtin.debug:
+        msg: "PIA credentials seeded from Vaultwarden item '{{ pia_vault_item }}' into Infisical."
