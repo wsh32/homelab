@@ -125,7 +125,6 @@
         --silent
       register: _inf_login
       changed_when: false
-      no_log: true
 
     - name: Get organizations
       ansible.builtin.uri:
