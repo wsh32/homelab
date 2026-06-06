@@ -92,6 +92,94 @@
   notify: Restart diglett-dns stack
   when: headplane_api_key_stat_role.stat.exists
 
+# ── Headplane OIDC (conditional — skipped until infra.yml has run) ────────────
+
+- name: Check if headplane OIDC credentials are available on NFS
+  ansible.builtin.stat:
+    path: /mnt/nas/docker/headplane-oidc.env
+  register: _hp_oidc_env_stat
+  become: true
+
+- name: Read headplane OIDC credentials from NFS
+  ansible.builtin.slurp:
+    src: /mnt/nas/docker/headplane-oidc.env
+  register: _hp_oidc_env_raw
+  become: true
+  no_log: true
+  when: _hp_oidc_env_stat.stat.exists
+
+- name: Parse headplane OIDC credentials
+  ansible.builtin.set_fact:
+    _hp_oidc_client_id: "{{ (_hp_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADPLANE_OIDC_CLIENT_ID=(.+)$', '\\1') | first }}"
+    _hp_oidc_client_secret: "{{ (_hp_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADPLANE_OIDC_CLIENT_SECRET=(.+)$', '\\1') | first }}"
+  no_log: true
+  when: _hp_oidc_env_stat.stat.exists
+
+- name: Inject OIDC block into headplane config
+  ansible.builtin.blockinfile:
+    path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
+    marker: "# {mark} OIDC — managed by Ansible"
+    insertbefore: '^server:'
+    block: |
+      oidc:
+        issuer: "{{ authentik_public_url }}/application/o/headplane/"
+        client_id: "{{ _hp_oidc_client_id }}"
+        client_secret: "{{ _hp_oidc_client_secret }}"
+        headscale_api_key: "{{ headplane_api_key_role.content | b64decode | trim if headplane_api_key_stat_role.stat.exists else '' }}"
+        disable_api_key_login: false
+  no_log: true
+  notify: Restart diglett-dns stack
+  when: _hp_oidc_env_stat.stat.exists and authentik_public_url is defined
+
+# ── Headscale OIDC (conditional — skipped until infra.yml has run) ────────────
+
+- name: Check if headscale OIDC credentials are available on NFS
+  ansible.builtin.stat:
+    path: /mnt/nas/docker/headscale-oidc.env
+  register: _hs_oidc_env_stat
+  become: true
+
+- name: Read headscale OIDC credentials from NFS
+  ansible.builtin.slurp:
+    src: /mnt/nas/docker/headscale-oidc.env
+  register: _hs_oidc_env_raw
+  become: true
+  no_log: true
+  when: _hs_oidc_env_stat.stat.exists
+
+- name: Parse headscale OIDC credentials
+  ansible.builtin.set_fact:
+    _hs_oidc_client_id: "{{ (_hs_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADSCALE_OIDC_CLIENT_ID=(.+)$', '\\1') | first }}"
+    _hs_oidc_client_secret: "{{ (_hs_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADSCALE_OIDC_CLIENT_SECRET=(.+)$', '\\1') | first }}"
+  no_log: true
+  when: _hs_oidc_env_stat.stat.exists
+
+- name: Inject OIDC issuer into headscale config
+  ansible.builtin.lineinfile:
+    path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headscale/config.yaml
+    regexp: '^\s+issuer:'
+    line: "  issuer: \"{{ authentik_public_url }}/application/o/headscale/\""
+  notify: Restart diglett-dns stack
+  when: _hs_oidc_env_stat.stat.exists and authentik_public_url is defined
+
+- name: Inject OIDC client ID into headscale config
+  ansible.builtin.lineinfile:
+    path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headscale/config.yaml
+    regexp: '^\s+client_id:'
+    line: "  client_id: \"{{ _hs_oidc_client_id }}\""
+  no_log: true
+  notify: Restart diglett-dns stack
+  when: _hs_oidc_env_stat.stat.exists
+
+- name: Inject OIDC client secret into headscale config
+  ansible.builtin.lineinfile:
+    path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headscale/config.yaml
+    regexp: '^\s+client_secret:'
+    line: "  client_secret: \"{{ _hs_oidc_client_secret }}\""
+  no_log: true
+  notify: Restart diglett-dns stack
+  when: _hs_oidc_env_stat.stat.exists
+
 - name: Enable IP forwarding (required for tailscale exit node)
   ansible.posix.sysctl:
     name: "{{ item }}"

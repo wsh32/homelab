@@ -4,13 +4,6 @@ headscale:
   api_key: ""  # filled in by Ansible during bootstrap
   config_strict: false
 
-oidc:
-  issuer: ""  # injected by Ansible: https://auth.<domain>/application/o/headplane/
-  client_id: ""  # injected by Ansible from /mnt/nas/docker/headplane-oidc.env
-  client_secret: ""  # injected by Ansible from /mnt/nas/docker/headplane-oidc.env
-  headscale_api_key: ""  # injected by Ansible from /mnt/nas/docker/headplane/api.key
-  disable_api_key_login: false
-
 server:
   base_url: ""  # filled in by Ansible
   cookie_secret_path: /var/lib/headplane/cookie.secret
