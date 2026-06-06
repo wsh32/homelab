@@ -1,7 +1,7 @@
 ---
-# Deploy the DNS stack (AdGuard Home + Headscale + cloudflared) to diglett-dns,
-# then bootstrap Headscale (create infra user, pre-auth key, webui API key).
-# Idempotent: safe to re-run.
+# Deploy the DNS stack (AdGuard Home + Headscale + Headplane + cloudflared) and
+# bootstrap Headscale. Run before machamp VMs exist — Authentik is not yet up.
+# For OIDC injection into Headplane, run ansible/oidc.yml after infra.yml.
 #
 # Prerequisites:
 #   - diglett-dns VM must be up and cloud-init must have completed
