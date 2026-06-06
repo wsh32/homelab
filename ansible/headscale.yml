@@ -85,6 +85,19 @@
         enabled: true
       become: true
 
+    - name: Join tailscale network (exit node)
+      ansible.builtin.command: >-
+        tailscale up
+        --login-server={{ headscale_server_url }}
+        --auth-key={{ headscale_preauth_key }}
+        --accept-routes
+        --advertise-exit-node
+        --hostname={{ inventory_hostname }}
+        --force-reauth
+      become: true
+      no_log: true
+      when: inventory_hostname == 'diglett-dns'
+
     - name: Join tailscale network
       ansible.builtin.command: >-
         tailscale up
@@ -95,3 +108,4 @@
         --force-reauth
       become: true
       no_log: true
+      when: inventory_hostname != 'diglett-dns'

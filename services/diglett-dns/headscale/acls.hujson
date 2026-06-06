@@ -1,13 +1,13 @@
 {
   "tagOwners": {
-    "tag:infra": ["wesoohoo@gmail.com"]
+    "tag:infra": ["wesoohoo@gmail.com", "infra"]
   },
   "autoApprovers": {
     "routes": {
-      "0.0.0.0/0": ["wesoohoo@gmail.com"],
-      "::/0":       ["wesoohoo@gmail.com"]
+      "0.0.0.0/0": ["wesoohoo@gmail.com", "tag:infra"],
+      "::/0":       ["wesoohoo@gmail.com", "tag:infra"]
     },
-    "exitNode": ["wesoohoo@gmail.com"]
+    "exitNode": ["wesoohoo@gmail.com", "tag:infra"]
   },
   "acls": [
     {
