@@ -119,7 +119,7 @@ Push to the branch (or merge to main), which triggers webhook deployment. Or dep
 
 ```bash
 ssh ubuntu@machamp-services.ts.home \
-  "cd /home/ubuntu/homelab/services/machamp && docker compose pull && docker compose up -d"
+  "cd /home/ubuntu/homelab/services/machamp-services && docker compose pull && docker compose up -d"
 ```
 
 Watch the VPN connect:
@@ -138,8 +138,7 @@ Once Gluetun is healthy, qBittorrent will start automatically.
 From `alakazam-deploy`:
 
 ```bash
-infisical run --env-file /etc/infisical.env -- \
-  ansible-playbook ansible/arr-init.yml
+ansible-playbook ansible/arr-init.yml
 ```
 
 This playbook is idempotent — safe to re-run. It:
@@ -176,11 +175,7 @@ Recyclarr was run once during init. To keep quality profiles in sync with TRaSH 
 updates, trigger it periodically via n8n or run manually:
 
 ```bash
-ssh ubuntu@machamp-services.ts.home \
-  "cd /home/ubuntu/homelab/services/machamp && \
-   RADARR_API_KEY=\$(grep RADARR /etc/homelab.env | cut -d= -f2) \
-   SONARR_API_KEY=\$(grep SONARR /etc/homelab.env | cut -d= -f2) \
-   docker compose run --rm -e RADARR_API_KEY -e SONARR_API_KEY recyclarr sync"
+ansible-playbook ansible/arr-init.yml
 ```
 
 ---
