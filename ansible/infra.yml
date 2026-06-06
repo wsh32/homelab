@@ -114,23 +114,24 @@
         msg: "Set infisical_admin_password in ansible/secrets.yml or pass INFISICAL_ADMIN_PASSWORD=<pass>"
       when: _admin_password == ''
 
-    - name: Login to Infisical as admin
-      ansible.builtin.uri:
-        url: "{{ _infisical_host }}/api/v1/auth/login"
-        method: POST
-        body_format: json
-        body:
-          email: "{{ _admin_email }}"
-          password: "{{ _admin_password }}"
-        status_code: 200
+    - name: Login to Infisical as admin via CLI
+      ansible.builtin.shell: >
+        infisical login
+        --method user
+        --email "{{ _admin_email }}"
+        --password "{{ _admin_password }}"
+        --domain "{{ _infisical_host }}"
+        --plain
+        --silent
       register: _inf_login
+      changed_when: false
       no_log: true
 
     - name: Get organizations
       ansible.builtin.uri:
         url: "{{ _infisical_host }}/api/v1/organization"
         headers:
-          Authorization: "Bearer {{ _inf_login.json.token }}"
+          Authorization: "Bearer {{ _inf_login.stdout | trim }}"
         status_code: 200
       register: _orgs
 
@@ -138,7 +139,7 @@
       ansible.builtin.uri:
         url: "{{ _infisical_host }}/api/v1/workspace"
         headers:
-          Authorization: "Bearer {{ _inf_login.json.token }}"
+          Authorization: "Bearer {{ _inf_login.stdout | trim }}"
         status_code: 200
       register: _workspaces
 
@@ -151,7 +152,7 @@
       ansible.builtin.uri:
         url: "{{ _infisical_host }}/api/v1/organization/{{ _org_id }}/identities"
         headers:
-          Authorization: "Bearer {{ _inf_login.json.token }}"
+          Authorization: "Bearer {{ _inf_login.stdout | trim }}"
         status_code: 200
       register: _identities
 
@@ -167,7 +168,7 @@
         url: "{{ _infisical_host }}/api/v1/identities"
         method: POST
         headers:
-          Authorization: "Bearer {{ _inf_login.json.token }}"
+          Authorization: "Bearer {{ _inf_login.stdout | trim }}"
         body_format: json
         body:
           name: machamp-services
@@ -188,7 +189,7 @@
       ansible.builtin.uri:
         url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity_id }}"
         headers:
-          Authorization: "Bearer {{ _inf_login.json.token }}"
+          Authorization: "Bearer {{ _inf_login.stdout | trim }}"
         status_code: [200, 404]
       register: _ua_check
 
@@ -197,7 +198,7 @@
         url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity_id }}"
         method: POST
         headers:
-          Authorization: "Bearer {{ _inf_login.json.token }}"
+          Authorization: "Bearer {{ _inf_login.stdout | trim }}"
         body_format: json
         body:
           accessTokenTTL: 2592000
@@ -215,7 +216,7 @@
         url: "{{ _infisical_host }}/api/v1/workspace/{{ _project_id }}/identity-memberships/{{ _identity_id }}"
         method: POST
         headers:
-          Authorization: "Bearer {{ _inf_login.json.token }}"
+          Authorization: "Bearer {{ _inf_login.stdout | trim }}"
         body_format: json
         body:
           roles:
@@ -227,7 +228,7 @@
       ansible.builtin.uri:
         url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity_id }}"
         headers:
-          Authorization: "Bearer {{ _inf_login.json.token }}"
+          Authorization: "Bearer {{ _inf_login.stdout | trim }}"
         status_code: 200
       register: _ua_info
 
@@ -236,7 +237,7 @@
         url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity_id }}/client-secrets"
         method: POST
         headers:
-          Authorization: "Bearer {{ _inf_login.json.token }}"
+          Authorization: "Bearer {{ _inf_login.stdout | trim }}"
         body_format: json
         body:
           description: ansible
