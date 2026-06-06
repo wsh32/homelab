@@ -18,9 +18,10 @@ qBittorrent, Bazarr, Jellyseerr, Unpackerr, Recyclarr, and Jellyfin with NVENC.
 
 ### 1a. Infisical machine identity (auto-created by `infra.yml`)
 
-`ansible-playbook ansible/infra.yml` creates a Universal Auth machine identity named
-`machamp-services` and writes `infisical_client_id` and `infisical_client_secret` back
-to `ansible/secrets.yml` automatically. No manual Infisical UI steps needed.
+`ansible-playbook ansible/infra.yml` creates a project, a Universal Auth machine identity
+named `machamp-services`, and writes `infisical_project_id`, `infisical_client_id`, and
+`infisical_client_secret` back to `ansible/secrets.yml` automatically using the bootstrap
+token returned on first run. No manual Infisical UI steps needed.
 
 ### 1b. PIA credentials
 

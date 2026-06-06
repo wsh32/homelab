@@ -81,6 +81,163 @@
       register: bootstrap_result
       changed_when: "'already bootstrapped' not in bootstrap_result.stdout"
 
+# ── Phase 2: Create machamp-services machine identity in Infisical ───────────
+#
+# Uses the bootstrap token from Phase 1 to create a project, machine identity,
+# and Universal Auth credentials via the Infisical REST API — no SRP user login
+# required.  Skipped on re-runs when credentials are already in secrets.yml.
+- name: Create machamp-services machine identity in Infisical
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Load secrets.yml
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      failed_when: false
+
+    - name: Skip play if machine identity already configured
+      ansible.builtin.meta: end_play
+      when: >
+        (infisical_client_id | default('')) not in ['', 'REPLACE_ME']
+
+    - name: Fail if bootstrap output unavailable
+      ansible.builtin.fail:
+        msg: >
+          Infisical was already bootstrapped but machine identity credentials are
+          missing from ansible/secrets.yml.  Set infisical_project_id,
+          infisical_client_id, and infisical_client_secret manually.
+      when: >
+        'already bootstrapped' in hostvars['machamp-infra']['bootstrap_result'].stdout
+
+    - name: Parse bootstrap output
+      ansible.builtin.set_fact:
+        _bootstrap: "{{ hostvars['machamp-infra']['bootstrap_result'].stdout | from_json }}"
+
+    - name: Set Infisical host, bootstrap token, and org ID
+      ansible.builtin.set_fact:
+        _infisical_host: "{{ infisical_host | default('http://192.168.0.32:8080') }}"
+        _bootstrap_token: "{{ _bootstrap.identity.credentials.token }}"
+        _org_id: "{{ _bootstrap.organization.id }}"
+      no_log: true
+
+    - name: Create machamp-services project in Infisical
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/projects"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _bootstrap_token }}"
+        body_format: json
+        body:
+          projectName: "machamp-services"
+          slug: "machamp-services"
+          type: "secret-manager"
+        status_code: [200, 201, 409]
+      register: _project
+      no_log: true
+
+    - name: Re-fetch project by slug if it already existed
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/projects/machamp-services"
+        headers:
+          Authorization: "Bearer {{ _bootstrap_token }}"
+        status_code: 200
+      register: _project_existing
+      no_log: true
+      when: _project.status == 409
+
+    - name: Resolve project ID
+      ansible.builtin.set_fact:
+        _project_id: >-
+          {{ _project.json.project.id if _project.status != 409
+             else _project_existing.json.project.id }}
+      no_log: true
+
+    - name: Create machine identity for machamp-services
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/identities"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _bootstrap_token }}"
+        body_format: json
+        body:
+          name: "machamp-services"
+          organizationId: "{{ _org_id }}"
+          role: "no-access"
+        status_code: [200, 201]
+      register: _identity
+      no_log: true
+
+    - name: Add identity to machamp-services project
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/{{ _project_id }}/identity-memberships/{{ _identity.json.identity.id }}"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _bootstrap_token }}"
+        body_format: json
+        body:
+          role: "member"
+        status_code: [200, 201]
+      no_log: true
+
+    - name: Configure Universal Auth for identity
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity.json.identity.id }}"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _bootstrap_token }}"
+        body_format: json
+        body:
+          identityId: "{{ _identity.json.identity.id }}"
+          accessTokenTrustedIps:
+            - ipAddress: "0.0.0.0/0"
+            - ipAddress: "::/0"
+          accessTokenTTL: 7200
+          accessTokenMaxTTL: 43200
+        status_code: [200, 201]
+      register: _ua
+      no_log: true
+
+    - name: Create Universal Auth client secret
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity.json.identity.id }}/client-secrets"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _bootstrap_token }}"
+        body_format: json
+        body: {}
+        status_code: [200, 201]
+      register: _client_secret
+      no_log: true
+
+    - name: Write project ID to secrets.yml
+      ansible.builtin.lineinfile:
+        path: "{{ playbook_dir }}/secrets.yml"
+        regexp: '^infisical_project_id:'
+        line: 'infisical_project_id: "{{ _project_id }}"'
+        create: true
+
+    - name: Write client ID to secrets.yml
+      ansible.builtin.lineinfile:
+        path: "{{ playbook_dir }}/secrets.yml"
+        regexp: '^infisical_client_id:'
+        line: 'infisical_client_id: "{{ _ua.json.identityUniversalAuth.clientId }}"'
+        create: true
+
+    - name: Write client secret to secrets.yml
+      ansible.builtin.lineinfile:
+        path: "{{ playbook_dir }}/secrets.yml"
+        regexp: '^infisical_client_secret:'
+        line: 'infisical_client_secret: "{{ _client_secret.json.clientSecret }}"'
+        create: true
+      no_log: true
+
+    - name: Report machine identity created
+      ansible.builtin.debug:
+        msg: >
+          Infisical machine identity 'machamp-services' created.
+          Project ID, client ID, and client secret written to ansible/secrets.yml.
+
 # ── Phase 3: Seed PIA credentials from Vaultwarden ───────────────────────────
 #
 # Reads PIA_USERNAME and PIA_PASSWORD from the Vaultwarden service account on
