@@ -367,7 +367,9 @@
 
 - name: Wait for Vaultwarden to accept HTTP connections (after admin token restart)
   ansible.builtin.shell: |
-    vw_ip=$(docker inspect vaultwarden --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{break}}{{end}}')
+    vw_ip=$(docker inspect vaultwarden | python3 -c \
+      "import json,sys; nets=json.load(sys.stdin)[0]['NetworkSettings']['Networks']; \
+       print(next(iter(nets.values()))['IPAddress'])")
     curl -sf "http://$vw_ip/alive"
   become: true
   register: _vw_alive
@@ -478,8 +480,9 @@
   ansible.builtin.shell: |
     set -e
     source /etc/homelab.env
-    vw_ip=$(docker inspect vaultwarden \
-      --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{break}}{{end}}')
+    vw_ip=$(docker inspect vaultwarden | python3 -c \
+      "import json,sys; nets=json.load(sys.stdin)[0]['NetworkSettings']['Networks']; \
+       print(next(iter(nets.values()))['IPAddress'])")
     VW_EMAIL="$VAULTWARDEN_SVC_EMAIL" \
     VW_PASSWORD="$VAULTWARDEN_SVC_PASSWORD" \
     VW_URL="http://$vw_ip" \
