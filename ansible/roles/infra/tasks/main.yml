@@ -476,16 +476,28 @@
               sys.exit(1)
   become: true
 
+- name: Install python3-cryptography (required by registration script)
+  ansible.builtin.apt:
+    name: python3-cryptography
+    state: present
+  become: true
+
+- name: Resolve Vaultwarden container IP
+  ansible.builtin.shell: |
+    docker inspect vaultwarden | python3 -c \
+      "import json,sys; nets=json.load(sys.stdin)[0]['NetworkSettings']['Networks']; \
+       print(next(iter(nets.values()))['IPAddress'])"
+  register: _vw_container_ip
+  changed_when: false
+  become: true
+
 - name: Register Vaultwarden service account (idempotent)
   ansible.builtin.shell: |
     set -e
     source /etc/homelab.env
-    vw_ip=$(docker inspect vaultwarden | python3 -c \
-      "import json,sys; nets=json.load(sys.stdin)[0]['NetworkSettings']['Networks']; \
-       print(next(iter(nets.values()))['IPAddress'])")
     VW_EMAIL="$VAULTWARDEN_SVC_EMAIL" \
     VW_PASSWORD="$VAULTWARDEN_SVC_PASSWORD" \
-    VW_URL="http://$vw_ip" \
+    VW_URL="http://{{ _vw_container_ip.stdout | trim }}" \
     python3 /tmp/vw_register.py
   register: _vw_svc_reg
   changed_when: "'registered' in _vw_svc_reg.stdout"
