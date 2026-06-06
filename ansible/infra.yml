@@ -98,6 +98,69 @@
       when: _bootstrap_api.status in [200, 201]
       no_log: true
 
+    # ── Recovery path: Infisical already bootstrapped, no saved credentials ──
+    # Log in as admin, list orgs, select org → synthesise bootstrap.json so
+    # Phase 2 can still create the machine identity without wiping.
+
+    - name: Check if bootstrap credentials file already exists
+      ansible.builtin.stat:
+        path: /var/lib/infisical/bootstrap.json
+      become: true
+      register: _bootstrap_json_exists
+
+    - name: Login as Infisical admin (recovery path)
+      ansible.builtin.uri:
+        url: "http://localhost:8080/api/v3/auth/login"
+        method: POST
+        body_format: json
+        body:
+          email: "{{ _admin_email }}"
+          password: "{{ _admin_password }}"
+        status_code: 200
+      register: _admin_login
+      no_log: true
+      when: not _bootstrap_json_exists.stat.exists
+
+    - name: List Infisical organizations
+      ansible.builtin.uri:
+        url: "http://localhost:8080/api/v1/organization"
+        headers:
+          Authorization: "Bearer {{ _admin_login.json.accessToken }}"
+        status_code: 200
+      register: _orgs
+      no_log: true
+      when: not _bootstrap_json_exists.stat.exists
+
+    - name: Select Infisical organization to get org-scoped token
+      ansible.builtin.uri:
+        url: "http://localhost:8080/api/v3/auth/select-organization"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _admin_login.json.accessToken }}"
+        body_format: json
+        body:
+          organizationId: "{{ (_orgs.json.organizations | first).id }}"
+        status_code: 200
+      register: _select_org
+      no_log: true
+      when: not _bootstrap_json_exists.stat.exists
+
+    - name: Save synthesised bootstrap credentials to file
+      ansible.builtin.copy:
+        content: >-
+          {{ {
+            "organization": {"id": (_orgs.json.organizations | first).id},
+            "identity": {"credentials": {"token": _select_org.json.token}},
+            "user": {"id": "", "email": _admin_email}
+          } | to_json }}
+        dest: /var/lib/infisical/bootstrap.json
+        mode: "0600"
+        owner: root
+        group: root
+      become: true
+      no_log: true
+      when: not _bootstrap_json_exists.stat.exists
+
 # ── Phase 2: Create machamp-services machine identity in Infisical ───────────
 #
 # Uses the bootstrap token from Phase 1 to create a project, machine identity,
