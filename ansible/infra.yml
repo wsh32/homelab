@@ -125,29 +125,44 @@
           import json, re, sys
           with open('/var/lib/infisical/bootstrap-raw.txt') as f:
               content = f.read()
+          preview = content[:300].replace('\n', ' ')
           m = re.search(r'\{[\s\S]+\}', content)
           if not m:
-              sys.exit('ERROR: no JSON object found in bootstrap-raw.txt')
-          data = json.loads(m.group(0))
+              sys.exit('ERROR: no JSON object found in bootstrap-raw.txt. '
+                       'File content preview: ' + preview)
+          try:
+              data = json.loads(m.group(0))
+          except json.JSONDecodeError as e:
+              sys.exit('ERROR: JSON parse failed: ' + str(e) + '. Preview: ' + preview)
           if 'identity' not in data or 'organization' not in data:
-              sys.exit('ERROR: bootstrap JSON missing identity or organization key')
-          print(json.dumps(data))
+              sys.exit('ERROR: bootstrap JSON missing expected keys. '
+                       'Got keys: ' + str(list(data.keys())))
+          with open('/var/lib/infisical/bootstrap.json', 'w') as f:
+              json.dump(data, f)
+          print('ok')
       delegate_to: machamp-infra
       become: true
 
-    - name: Extract bootstrap JSON from file on machamp-infra
+    - name: Extract bootstrap JSON to /var/lib/infisical/bootstrap.json
       ansible.builtin.command:
         cmd: python3 /tmp/extract_bootstrap_json.py
       delegate_to: machamp-infra
       become: true
-      register: _bootstrap_json
+      register: _bootstrap_extract
+
+    - name: Read bootstrap JSON from file
+      ansible.builtin.slurp:
+        src: /var/lib/infisical/bootstrap.json
+      delegate_to: machamp-infra
+      become: true
+      register: _bootstrap_raw
       no_log: true
 
     - name: Set Infisical host, bootstrap token, and org ID
       ansible.builtin.set_fact:
         _infisical_host: "{{ infisical_host | default('http://192.168.0.32:8080') }}"
-        _bootstrap_token: "{{ (_bootstrap_json.stdout | from_json).identity.credentials.token }}"
-        _org_id: "{{ (_bootstrap_json.stdout | from_json).organization.id }}"
+        _bootstrap_token: "{{ (_bootstrap_raw.content | b64decode | from_json).identity.credentials.token }}"
+        _org_id: "{{ (_bootstrap_raw.content | b64decode | from_json).organization.id }}"
       no_log: true
 
     - name: Create machamp-services project in Infisical
