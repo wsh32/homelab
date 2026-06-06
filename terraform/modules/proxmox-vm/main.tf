@@ -27,7 +27,10 @@ resource "proxmox_virtual_environment_file" "user_data" {
       extra_runcmd       = var.extra_runcmd
     })
   }
-}
+
+  lifecycle {
+    ignore_changes = [source_raw]
+  }
 
 resource "proxmox_virtual_environment_vm" "vm" {
   node_name   = var.node_name
