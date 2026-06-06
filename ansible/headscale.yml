@@ -82,6 +82,27 @@
         enabled: true
       become: true
 
+    - name: Look up existing headscale node by hostname
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale nodes list --output json
+      register: _nodes_list
+      become: true
+      delegate_to: diglett-dns
+
+    - name: Delete existing headscale node for this host
+      community.docker.docker_container_exec:
+        container: headscale
+        command: "headscale nodes delete --identifier {{ item }} --force"
+      loop: >-
+        {{
+          _nodes_list.stdout | from_json
+          | selectattr('givenName', 'equalto', inventory_hostname)
+          | map(attribute='id') | list
+        }}
+      become: true
+      delegate_to: diglett-dns
+
     - name: Join tailscale network
       ansible.builtin.command: >-
         tailscale up
