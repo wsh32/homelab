@@ -1,6 +1,8 @@
 ---
 # Ensure every managed host is joined to the Headscale network.
-# Idempotent: skips hosts that are already connected.
+# Always re-asserts the correct tailnet — handles rotated keys and
+# nodes removed from headscale. --force-reauth is required because
+# headscale does not support the interactive OAuth fallback.
 #
 # Requires ansible/secrets.yml to exist (written by dns.yml).
 # Run dns.yml first if secrets.yml is missing.
@@ -46,17 +48,6 @@
         enabled: true
       become: true
 
-    - name: Check tailscale connection status
-      ansible.builtin.command: tailscale status --json
-      register: _ts_status
-      changed_when: false
-      failed_when: false
-      become: true
-
-    - name: Parse tailscale backend state
-      ansible.builtin.set_fact:
-        _ts_connected: "{{ (_ts_status.stdout | default('{}') | from_json).get('BackendState', '') == 'Running' }}"
-
     - name: Join tailscale network
       ansible.builtin.command: >-
         tailscale up
@@ -64,6 +55,6 @@
         --auth-key={{ headscale_preauth_key }}
         --accept-routes
         --hostname={{ inventory_hostname }}
+        --force-reauth
       become: true
       no_log: true
-      when: not _ts_connected
