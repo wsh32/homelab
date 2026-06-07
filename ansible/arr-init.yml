@@ -726,9 +726,38 @@
         status_code: 201
       when: sonarr_dlclients_check.json | selectattr('name', 'equalto', 'qBittorrent') | list | length == 0
 
-    # ── Block 9: Jellyseerr initialization ──────────────────────────────────
-    # Uses session cookie from auth response so jellyseerr_api_key isn't
-    # needed during init. The real API key is retrieved after init and stored.
+    # ── Block 9: Jellyseerr configuration ──────────────────────────────────
+    # Jellyseerr's setup endpoint (POST /api/v1/auth/jellyfin) calls
+    # GET /Users on Jellyfin without a token. After wizard completion,
+    # Jellyfin requires auth for that endpoint — making headless init
+    # impossible via the standard flow.
+    #
+    # One-time manual step (run once after first deploy):
+    #   1. Open http://machamp-services:5055
+    #   2. Jellyfin server: hostname=jellyfin, port=8096, SSL=off
+    #   3. Sign in: admin / <JELLYFIN_ADMIN_PASSWORD from homelab.env>
+    #
+    # After that one-time login, all subsequent arr-init.yml runs
+    # configure Jellyseerr automatically using the API key from settings.json.
+
+    - name: Read Jellyseerr API key from settings.json
+      ansible.builtin.shell: |
+        python3 -c "
+        import json, sys
+        try:
+            d = json.load(open('/mnt/nas/docker/jellyseerr/settings.json'))
+            k = d.get('main', {}).get('apiKey', '') or d.get('apiKey', '')
+            print(k)
+        except Exception:
+            print('')
+        "
+      register: _jellyseerr_settings_raw
+      changed_when: false
+
+    - name: Override Jellyseerr API key with value from settings.json
+      ansible.builtin.set_fact:
+        jellyseerr_api_key: "{{ _jellyseerr_settings_raw.stdout | trim }}"
+      when: (_jellyseerr_settings_raw.stdout | trim) != ''
 
     - name: Check Jellyseerr initialization status
       ansible.builtin.uri:
@@ -736,42 +765,7 @@
         status_code: 200
         return_content: true
       register: jellyseerr_public
-
-    - name: Initialize Jellyseerr with Jellyfin
-      ansible.builtin.uri:
-        url: "{{ jellyseerr_url }}/api/v1/auth/jellyfin"
-        method: POST
-        body_format: json
-        body:
-          hostname: jellyfin
-          port: 8096
-          useSsl: false
-          urlBase: ""
-          username: admin
-          password: "{{ jellyfin_admin_password }}"
-        status_code: 200
-        return_content: true
-      register: jellyseerr_auth
-      when: not (jellyseerr_public.json.initialized | default(false))
-
-    # Retrieve the Jellyseerr API key via session cookie from the auth response
-    - name: Retrieve Jellyseerr API key from settings
-      ansible.builtin.uri:
-        url: "{{ jellyseerr_url }}/api/v1/settings/main"
-        headers:
-          Cookie: "{{ (jellyseerr_auth.set_cookie | default('')).split(';')[0] }}"
-        status_code: 200
-        return_content: true
-      register: _jellyseerr_settings
-      when: not (jellyseerr_public.json.initialized | default(false)) and jellyseerr_auth is not skipped
-
-    - name: Set Jellyseerr API key from settings response
-      ansible.builtin.set_fact:
-        jellyseerr_api_key: "{{ _jellyseerr_settings.json.apiKey }}"
-      when: >
-        not (jellyseerr_public.json.initialized | default(false))
-        and _jellyseerr_settings is not skipped
-        and _jellyseerr_settings.json.apiKey is defined
+      when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
 
     - name: Configure Jellyseerr Jellyfin server settings
       ansible.builtin.uri:
@@ -787,7 +781,20 @@
           urlBase: ""
           externalHostname: "https://jellyfin.wsh"
         status_code: 200
-      when: not (jellyseerr_public.json.initialized | default(false))
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and (jellyseerr_public.json.initialized | default(false))
+
+    - name: Get existing Radarr instances in Jellyseerr
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/settings/radarr"
+        headers:
+          X-Api-Key: "{{ jellyseerr_api_key }}"
+        return_content: true
+      register: jellyseerr_radarr_list
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and (jellyseerr_public.json.initialized | default(false))
 
     - name: Add Radarr to Jellyseerr
       ansible.builtin.uri:
@@ -809,7 +816,22 @@
           isDefault: true
           externalUrl: "https://radarr.wsh"
         status_code: 201
-      when: not (jellyseerr_public.json.initialized | default(false))
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and (jellyseerr_public.json.initialized | default(false))
+        and jellyseerr_radarr_list is not skipped
+        and (jellyseerr_radarr_list.json | selectattr('name', 'equalto', 'Radarr') | list | length == 0)
+
+    - name: Get existing Sonarr instances in Jellyseerr
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/settings/sonarr"
+        headers:
+          X-Api-Key: "{{ jellyseerr_api_key }}"
+        return_content: true
+      register: jellyseerr_sonarr_list
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and (jellyseerr_public.json.initialized | default(false))
 
     - name: Add Sonarr to Jellyseerr
       ansible.builtin.uri:
@@ -831,7 +853,11 @@
           isDefault: true
           externalUrl: "https://sonarr.wsh"
         status_code: 201
-      when: not (jellyseerr_public.json.initialized | default(false))
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and (jellyseerr_public.json.initialized | default(false))
+        and jellyseerr_sonarr_list is not skipped
+        and (jellyseerr_sonarr_list.json | selectattr('name', 'equalto', 'Sonarr') | list | length == 0)
 
     - name: Disable local account sign-up in Jellyseerr
       ansible.builtin.uri:
@@ -843,8 +869,10 @@
         body:
           localLogin: false
         status_code: 200
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and (jellyseerr_public.json.initialized | default(false))
 
-    # Push the Jellyseerr API key to Infisical now that we have it
     - name: Push Jellyseerr API key to Infisical
       ansible.builtin.uri:
         url: "{{ infisical_host }}/api/v3/secrets/raw/JELLYSEERR_API_KEY"
