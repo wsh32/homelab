@@ -941,7 +941,7 @@
           port: 8096
           useSsl: false
           urlBase: ""
-          externalHostname: "https://jellyfin.wsh"
+          externalHostname: "http://jellyfin.home"
         status_code: 200
       when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
 
