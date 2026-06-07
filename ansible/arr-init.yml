@@ -805,49 +805,52 @@
         and _jellyfin_auth_for_jellyseerr is not skipped
 
     - name: Write Jellyfin admin user into Jellyseerr database
+      become: true
       ansible.builtin.shell: |
-        python3 - <<PYEOF
-        import json, sqlite3, sys
-        jellyfin_user_id    = "{{ _jellyfin_auth_for_jellyseerr.json.User.Id }}"
-        jellyfin_auth_token = "{{ _jellyfin_auth_for_jellyseerr.json.AccessToken }}"
-        client_id           = "{{ _jellyseerr_client_id | default('jellyseerr') }}"
-        db_path             = "/mnt/nas/docker/jellyseerr/db/db.sqlite3"
+        DB_UID=$(stat -c '%u' /mnt/nas/docker/jellyseerr/db/db.sqlite3 2>/dev/null || echo 1000)
+        DB_GID=$(stat -c '%g' /mnt/nas/docker/jellyseerr/db/db.sqlite3 2>/dev/null || echo 1000)
+        docker run --rm \
+          --user "${DB_UID}:${DB_GID}" \
+          -v /mnt/nas/docker/jellyseerr:/app/config \
+          -e JF_UID='{{ _jellyfin_auth_for_jellyseerr.json.User.Id }}' \
+          -e JF_TOKEN='{{ _jellyfin_auth_for_jellyseerr.json.AccessToken }}' \
+          -e JF_CLIENT='{{ _jellyseerr_client_id | default("jellyseerr") }}' \
+          python:3-alpine python3 - << 'PYEOF'
+        import json, os, sqlite3, sys
+        jf_uid    = os.environ['JF_UID']
+        jf_token  = os.environ['JF_TOKEN']
+        jf_client = os.environ['JF_CLIENT']
+        db_path   = '/app/config/db/db.sqlite3'
         try:
-            conn   = sqlite3.connect(db_path)
+            conn   = sqlite3.connect(db_path, timeout=30)
             cursor = conn.cursor()
-            cursor.execute("SELECT id FROM user WHERE jellyfinUserId = ?", (jellyfin_user_id,))
+            cursor.execute('SELECT id FROM user WHERE jellyfinUserId = ?', (jf_uid,))
             if cursor.fetchone():
-                print("Jellyseerr admin user already exists")
+                print('Jellyseerr admin user already exists')
                 conn.close()
                 sys.exit(0)
-            cursor.execute("PRAGMA table_info(user)")
+            cursor.execute('PRAGMA table_info(user)')
             cols = {row[1] for row in cursor.fetchall()}
-            fields = {"jellyfinUserId": jellyfin_user_id, "jellyfinUsername": "admin",
-                      "jellyfinAuthToken": jellyfin_auth_token, "jellyfinDeviceId": client_id,
-                      "permissions": 2, "createdAt": "datetime('now')", "updatedAt": "datetime('now')"}
-            if "requestCount" in cols:
-                fields["requestCount"] = 0
-            col_names = ", ".join(fields.keys())
-            placeholders = ", ".join(
-                v if isinstance(v, str) and v.startswith("datetime(") else "?"
-                for v in fields.values()
-            )
-            values = [v for v in fields.values()
-                      if not (isinstance(v, str) and v.startswith("datetime("))]
-            cursor.execute(f"INSERT INTO user ({col_names}) VALUES ({placeholders})", values)
+            fields = {'jellyfinUserId': jf_uid, 'jellyfinUsername': 'admin',
+                      'jellyfinAuthToken': jf_token, 'jellyfinDeviceId': jf_client,
+                      'permissions': 2}
+            if 'requestCount' in cols:
+                fields['requestCount'] = 0
+            col_names   = ', '.join(fields.keys()) + ", createdAt, updatedAt"
+            placeholders = ', '.join(['?'] * len(fields)) + ", datetime('now'), datetime('now')"
+            cursor.execute(f'INSERT INTO user ({col_names}) VALUES ({placeholders})', list(fields.values()))
             conn.commit()
             conn.close()
-            print("Created Jellyseerr admin user in DB")
+            print('Created Jellyseerr admin user in DB')
         except Exception as e:
-            print("DB error: " + str(e), file=sys.stderr)
+            print('DB error: ' + str(e), file=sys.stderr)
             sys.exit(1)
-        settings_path = "/mnt/nas/docker/jellyseerr/settings.json"
-        with open(settings_path) as f:
+        with open('/app/config/settings.json') as f:
             settings = json.load(f)
-        settings.setdefault("main", {})["initialized"] = True
-        with open(settings_path, "w") as f:
+        settings.setdefault('main', {})['initialized'] = True
+        with open('/app/config/settings.json', 'w') as f:
             json.dump(settings, f, indent=2)
-        print("Marked Jellyseerr as initialized")
+        print('Marked Jellyseerr as initialized')
         PYEOF
       when: >
         jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
