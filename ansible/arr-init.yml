@@ -804,57 +804,75 @@
         and not (jellyseerr_public.json.initialized | default(false))
         and _jellyfin_auth_for_jellyseerr is not skipped
 
+    - name: Write Jellyseerr DB init script to temp file
+      ansible.builtin.copy:
+        dest: /tmp/jellyseerr-db-init.py
+        mode: "0644"
+        content: |
+          import json, os, sqlite3, sys
+          jf_uid    = os.environ['JF_UID']
+          jf_token  = os.environ['JF_TOKEN']
+          jf_client = os.environ['JF_CLIENT']
+          db_path   = '/app/config/db/db.sqlite3'
+          try:
+              conn   = sqlite3.connect(db_path, timeout=30)
+              cursor = conn.cursor()
+              cursor.execute('PRAGMA table_info(user)')
+              cols = {row[1] for row in cursor.fetchall()}
+              fields = {'id': 1, 'jellyfinUserId': jf_uid, 'jellyfinUsername': 'admin',
+                        'jellyfinAuthToken': jf_token, 'jellyfinDeviceId': jf_client,
+                        'permissions': 2}
+              if 'requestCount' in cols:
+                  fields['requestCount'] = 0
+              col_names    = ', '.join(fields.keys()) + ', createdAt, updatedAt'
+              placeholders = ', '.join(['?'] * len(fields)) + ", datetime('now'), datetime('now')"
+              cursor.execute(
+                  'INSERT OR REPLACE INTO user (' + col_names + ') VALUES (' + placeholders + ')',
+                  list(fields.values()))
+              conn.commit()
+              conn.close()
+              print('Upserted Jellyseerr admin user at id=1')
+          except Exception as e:
+              print('DB error: ' + str(e), file=sys.stderr)
+              sys.exit(1)
+          with open('/app/config/settings.json') as f:
+              settings = json.load(f)
+          settings.setdefault('main', {})['initialized'] = True
+          with open('/app/config/settings.json', 'w') as f:
+              json.dump(settings, f, indent=2)
+          print('Marked Jellyseerr as initialized')
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and not (jellyseerr_public.json.initialized | default(false))
+        and _jellyfin_auth_for_jellyseerr is not skipped
+
+    - name: Get Jellyseerr DB file owner for docker run
+      ansible.builtin.stat:
+        path: /mnt/nas/docker/jellyseerr/db/db.sqlite3
+      register: _jellyseerr_db_stat
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and not (jellyseerr_public.json.initialized | default(false))
+        and _jellyfin_auth_for_jellyseerr is not skipped
+
     - name: Write Jellyfin admin user into Jellyseerr database
       become: true
-      ansible.builtin.shell: |
-        DB_UID=$(stat -c '%u' /mnt/nas/docker/jellyseerr/db/db.sqlite3 2>/dev/null || echo 1000)
-        DB_GID=$(stat -c '%g' /mnt/nas/docker/jellyseerr/db/db.sqlite3 2>/dev/null || echo 1000)
-        docker run --rm \
-          --user "${DB_UID}:${DB_GID}" \
-          -v /mnt/nas/docker/jellyseerr:/app/config \
-          -e JF_UID='{{ _jellyfin_auth_for_jellyseerr.json.User.Id }}' \
-          -e JF_TOKEN='{{ _jellyfin_auth_for_jellyseerr.json.AccessToken }}' \
-          -e JF_CLIENT='{{ _jellyseerr_client_id | default("jellyseerr") }}' \
-          python:3-alpine python3 - << 'PYEOF'
-        import json, os, sqlite3, sys
-        jf_uid    = os.environ['JF_UID']
-        jf_token  = os.environ['JF_TOKEN']
-        jf_client = os.environ['JF_CLIENT']
-        db_path   = '/app/config/db/db.sqlite3'
-        try:
-            conn   = sqlite3.connect(db_path, timeout=30)
-            cursor = conn.cursor()
-            # Jellyseerr's API key auth does: User.findOne({ where: { id: 1 } })
-            # so the admin user MUST have id=1 or the API key returns 403.
-            cursor.execute('PRAGMA table_info(user)')
-            cols = {row[1] for row in cursor.fetchall()}
-            fields = {'id': 1, 'jellyfinUserId': jf_uid, 'jellyfinUsername': 'admin',
-                      'jellyfinAuthToken': jf_token, 'jellyfinDeviceId': jf_client,
-                      'permissions': 2}
-            if 'requestCount' in cols:
-                fields['requestCount'] = 0
-            col_names    = ', '.join(fields.keys()) + ", createdAt, updatedAt"
-            placeholders = ', '.join(['?'] * len(fields)) + ", datetime('now'), datetime('now')"
-            # INSERT OR REPLACE: idempotent — replaces any existing row with id=1
-            cursor.execute(f'INSERT OR REPLACE INTO user ({col_names}) VALUES ({placeholders})', list(fields.values()))
-            conn.commit()
-            conn.close()
-            print('Upserted Jellyseerr admin user at id=1')
-        except Exception as e:
-            print('DB error: ' + str(e), file=sys.stderr)
-            sys.exit(1)
-        with open('/app/config/settings.json') as f:
-            settings = json.load(f)
-        settings.setdefault('main', {})['initialized'] = True
-        with open('/app/config/settings.json', 'w') as f:
-            json.dump(settings, f, indent=2)
-        print('Marked Jellyseerr as initialized')
-        PYEOF
+      ansible.builtin.shell:
+        cmd: >-
+          docker run --rm
+          --user "{{ _jellyseerr_db_stat.stat.uid }}:{{ _jellyseerr_db_stat.stat.gid }}"
+          -v /mnt/nas/docker/jellyseerr:/app/config
+          -v /tmp/jellyseerr-db-init.py:/init.py:ro
+          -e "JF_UID={{ _jellyfin_auth_for_jellyseerr.json.User.Id }}"
+          -e "JF_TOKEN={{ _jellyfin_auth_for_jellyseerr.json.AccessToken }}"
+          -e "JF_CLIENT={{ _jellyseerr_client_id | default('jellyseerr') }}"
+          python:3-alpine python3 /init.py
       when: >
         jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
         and not (jellyseerr_public.json.initialized | default(false))
         and _jellyfin_auth_for_jellyseerr is not skipped
         and _jellyfin_auth_for_jellyseerr.json.User.Id is defined
+        and _jellyseerr_db_stat is not skipped
       changed_when: true
       no_log: true
 
