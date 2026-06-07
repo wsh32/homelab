@@ -120,7 +120,7 @@
       printf "AUTHENTIK_DB_PASSWORD=%s\n"      "$(openssl rand -hex 16)"  >> "$tmp"
       printf "AUTHENTIK_SECRET_KEY=%s\n"       "$(openssl rand -hex 32)"  >> "$tmp"
       printf "AUTHENTIK_BOOTSTRAP_PASSWORD=%s\n" "$(openssl rand -hex 16)" >> "$tmp"
-      printf "AUTHENTIK_BOOTSTRAP_EMAIL=%s\n"  "akadmin@homelab.local"    >> "$tmp"
+      printf "AUTHENTIK_BOOTSTRAP_EMAIL=%s\n"  "admin@team.rocket"        >> "$tmp"
       printf "AUTHENTIK_BOOTSTRAP_TOKEN=%s\n"  "$(openssl rand -hex 32)"  >> "$tmp"
       chmod 600 "$tmp"
       cp "$tmp" "$nfs_secrets"

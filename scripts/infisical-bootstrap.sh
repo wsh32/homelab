@@ -11,7 +11,7 @@
 set -euo pipefail
 
 INFISICAL_HOST="${INFISICAL_HOST:-http://192.168.0.32:8080}"
-ADMIN_EMAIL="${INFISICAL_ADMIN_EMAIL:-admin@homelab.local}"
+ADMIN_EMAIL="${INFISICAL_ADMIN_EMAIL:-admin@team.rocket}"
 ADMIN_PASSWORD="${INFISICAL_ADMIN_PASSWORD:-}"
 
 if [[ -z "$ADMIN_PASSWORD" ]]; then

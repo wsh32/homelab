@@ -28,7 +28,7 @@ token returned on first run. No manual Infisical UI steps needed.
 PIA credentials can be seeded in two ways:
 
 **Option A — Automatic from Vaultwarden** (recommended): The infra role creates a
-Vaultwarden service account (`infra-svc@homelab.local`) automatically. After running
+Vaultwarden service account (`infra@team.rocket`) automatically. After running
 `ansible-playbook ansible/infra.yml`:
 1. Log into Vaultwarden at `https://vault.home` as `infra@team.rocket`
    (password is in `/etc/homelab.env` on `machamp-infra` as `VAULTWARDEN_SVC_PASSWORD`)

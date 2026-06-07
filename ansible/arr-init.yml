@@ -819,7 +819,7 @@
               cursor = conn.cursor()
               cursor.execute('PRAGMA table_info(user)')
               cols = {row[1] for row in cursor.fetchall()}
-              fields = {'id': 1, 'email': 'admin@localhost', 'jellyfinUserId': jf_uid,
+              fields = {'id': 1, 'email': 'admin@team.rocket', 'jellyfinUserId': jf_uid,
                         'jellyfinUsername': 'admin', 'jellyfinAuthToken': jf_token,
                         'jellyfinDeviceId': jf_client, 'permissions': 2}
               if 'requestCount' in cols:

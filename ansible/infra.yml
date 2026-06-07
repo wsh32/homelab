@@ -49,7 +49,7 @@
 
     - name: Resolve credentials into facts
       ansible.builtin.set_fact:
-        _admin_email: "{{ infisical_admin_email | default('admin@homelab.local') }}"
+        _admin_email: "{{ infisical_admin_email | default('admin@team.rocket') }}"
         _admin_password: "{{ infisical_admin_password | default(lookup('env', 'INFISICAL_ADMIN_PASSWORD')) }}"
 
     - name: Fail if no admin password available
@@ -397,7 +397,7 @@
 # Requires:
 #   - infra role to have run (service account created, bw snap installed)
 #   - Operator to have added a login item named "PIA VPN" to the service
-#     account's vault (infra-svc@homelab.local)
+#     account's vault (infra@team.rocket)
 #   - pia_vault_item in secrets.yml if the item name differs from "PIA VPN"
 #
 # Skipped automatically if PIA_USERNAME is already populated in Infisical.

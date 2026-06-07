@@ -182,7 +182,7 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
     install and NFS mounts. VMs do not yet have Infisical credentials.
 12. **`INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`** — deploys the
     machamp-infra stack (Infisical, Vaultwarden, Authentik, PostgreSQL x2, Redis x2, Litestream) and bootstraps
-    Infisical on first run (admin user `admin@homelab.local`, org, workspace). Outputs
+    Infisical on first run (admin user `admin@team.rocket`, org, workspace). Outputs
     `workspace_id`, `client_id`, `client_secret` — add these to `terraform.tfvars`. Idempotent
     on re-run (bootstrap skipped after first successful run).
 13. **`ansible-playbook ansible/site.yml`** — brings up all services. Each service role
@@ -360,7 +360,7 @@ a valid config on startup and skips the wizard entirely.
 Bootstrapped via `infisical bootstrap` CLI (requires Infisical CLI ≥ 0.28) after first start.
 
 - Playbook: `ansible/infra.yml` (Bootstrap Infisical play)
-- Creates: admin user (`admin@homelab.local`), organization, workspace
+- Creates: admin user (`admin@team.rocket`), organization, workspace
 - Idempotent: `--ignore-if-bootstrapped` flag makes re-runs a no-op
 - Run: `INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`
 
