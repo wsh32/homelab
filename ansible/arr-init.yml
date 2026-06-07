@@ -464,7 +464,7 @@
         method: POST
         body_format: json
         body:
-          ServerName: Machamp
+          ServerName: TeamRocket
           UICulture: en-US
           MetadataCountryCode: US
           PreferredMetadataLanguage: en
