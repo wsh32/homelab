@@ -490,7 +490,7 @@
       changed_when: false
 
     - name: Configure bw server to vault.home on machamp-infra
-      ansible.builtin.command: bw config server https://vault.home
+      ansible.builtin.command: bw config server http://vault.home
       delegate_to: machamp-infra
       environment:
         NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
