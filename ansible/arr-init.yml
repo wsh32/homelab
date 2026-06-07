@@ -851,9 +851,18 @@
           with open('/app/config/settings.json') as f:
               settings = json.load(f)
           settings.setdefault('main', {})['initialized'] = True
+          settings['jellyfin'] = {
+              'hostname': 'jellyfin',
+              'port': 8096,
+              'useSsl': False,
+              'urlBase': '',
+              'externalHostname': '',
+              'serverId': '',
+              'serverName': 'TeamRocket',
+          }
           with open('/app/config/settings.json', 'w') as f:
               json.dump(settings, f, indent=2)
-          print('Marked Jellyseerr as initialized')
+          print('Marked Jellyseerr as initialized with Jellyfin config')
       when: >
         jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
         and not (jellyseerr_public.json.initialized | default(false))
@@ -928,21 +937,6 @@
       ansible.builtin.set_fact:
         jellyseerr_api_key: "{{ _jellyseerr_key_refreshed.stdout | trim }}"
       when: (_jellyseerr_key_refreshed.stdout | trim) != ''
-
-    - name: Configure Jellyseerr Jellyfin server settings
-      ansible.builtin.uri:
-        url: "{{ jellyseerr_url }}/api/v1/settings/jellyfin"
-        method: POST
-        headers:
-          X-Api-Key: "{{ jellyseerr_api_key }}"
-        body_format: json
-        body:
-          hostname: jellyfin
-          port: 8096
-          useSsl: false
-          urlBase: ""
-        status_code: 200
-      when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
 
     - name: Get existing Radarr instances in Jellyseerr
       ansible.builtin.uri:
