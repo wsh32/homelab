@@ -464,12 +464,14 @@
       ansible.builtin.set_fact:
         _vw_svc_email: >-
           {{ (_homelab_env_raw.content | b64decode)
-             | regex_search('(?m)^VAULTWARDEN_SVC_EMAIL=(.+)', '\\1')
-             | default([]) | first | default('') }}
+             | regex_search('(?m)^VAULTWARDEN_SVC_EMAIL=.+')
+             | default('')
+             | regex_replace('^VAULTWARDEN_SVC_EMAIL=', '') }}
         _vw_svc_password: >-
           {{ (_homelab_env_raw.content | b64decode)
-             | regex_search('(?m)^VAULTWARDEN_SVC_PASSWORD=(.+)', '\\1')
-             | default([]) | first | default('') }}
+             | regex_search('(?m)^VAULTWARDEN_SVC_PASSWORD=.+')
+             | default('')
+             | regex_replace('^VAULTWARDEN_SVC_PASSWORD=', '') }}
       no_log: true
 
     - name: Fail if service account credentials not found in homelab.env
