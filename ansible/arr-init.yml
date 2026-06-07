@@ -50,6 +50,18 @@
       vars:
         _inf: "{{ _infisical_env_raw.content | b64decode }}"
 
+    - name: Get Infisical access token via Universal Auth
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v1/auth/universal-auth/login"
+        method: POST
+        body_format: json
+        body:
+          clientId: "{{ _inf_client_id }}"
+          clientSecret: "{{ _inf_client_secret }}"
+        status_code: 200
+      register: _inf_token
+      no_log: true
+
     # ── Load current secrets (default '' for keys not yet in Infisical) ──────
 
     - name: Load secrets from /etc/homelab.env
@@ -92,48 +104,62 @@
         jellyseerr_api_key: "placeholder"
       when: _jellyseerr_key_new
 
-    - name: Push generated secrets to Infisical
-      ansible.builtin.shell:
-        cmd: |
-          infisical secrets set \
-            {% if _jellyfin_password_new %}"JELLYFIN_ADMIN_PASSWORD={{ jellyfin_admin_password }}" {% endif %}\
-            {% if _bazarr_key_new %}"BAZARR_API_KEY={{ bazarr_api_key }}" {% endif %}\
-            --projectId "{{ _inf_project_id }}" \
-            --env "{{ _inf_environment }}" \
-            --domain "{{ infisical_host }}"
-        executable: /bin/bash
-      environment:
-        INFISICAL_CLIENT_ID: "{{ _inf_client_id }}"
-        INFISICAL_CLIENT_SECRET: "{{ _inf_client_secret }}"
-      become: true
-      when: _jellyfin_password_new or _bazarr_key_new
-      changed_when: true
+    - name: Push Jellyfin admin password to Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/JELLYFIN_ADMIN_PASSWORD"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ jellyfin_admin_password }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
+      when: _jellyfin_password_new
 
-    - name: Re-export /etc/homelab.env after generating keys
-      ansible.builtin.shell:
-        cmd: |
-          infisical export \
-            --format dotenv \
-            --projectId "{{ _inf_project_id }}" \
-            --env "{{ _inf_environment }}" \
-            --domain "{{ infisical_host }}"
-        executable: /bin/bash
-      environment:
-        INFISICAL_CLIENT_ID: "{{ _inf_client_id }}"
-        INFISICAL_CLIENT_SECRET: "{{ _inf_client_secret }}"
-      register: _homelab_env_refresh
-      become: true
-      when: _jellyfin_password_new or _bazarr_key_new
-      changed_when: true
+    - name: Push Bazarr API key to Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/BAZARR_API_KEY"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ bazarr_api_key }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
+      when: _bazarr_key_new
 
-    - name: Write refreshed /etc/homelab.env
+    - name: Fetch all secrets from Infisical after generating keys
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        status_code: 200
+      register: _infisical_refreshed
+      no_log: true
+      when: _jellyfin_password_new or _bazarr_key_new
+
+    - name: Write refreshed /etc/homelab.env after generating keys
       ansible.builtin.copy:
         dest: /etc/homelab.env
-        content: "{{ _homelab_env_refresh.stdout }}\n"
         mode: "0600"
         owner: root
         group: root
+        content: |
+          {% for s in _infisical_refreshed.json.secrets %}
+          {{ s.secretKey }}={{ s.secretValue }}
+          {% endfor %}
       become: true
+      no_log: true
       when: _jellyfin_password_new or _bazarr_key_new
 
   tasks:
@@ -316,49 +342,79 @@
         prowlarr_api_key: "{{ _prowlarr_key_file.stdout | trim }}"
       when: _prowlarr_key_new and (_prowlarr_key_file.stdout | default('') | trim) != ''
 
-    - name: Push harvested arr API keys to Infisical
-      ansible.builtin.shell:
-        cmd: |
-          infisical secrets set \
-            {% if _radarr_key_new %}"RADARR_API_KEY={{ radarr_api_key }}" {% endif %}\
-            {% if _sonarr_key_new %}"SONARR_API_KEY={{ sonarr_api_key }}" {% endif %}\
-            {% if _prowlarr_key_new %}"PROWLARR_API_KEY={{ prowlarr_api_key }}" {% endif %}\
-            --projectId "{{ _inf_project_id }}" \
-            --env "{{ _inf_environment }}" \
-            --domain "{{ infisical_host }}"
-        executable: /bin/bash
-      environment:
-        INFISICAL_CLIENT_ID: "{{ _inf_client_id }}"
-        INFISICAL_CLIENT_SECRET: "{{ _inf_client_secret }}"
-      become: true
-      when: _radarr_key_new or _sonarr_key_new or _prowlarr_key_new
-      changed_when: true
+    - name: Push Radarr API key to Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/RADARR_API_KEY"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ radarr_api_key }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
+      when: _radarr_key_new and radarr_api_key != ''
 
-    - name: Re-export /etc/homelab.env after harvesting arr keys
-      ansible.builtin.shell:
-        cmd: |
-          infisical export \
-            --format dotenv \
-            --projectId "{{ _inf_project_id }}" \
-            --env "{{ _inf_environment }}" \
-            --domain "{{ infisical_host }}"
-        executable: /bin/bash
-      environment:
-        INFISICAL_CLIENT_ID: "{{ _inf_client_id }}"
-        INFISICAL_CLIENT_SECRET: "{{ _inf_client_secret }}"
-      register: _homelab_env_refresh2
-      become: true
-      when: _radarr_key_new or _sonarr_key_new or _prowlarr_key_new
-      changed_when: true
+    - name: Push Sonarr API key to Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/SONARR_API_KEY"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ sonarr_api_key }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
+      when: _sonarr_key_new and sonarr_api_key != ''
 
-    - name: Write refreshed /etc/homelab.env (arr keys)
+    - name: Push Prowlarr API key to Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/PROWLARR_API_KEY"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ prowlarr_api_key }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
+      when: _prowlarr_key_new and prowlarr_api_key != ''
+
+    - name: Fetch all secrets from Infisical after arr key harvest
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        status_code: 200
+      register: _infisical_refreshed2
+      no_log: true
+      when: _radarr_key_new or _sonarr_key_new or _prowlarr_key_new
+
+    - name: Write refreshed /etc/homelab.env after arr key harvest
       ansible.builtin.copy:
         dest: /etc/homelab.env
-        content: "{{ _homelab_env_refresh2.stdout }}\n"
         mode: "0600"
         owner: root
         group: root
+        content: |
+          {% for s in _infisical_refreshed2.json.secrets %}
+          {{ s.secretKey }}={{ s.secretValue }}
+          {% endfor %}
       become: true
+      no_log: true
       when: _radarr_key_new or _sonarr_key_new or _prowlarr_key_new
 
     # ── Block 3: Jellyfin startup wizard ────────────────────────────────────
@@ -755,46 +811,44 @@
 
     # Push the Jellyseerr API key to Infisical now that we have it
     - name: Push Jellyseerr API key to Infisical
-      ansible.builtin.shell:
-        cmd: |
-          infisical secrets set \
-            "JELLYSEERR_API_KEY={{ jellyseerr_api_key }}" \
-            --projectId "{{ _inf_project_id }}" \
-            --env "{{ _inf_environment }}" \
-            --domain "{{ infisical_host }}"
-        executable: /bin/bash
-      environment:
-        INFISICAL_CLIENT_ID: "{{ _inf_client_id }}"
-        INFISICAL_CLIENT_SECRET: "{{ _inf_client_secret }}"
-      become: true
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/JELLYSEERR_API_KEY"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ jellyseerr_api_key }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
       when: _jellyseerr_key_new and jellyseerr_api_key != 'placeholder' and jellyseerr_api_key != ''
-      changed_when: true
 
-    - name: Re-export /etc/homelab.env after Jellyseerr key
-      ansible.builtin.shell:
-        cmd: |
-          infisical export \
-            --format dotenv \
-            --projectId "{{ _inf_project_id }}" \
-            --env "{{ _inf_environment }}" \
-            --domain "{{ infisical_host }}"
-        executable: /bin/bash
-      environment:
-        INFISICAL_CLIENT_ID: "{{ _inf_client_id }}"
-        INFISICAL_CLIENT_SECRET: "{{ _inf_client_secret }}"
-      register: _homelab_env_refresh3
-      become: true
+    - name: Fetch all secrets from Infisical after Jellyseerr key
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        status_code: 200
+      register: _infisical_refreshed3
+      no_log: true
       when: _jellyseerr_key_new and jellyseerr_api_key != 'placeholder' and jellyseerr_api_key != ''
-      changed_when: true
 
     - name: Write final /etc/homelab.env
       ansible.builtin.copy:
         dest: /etc/homelab.env
-        content: "{{ _homelab_env_refresh3.stdout }}\n"
         mode: "0600"
         owner: root
         group: root
+        content: |
+          {% for s in _infisical_refreshed3.json.secrets %}
+          {{ s.secretKey }}={{ s.secretValue }}
+          {% endfor %}
       become: true
+      no_log: true
       when: _jellyseerr_key_new and jellyseerr_api_key != 'placeholder' and jellyseerr_api_key != ''
 
     # ── Block 10: Recyclarr — run one-shot sync ──────────────────────────────
