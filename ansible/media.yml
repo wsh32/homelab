@@ -131,19 +131,29 @@
       when: _infisical_secrets is not skipped
 
     # ── Media subdirectories ────────────────────────────────────────────────────
-    # Docker cannot create NFS bind-mount dirs (root squash). Pre-create them as
-    # the ansible user who has write access.
+    # Dirs must exist before compose up — Docker cannot create NFS bind-mount
+    # paths (root_squash + ZFS NFSv4 ACLs). Create them on Alakazam directly:
+    #   mkdir -p /mnt/pool/media/{books,movies,tv,downloads/complete}
+    # This task only verifies they are present; it does not attempt to chmod
+    # (which also fails through NFS against ZFS ACLs).
 
-    - name: Create required media subdirectories on NFS
-      ansible.builtin.file:
+    - name: Verify required media subdirectories exist on NFS
+      ansible.builtin.stat:
         path: "{{ item }}"
-        state: directory
-        mode: "0755"
+      register: _media_dir_stat
       loop:
         - /mnt/nas/media/books
         - /mnt/nas/media/movies
         - /mnt/nas/media/tv
         - /mnt/nas/media/downloads/complete
+
+    - name: Fail if any media subdirectory is missing
+      ansible.builtin.fail:
+        msg: >
+          {{ item.item }} does not exist on the NFS share.
+          Create it on Alakazam: mkdir -p /mnt/pool/media/{books,movies,tv,downloads/complete}
+      when: not item.stat.exists
+      loop: "{{ _media_dir_stat.results }}"
 
     # ── Compose stack ───────────────────────────────────────────────────────────
 
