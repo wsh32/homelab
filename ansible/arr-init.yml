@@ -307,7 +307,7 @@
         _prowlarr_key_new: "{{ prowlarr_api_key == '' }}"
 
     - name: Read Radarr API key from config.xml
-      ansible.builtin.shell: grep -oP '(?<=<ApiKey>)[^<]+' /mnt/nas/docker/radarr/config/config.xml
+      ansible.builtin.shell: grep -oP '(?<=<ApiKey>)[^<]+' /mnt/nas/docker/radarr/config.xml
       register: _radarr_key_file
       become: true
       changed_when: false
@@ -319,7 +319,7 @@
       when: _radarr_key_new and (_radarr_key_file.stdout | default('') | trim) != ''
 
     - name: Read Sonarr API key from config.xml
-      ansible.builtin.shell: grep -oP '(?<=<ApiKey>)[^<]+' /mnt/nas/docker/sonarr/config/config.xml
+      ansible.builtin.shell: grep -oP '(?<=<ApiKey>)[^<]+' /mnt/nas/docker/sonarr/config.xml
       register: _sonarr_key_file
       become: true
       changed_when: false
@@ -331,7 +331,7 @@
       when: _sonarr_key_new and (_sonarr_key_file.stdout | default('') | trim) != ''
 
     - name: Read Prowlarr API key from config.xml
-      ansible.builtin.shell: grep -oP '(?<=<ApiKey>)[^<]+' /mnt/nas/docker/prowlarr/config/config.xml
+      ansible.builtin.shell: grep -oP '(?<=<ApiKey>)[^<]+' /mnt/nas/docker/prowlarr/config.xml
       register: _prowlarr_key_file
       become: true
       changed_when: false
