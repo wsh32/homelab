@@ -165,44 +165,17 @@
   tasks:
 
     # ── Block 1: Pre-seed config files on NFS ────────────────────────────────
-
-    - name: Create qBittorrent config directory on NFS
-      ansible.builtin.file:
-        path: /mnt/nas/docker/qbittorrent/qBittorrent
-        state: directory
-        mode: "0755"
-      become: true
-
-    - name: Pre-seed qBittorrent.conf (skips if already exists)
-      ansible.builtin.copy:
-        dest: /mnt/nas/docker/qbittorrent/qBittorrent/qBittorrent.conf
-        force: false
-        mode: "0644"
-        content: |
-          [Preferences]
-          WebUI\Enabled=true
-          WebUI\Port=8080
-          WebUI\LocalHostAuth=false
-          WebUI\AuthSubnetWhitelist=172.16.0.0/12,192.168.0.0/16
-          WebUI\AuthSubnetWhitelistEnabled=true
-          Downloads\SavePath=/data/downloads/complete
-          Downloads\TempPath=/incomplete
-          Downloads\TempPathEnabled=true
-          Downloads\PreAllocation=false
-      become: true
+    # qBittorrent config is pre-seeded in media.yml before compose up.
 
     - name: Create Bazarr config directory on NFS
       ansible.builtin.file:
         path: /mnt/nas/docker/bazarr/config
         state: directory
-        mode: "0755"
-      become: true
 
     - name: Pre-seed Bazarr config.ini (skips if already exists)
       ansible.builtin.copy:
         dest: /mnt/nas/docker/bazarr/config/config.ini
         force: false
-        mode: "0644"
         content: |
           [auth]
           apikey = {{ bazarr_api_key }}
@@ -243,7 +216,6 @@
           use_radarr = True
           path_mappings = []
           path_mappings_movie = []
-      become: true
 
     - name: Create local qBittorrent incomplete downloads directory
       ansible.builtin.file:

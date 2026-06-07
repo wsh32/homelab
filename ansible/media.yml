@@ -171,6 +171,31 @@
         force: true
       become: true
 
+    # ── qBittorrent config pre-seed ─────────────────────────────────────────────
+    # Must run before compose up — qBittorrent writes a default config with auth
+    # enabled on first start; this config disables auth for LAN/Docker subnets.
+
+    - name: Create qBittorrent config directory on NFS
+      ansible.builtin.file:
+        path: /mnt/nas/docker/qbittorrent/qBittorrent
+        state: directory
+
+    - name: Pre-seed qBittorrent.conf
+      ansible.builtin.copy:
+        dest: /mnt/nas/docker/qbittorrent/qBittorrent/qBittorrent.conf
+        force: false
+        content: |
+          [Preferences]
+          WebUI\Enabled=true
+          WebUI\Port=8080
+          WebUI\LocalHostAuth=false
+          WebUI\AuthSubnetWhitelist=172.16.0.0/12,192.168.0.0/16
+          WebUI\AuthSubnetWhitelistEnabled=true
+          Downloads\SavePath=/data/downloads/complete
+          Downloads\TempPath=/incomplete
+          Downloads\TempPathEnabled=true
+          Downloads\PreAllocation=false
+
     - name: Start machamp-services compose stack
       community.docker.docker_compose_v2:
         project_src: /home/{{ ansible_user }}/homelab/services/machamp-services
