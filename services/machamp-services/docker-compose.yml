@@ -25,7 +25,6 @@ services:
       - "9696:9696"
     volumes:
       - /mnt/nas/docker/prowlarr:/config
-      - ./config/prowlarr.xml:/config/config.xml:ro
     environment:
       PUID: "1000"
       PGID: "1000"
@@ -38,7 +37,6 @@ services:
       - "7878:7878"
     volumes:
       - /mnt/nas/docker/radarr:/config
-      - ./config/radarr.xml:/config/config.xml:ro
       - /mnt/nas/media:/data
     environment:
       PUID: "1000"
@@ -52,7 +50,6 @@ services:
       - "8989:8989"
     volumes:
       - /mnt/nas/docker/sonarr:/config
-      - ./config/sonarr.xml:/config/config.xml:ro
       - /mnt/nas/media:/data
     environment:
       PUID: "1000"
