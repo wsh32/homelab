@@ -191,6 +191,8 @@
           WebUI\LocalHostAuth=false
           WebUI\AuthSubnetWhitelist=172.16.0.0/12,192.168.0.0/16
           WebUI\AuthSubnetWhitelistEnabled=true
+          WebUI\HostHeaderValidation=false
+          WebUI\CSRFProtection=false
           Downloads\SavePath=/data/downloads/complete
           Downloads\TempPath=/incomplete
           Downloads\TempPathEnabled=true
