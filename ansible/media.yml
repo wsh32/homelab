@@ -58,8 +58,8 @@
 
     - name: Add Infisical CLI apt repository
       ansible.builtin.shell:
-        cmd: curl -1sLf 'https://dl.cloudsmith.io/public/infisical/infisical-cli/setup.deb.sh' | bash
-        creates: /etc/apt/sources.list.d/infisical-infisical-cli.list
+        cmd: curl -1sLf 'https://packages.infisical.com/setup.deb.sh' | bash
+        creates: /etc/apt/sources.list.d/infisical.list
       become: true
 
     - name: Install Infisical CLI
@@ -88,37 +88,47 @@
         - infisical_client_secret is defined
         - infisical_project_id is defined
 
-    - name: Export Infisical secrets to /etc/homelab.env
-      ansible.builtin.shell:
-        cmd: |
-          infisical export \
-            --format dotenv \
-            --projectId {{ infisical_project_id }} \
-            --env {{ infisical_environment | default('prod') }} \
-            --domain {{ infisical_host | default('http://192.168.0.32:8080') }}
-        executable: /bin/bash
-      environment:
-        INFISICAL_CLIENT_ID: "{{ infisical_client_id }}"
-        INFISICAL_CLIENT_SECRET: "{{ infisical_client_secret }}"
-      register: infisical_export_result
-      changed_when: true
-      become: true
+    - name: Get Infisical access token via Universal Auth
+      ansible.builtin.uri:
+        url: "{{ infisical_host | default('http://192.168.0.32:8080') }}/api/v1/auth/universal-auth/login"
+        method: POST
+        body_format: json
+        body:
+          clientId: "{{ infisical_client_id }}"
+          clientSecret: "{{ infisical_client_secret }}"
+        status_code: 200
+      register: _infisical_ua_token
+      delegate_to: localhost
+      no_log: true
       when:
         - infisical_client_id is defined
         - infisical_client_secret is defined
         - infisical_project_id is defined
 
-    - name: Write /etc/homelab.env from Infisical export
+    - name: Fetch all secrets from Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host | default('http://192.168.0.32:8080') }}/api/v3/secrets/raw?workspaceId={{ infisical_project_id }}&environment={{ infisical_environment | default('prod') }}&secretPath=/"
+        headers:
+          Authorization: "Bearer {{ _infisical_ua_token.json.accessToken }}"
+        status_code: 200
+      register: _infisical_secrets
+      delegate_to: localhost
+      no_log: true
+      when: _infisical_ua_token is not skipped
+
+    - name: Write /etc/homelab.env from Infisical secrets
       ansible.builtin.copy:
         dest: /etc/homelab.env
-        content: "{{ infisical_export_result.stdout }}\n"
         mode: "0600"
         owner: root
         group: root
+        content: |
+          {% for s in _infisical_secrets.json.secrets %}
+          {{ s.secretKey }}={{ s.secretValue }}
+          {% endfor %}
       become: true
-      when:
-        - infisical_export_result is not skipped
-        - infisical_export_result.stdout is defined
+      no_log: true
+      when: _infisical_secrets is not skipped
 
     # ── Compose stack ───────────────────────────────────────────────────────────
 
