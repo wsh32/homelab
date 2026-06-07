@@ -1001,6 +1001,7 @@
           activeProfileName: "Any"
           activeDirectory: /data/tv
           minimumAvailability: released
+          enableSeasonFolders: true
           is4k: false
           isDefault: true
           externalUrl: "http://sonarr.home"
