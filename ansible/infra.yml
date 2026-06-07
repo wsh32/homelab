@@ -548,7 +548,18 @@
         NODE_EXTRA_CA_CERTS: /tmp/step-ca.crt
       register: _pia_username
       changed_when: false
+      failed_when: false
       no_log: true
+
+    - name: Fail if PIA VPN item not found in Vaultwarden
+      ansible.builtin.fail:
+        msg: >
+          Vault item '{{ _pia_vault_item }}' not found in Vaultwarden (bw exited {{ _pia_username.rc }}).
+          Log into https://vault.home as infra@team.rocket (password in
+          /etc/homelab.env on machamp-infra as VAULTWARDEN_SVC_PASSWORD) and
+          create a login item named '{{ _pia_vault_item }}' with your PIA username and password.
+          Then re-run this playbook.
+      when: _pia_username.rc != 0
 
     - name: Retrieve PIA password from Vaultwarden
       ansible.builtin.command:
