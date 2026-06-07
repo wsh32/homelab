@@ -801,10 +801,21 @@
                 print("Jellyseerr admin user already exists")
                 conn.close()
                 sys.exit(0)
-            cursor.execute(
-                "INSERT INTO user (jellyfinUserId, jellyfinUsername, jellyfinAuthToken, jellyfinDeviceId, permissions, requestCount, createdAt, updatedAt) VALUES (?, 'admin', ?, ?, 2, 0, datetime('now'), datetime('now'))",
-                (jellyfin_user_id, jellyfin_auth_token, client_id)
+            cursor.execute("PRAGMA table_info(user)")
+            cols = {row[1] for row in cursor.fetchall()}
+            fields = {"jellyfinUserId": jellyfin_user_id, "jellyfinUsername": "admin",
+                      "jellyfinAuthToken": jellyfin_auth_token, "jellyfinDeviceId": client_id,
+                      "permissions": 2, "createdAt": "datetime('now')", "updatedAt": "datetime('now')"}
+            if "requestCount" in cols:
+                fields["requestCount"] = 0
+            col_names = ", ".join(fields.keys())
+            placeholders = ", ".join(
+                v if isinstance(v, str) and v.startswith("datetime(") else "?"
+                for v in fields.values()
             )
+            values = [v for v in fields.values()
+                      if not (isinstance(v, str) and v.startswith("datetime("))]
+            cursor.execute(f"INSERT INTO user ({col_names}) VALUES ({placeholders})", values)
             conn.commit()
             conn.close()
             print("Created Jellyseerr admin user in DB")
@@ -825,6 +836,7 @@
         and _jellyfin_auth_for_jellyseerr is not skipped
         and _jellyfin_auth_for_jellyseerr.json.User.Id is defined
       changed_when: true
+      no_log: true
 
     - name: Restart Jellyseerr to apply DB initialization
       ansible.builtin.command: docker restart jellyseerr
