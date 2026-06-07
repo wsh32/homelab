@@ -440,14 +440,9 @@
 
     - name: Check if PIA_USERNAME already set in Infisical
       ansible.builtin.uri:
-        url: "{{ _infisical_host }}/api/v3/secrets/raw/PIA_USERNAME"
+        url: "{{ _infisical_host }}/api/v3/secrets/raw/PIA_USERNAME?workspaceId={{ _project_id }}&environment={{ _environment }}&secretPath=/"
         headers:
           Authorization: "Bearer {{ _ua_login.json.accessToken }}"
-        body_format: json
-        body:
-          workspaceId: "{{ _project_id }}"
-          environment: "{{ _environment }}"
-          secretPath: /
         status_code: [200, 404]
       register: _pia_check
       no_log: true
