@@ -249,7 +249,7 @@
 
     - name: Resolve project ID (existing)
       ansible.builtin.set_fact:
-        _project_id: "{{ _project_check.json.project.id }}"
+        _project_id: "{{ _project_check.json.id }}"
       no_log: true
       when: _project_check.status != 404
 
