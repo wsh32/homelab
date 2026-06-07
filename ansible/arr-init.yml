@@ -464,6 +464,7 @@
         method: POST
         body_format: json
         body:
+          ServerName: Machamp
           UICulture: en-US
           MetadataCountryCode: US
           PreferredMetadataLanguage: en
