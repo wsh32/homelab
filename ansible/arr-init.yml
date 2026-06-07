@@ -454,7 +454,7 @@
     - name: Check Jellyfin wizard status
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Startup/Configuration"
-        status_code: [200, 400, 403, 404]
+        status_code: [200, 400, 401, 403, 404]
         return_content: true
       register: jellyfin_wizard
 
