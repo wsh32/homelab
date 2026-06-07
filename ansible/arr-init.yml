@@ -742,8 +742,10 @@
         method: POST
         body_format: json
         body:
-          jellyfinHost: "http://jellyfin:8096"
-          jellyfinUserId: ""
+          hostname: jellyfin
+          port: 8096
+          useSsl: false
+          urlBase: ""
           username: admin
           password: "{{ jellyfin_admin_password }}"
         status_code: 200
