@@ -818,12 +818,25 @@
               conn   = sqlite3.connect(db_path, timeout=30)
               cursor = conn.cursor()
               cursor.execute('PRAGMA table_info(user)')
-              cols = {row[1] for row in cursor.fetchall()}
-              fields = {'id': 1, 'email': 'admin@team.rocket', 'jellyfinUserId': jf_uid,
-                        'jellyfinUsername': 'admin', 'jellyfinAuthToken': jf_token,
-                        'jellyfinDeviceId': jf_client, 'permissions': 2}
-              if 'requestCount' in cols:
-                  fields['requestCount'] = 0
+              schema = cursor.fetchall()
+              # schema rows: (cid, name, type, notnull, dflt_value, pk)
+              # Build a set of NOT NULL columns that have no default value —
+              # we must supply a value for these or the INSERT will fail.
+              notnull_no_default = {
+                  row[1] for row in schema
+                  if row[3] == 1 and row[4] is None and row[5] == 0
+              }
+              fields = {'id': 1, 'email': 'admin@team.rocket', 'avatar': '',
+                        'jellyfinUserId': jf_uid, 'jellyfinUsername': 'admin',
+                        'jellyfinAuthToken': jf_token, 'jellyfinDeviceId': jf_client,
+                        'permissions': 2}
+              # Fill any remaining NOT NULL / no-default columns with safe defaults
+              # so the INSERT never fails on constraint violations we haven't seen yet.
+              type_defaults = {'INTEGER': 0, 'REAL': 0.0}
+              for row in schema:
+                  col_name, col_type, notnull, dflt, pk = row[1], row[2], row[3], row[4], row[5]
+                  if col_name not in fields and notnull and dflt is None and pk == 0:
+                      fields[col_name] = type_defaults.get(col_type.upper(), '')
               col_names    = ', '.join(fields.keys()) + ', createdAt, updatedAt'
               placeholders = ', '.join(['?'] * len(fields)) + ", datetime('now'), datetime('now')"
               cursor.execute(
