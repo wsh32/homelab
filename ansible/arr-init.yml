@@ -726,38 +726,35 @@
         status_code: 201
       when: sonarr_dlclients_check.json | selectattr('name', 'equalto', 'qBittorrent') | list | length == 0
 
-    # ── Block 9: Jellyseerr configuration ──────────────────────────────────
-    # Jellyseerr's setup endpoint (POST /api/v1/auth/jellyfin) calls
-    # GET /Users on Jellyfin without a token. After wizard completion,
-    # Jellyfin requires auth for that endpoint — making headless init
-    # impossible via the standard flow.
+    # ── Block 9: Jellyseerr initialization and configuration ─────────────────
+    # Jellyseerr's POST /api/v1/auth/jellyfin calls GET /Users without a token.
+    # After wizard completion Jellyfin requires auth for that endpoint, so
+    # Jellyseerr sees an empty user list and returns NO_ADMIN_USER.
     #
-    # One-time manual step (run once after first deploy):
-    #   1. Open http://machamp-services:5055
-    #   2. Jellyfin server: hostname=jellyfin, port=8096, SSL=off
-    #   3. Sign in: admin / <JELLYFIN_ADMIN_PASSWORD from homelab.env>
-    #
-    # After that one-time login, all subsequent arr-init.yml runs
-    # configure Jellyseerr automatically using the API key from settings.json.
+    # Fix: authenticate with Jellyfin to get the admin user ID, write it
+    # directly into Jellyseerr's SQLite database, mark settings.json as
+    # initialized, then restart the container to apply.
 
-    - name: Read Jellyseerr API key from settings.json
+    - name: Read Jellyseerr settings.json
       ansible.builtin.shell: |
         python3 -c "
         import json, sys
         try:
             d = json.load(open('/mnt/nas/docker/jellyseerr/settings.json'))
-            k = d.get('main', {}).get('apiKey', '') or d.get('apiKey', '')
-            print(k)
+            k   = d.get('main', {}).get('apiKey', '') or d.get('apiKey', '')
+            cid = d.get('clientId', '')
+            print(k + '|' + cid)
         except Exception:
-            print('')
+            print('|')
         "
       register: _jellyseerr_settings_raw
       changed_when: false
 
-    - name: Override Jellyseerr API key with value from settings.json
+    - name: Set Jellyseerr API key and client ID from settings.json
       ansible.builtin.set_fact:
-        jellyseerr_api_key: "{{ _jellyseerr_settings_raw.stdout | trim }}"
-      when: (_jellyseerr_settings_raw.stdout | trim) != ''
+        jellyseerr_api_key: "{{ _jellyseerr_settings_raw.stdout.split('|')[0] | trim }}"
+        _jellyseerr_client_id: "{{ _jellyseerr_settings_raw.stdout.split('|')[1] | trim }}"
+      when: (_jellyseerr_settings_raw.stdout | trim) not in ['', '|']
 
     - name: Check Jellyseerr initialization status
       ansible.builtin.uri:
@@ -766,6 +763,91 @@
         return_content: true
       register: jellyseerr_public
       when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+
+    - name: Authenticate with Jellyfin to get admin user ID for Jellyseerr
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Users/AuthenticateByName"
+        method: POST
+        headers:
+          X-Emby-Authorization: >-
+            MediaBrowser Client="Ansible", Device="ansible-init",
+            DeviceId="{{ _jellyseerr_client_id | default('ansible-init') }}",
+            Version="1.0"
+        body_format: json
+        body:
+          Username: admin
+          Pw: "{{ jellyfin_admin_password }}"
+        status_code: 200
+        return_content: true
+      register: _jellyfin_auth_for_jellyseerr
+      no_log: true
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and not (jellyseerr_public.json.initialized | default(false))
+
+    - name: Write Jellyfin admin user into Jellyseerr database
+      ansible.builtin.shell: |
+        python3 - <<PYEOF
+        import json, sqlite3, sys
+        jellyfin_user_id    = "{{ _jellyfin_auth_for_jellyseerr.json.User.Id }}"
+        jellyfin_auth_token = "{{ _jellyfin_auth_for_jellyseerr.json.AccessToken }}"
+        client_id           = "{{ _jellyseerr_client_id | default('jellyseerr') }}"
+        db_path             = "/mnt/nas/docker/jellyseerr/db/db.sqlite3"
+        try:
+            conn   = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM user WHERE jellyfinUserId = ?", (jellyfin_user_id,))
+            if cursor.fetchone():
+                print("Jellyseerr admin user already exists")
+                conn.close()
+                sys.exit(0)
+            cursor.execute(
+                "INSERT INTO user (jellyfinUserId, jellyfinUsername, jellyfinAuthToken, jellyfinDeviceId, permissions, requestCount, createdAt, updatedAt) VALUES (?, 'admin', ?, ?, 2, 0, datetime('now'), datetime('now'))",
+                (jellyfin_user_id, jellyfin_auth_token, client_id)
+            )
+            conn.commit()
+            conn.close()
+            print("Created Jellyseerr admin user in DB")
+        except Exception as e:
+            print("DB error: " + str(e), file=sys.stderr)
+            sys.exit(1)
+        settings_path = "/mnt/nas/docker/jellyseerr/settings.json"
+        with open(settings_path) as f:
+            settings = json.load(f)
+        settings.setdefault("main", {})["initialized"] = True
+        with open(settings_path, "w") as f:
+            json.dump(settings, f, indent=2)
+        print("Marked Jellyseerr as initialized")
+        PYEOF
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and not (jellyseerr_public.json.initialized | default(false))
+        and _jellyfin_auth_for_jellyseerr is not skipped
+        and _jellyfin_auth_for_jellyseerr.json.User.Id is defined
+      changed_when: true
+      no_log: true
+
+    - name: Restart Jellyseerr to apply DB initialization
+      ansible.builtin.command: docker restart jellyseerr
+      become: true
+      changed_when: true
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and not (jellyseerr_public.json.initialized | default(false))
+        and _jellyfin_auth_for_jellyseerr is not skipped
+
+    - name: Wait for Jellyseerr after restart
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/settings/public"
+        status_code: 200
+      register: jellyseerr_post_restart
+      until: jellyseerr_post_restart.status == 200
+      retries: 20
+      delay: 5
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and not (jellyseerr_public.json.initialized | default(false))
+        and _jellyfin_auth_for_jellyseerr is not skipped
 
     - name: Configure Jellyseerr Jellyfin server settings
       ansible.builtin.uri:
@@ -781,9 +863,7 @@
           urlBase: ""
           externalHostname: "https://jellyfin.wsh"
         status_code: 200
-      when: >
-        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
-        and (jellyseerr_public.json.initialized | default(false))
+      when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
 
     - name: Get existing Radarr instances in Jellyseerr
       ansible.builtin.uri:
@@ -792,9 +872,7 @@
           X-Api-Key: "{{ jellyseerr_api_key }}"
         return_content: true
       register: jellyseerr_radarr_list
-      when: >
-        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
-        and (jellyseerr_public.json.initialized | default(false))
+      when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
 
     - name: Add Radarr to Jellyseerr
       ansible.builtin.uri:
@@ -818,7 +896,6 @@
         status_code: 201
       when: >
         jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
-        and (jellyseerr_public.json.initialized | default(false))
         and jellyseerr_radarr_list is not skipped
         and (jellyseerr_radarr_list.json | selectattr('name', 'equalto', 'Radarr') | list | length == 0)
 
@@ -829,9 +906,7 @@
           X-Api-Key: "{{ jellyseerr_api_key }}"
         return_content: true
       register: jellyseerr_sonarr_list
-      when: >
-        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
-        and (jellyseerr_public.json.initialized | default(false))
+      when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
 
     - name: Add Sonarr to Jellyseerr
       ansible.builtin.uri:
@@ -855,7 +930,6 @@
         status_code: 201
       when: >
         jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
-        and (jellyseerr_public.json.initialized | default(false))
         and jellyseerr_sonarr_list is not skipped
         and (jellyseerr_sonarr_list.json | selectattr('name', 'equalto', 'Sonarr') | list | length == 0)
 
@@ -869,9 +943,7 @@
         body:
           localLogin: false
         status_code: 200
-      when: >
-        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
-        and (jellyseerr_public.json.initialized | default(false))
+      when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
 
     - name: Push Jellyseerr API key to Infisical
       ansible.builtin.uri:
