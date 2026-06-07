@@ -62,6 +62,18 @@ docs/                          — architecture docs, plan, TODOs
 2. Assign a VM ID and IP from the node's reserved range
 3. Run `terraform plan` to verify before applying
 
+## Headless-first problem solving
+
+Before suggesting or implementing any step that requires manual web UI interaction, exhaustively explore headless alternatives:
+
+- **Pre-seeded config files**: write config files to the NFS volume before the container starts (e.g. `qBittorrent.conf`, `config.ini`, `encoding.xml`)
+- **REST API / `uri` module**: most services expose an API — use it from Ansible with idempotent check-then-write patterns
+- **Direct database writes**: if an app's setup API endpoint is broken or incompatible (e.g. Jellyseerr's `POST /api/v1/auth/jellyfin` requiring unauthenticated Jellyfin access), write directly to the service's SQLite or config files, then restart the container
+- **Environment variables**: many services accept first-boot config via env vars; prefer these over post-start API calls where available
+- **Init containers / one-shot tasks**: use `community.docker.docker_container` with `detach: false` and `cleanup: true` for one-shot setup commands (e.g. Recyclarr)
+
+Only accept a manual step if none of the above apply AND the service is in the explicit exceptions list (HAOS, Vaultwarden). When blocked by an app's broken or missing API, find the data store it reads from and write there directly.
+
 ## Ansible task naming
 
 - Task names describe **what** the task does, not why it exists or who it's for. No parenthetical context like `(migration for existing installs)`, `(idempotent)`, `(first run only)`, etc.
