@@ -465,11 +465,11 @@
         _vw_svc_email: >-
           {{ (_homelab_env_raw.content | b64decode)
              | regex_search('(?m)^VAULTWARDEN_SVC_EMAIL=(.+)', '\\1')
-             | first | default('') }}
+             | default([]) | first | default('') }}
         _vw_svc_password: >-
           {{ (_homelab_env_raw.content | b64decode)
              | regex_search('(?m)^VAULTWARDEN_SVC_PASSWORD=(.+)', '\\1')
-             | first | default('') }}
+             | default([]) | first | default('') }}
       no_log: true
 
     - name: Fail if service account credentials not found in homelab.env
