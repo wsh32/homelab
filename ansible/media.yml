@@ -130,6 +130,21 @@
       no_log: true
       when: _infisical_secrets is not skipped
 
+    # ── Media subdirectories ────────────────────────────────────────────────────
+    # Docker cannot create NFS bind-mount dirs (root squash). Pre-create them as
+    # the ansible user who has write access.
+
+    - name: Create required media subdirectories on NFS
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /mnt/nas/media/books
+        - /mnt/nas/media/movies
+        - /mnt/nas/media/tv
+        - /mnt/nas/media/downloads/complete
+
     # ── Compose stack ───────────────────────────────────────────────────────────
 
     - name: Ensure homelab services directory exists on VM
