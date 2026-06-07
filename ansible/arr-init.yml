@@ -224,6 +224,60 @@
         mode: "0777"
       become: true
 
+    # ── Ensure qBittorrent subnet-whitelist config is applied ────────────────
+    # If qBittorrent started before media.yml wrote the pre-seed config, it
+    # generated a default password-protected config. Stop it so it flushes
+    # its in-memory config to disk, then force-write the correct config and
+    # restart so qBittorrent reads the whitelist on next boot.
+
+    - name: Wait for qBittorrent WebUI
+      ansible.builtin.uri:
+        url: "http://localhost:8080/api/v2/app/webapiVersion"
+        status_code: [200, 401]
+      register: qbt_auth_check
+      until: qbt_auth_check.status in [200, 401]
+      retries: 30
+      delay: 5
+
+    - name: Stop qBittorrent to flush in-memory config before overwrite
+      ansible.builtin.command: docker stop qbittorrent
+      become: true
+      changed_when: true
+      when: qbt_auth_check.status == 401
+
+    - name: Force qBittorrent.conf with subnet whitelist auth bypass
+      ansible.builtin.copy:
+        dest: /mnt/nas/docker/qbittorrent/qBittorrent/qBittorrent.conf
+        force: true
+        content: |
+          [Preferences]
+          WebUI\Enabled=true
+          WebUI\Port=8080
+          WebUI\LocalHostAuth=false
+          WebUI\AuthSubnetWhitelist=172.16.0.0/12,192.168.0.0/16
+          WebUI\AuthSubnetWhitelistEnabled=true
+          Downloads\SavePath=/data/downloads/complete
+          Downloads\TempPath=/incomplete
+          Downloads\TempPathEnabled=true
+          Downloads\PreAllocation=false
+      when: qbt_auth_check.status == 401
+
+    - name: Start qBittorrent container after config overwrite
+      ansible.builtin.command: docker start qbittorrent
+      become: true
+      changed_when: true
+      when: qbt_auth_check.status == 401
+
+    - name: Wait for qBittorrent WebUI after config reload
+      ansible.builtin.uri:
+        url: "http://localhost:8080/api/v2/app/webapiVersion"
+        status_code: 200
+      register: qbt_webui_check
+      until: qbt_webui_check.status == 200
+      retries: 30
+      delay: 5
+      when: qbt_auth_check.status == 401
+
     # ── Block 2: Wait for services healthy ───────────────────────────────────
     # Accept 401 (Unauthorized) as "service is up" — API keys may not be in
     # homelab.env yet on first run; we harvest them from config files below.
