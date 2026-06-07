@@ -882,6 +882,24 @@
         and not (jellyseerr_public.json.initialized | default(false))
         and _jellyfin_auth_for_jellyseerr is not skipped
 
+    - name: Re-read Jellyseerr API key after any restart
+      ansible.builtin.shell: |
+        python3 -c "
+        import json, sys
+        try:
+            d = json.load(open('/mnt/nas/docker/jellyseerr/settings.json'))
+            print(d.get('main', {}).get('apiKey', '') or d.get('apiKey', ''))
+        except Exception:
+            print('')
+        "
+      register: _jellyseerr_key_refreshed
+      changed_when: false
+
+    - name: Update Jellyseerr API key fact after restart
+      ansible.builtin.set_fact:
+        jellyseerr_api_key: "{{ _jellyseerr_key_refreshed.stdout | trim }}"
+      when: (_jellyseerr_key_refreshed.stdout | trim) != ''
+
     - name: Configure Jellyseerr Jellyfin server settings
       ansible.builtin.uri:
         url: "{{ jellyseerr_url }}/api/v1/settings/jellyfin"
