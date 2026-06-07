@@ -136,7 +136,6 @@
       ansible.builtin.file:
         path: "{{ item }}"
         state: directory
-        mode: "0755"
       loop:
         - /mnt/nas/media/books
         - /mnt/nas/media/movies
