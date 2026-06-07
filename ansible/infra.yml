@@ -481,27 +481,37 @@
           /etc/homelab.env on machamp-infra. Run ansible-playbook ansible/infra.yml first.
       when: _vw_svc_email == '' or _vw_svc_password == ''
 
-    - name: Clear any existing bw session on machamp-infra
-      ansible.builtin.command: bw logout
+    - name: Slurp step-ca root cert from machamp-infra
+      ansible.builtin.slurp:
+        src: /usr/local/share/ca-certificates/step-ca.crt
       delegate_to: machamp-infra
+      become: true
+      register: _step_ca_cert_raw
+
+    - name: Write step-ca root cert to local temp file
+      ansible.builtin.copy:
+        content: "{{ _step_ca_cert_raw.content | b64decode }}"
+        dest: /tmp/step-ca.crt
+        mode: "0644"
+
+    - name: Clear any existing bw session
+      ansible.builtin.command: bw logout
       environment:
-        NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
+        NODE_EXTRA_CA_CERTS: /tmp/step-ca.crt
       failed_when: false
       changed_when: false
 
-    - name: Configure bw server to vault.home on machamp-infra
-      ansible.builtin.command: bw config server http://vault.home
-      delegate_to: machamp-infra
+    - name: Configure bw server to vault.home
+      ansible.builtin.command: bw config server https://vault.home
       environment:
-        NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
+        NODE_EXTRA_CA_CERTS: /tmp/step-ca.crt
       changed_when: false
 
-    - name: Login to Vaultwarden as service account on machamp-infra
+    - name: Login to Vaultwarden as service account
       ansible.builtin.shell:
         cmd: "bw login {{ _vw_svc_email }} {{ _vw_svc_password }} --raw --nointeraction"
-      delegate_to: machamp-infra
       environment:
-        NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
+        NODE_EXTRA_CA_CERTS: /tmp/step-ca.crt
       register: _bw_session
       changed_when: false
       no_log: true
@@ -509,10 +519,9 @@
     - name: Retrieve PIA username from Vaultwarden
       ansible.builtin.command:
         cmd: "bw get username {{ _pia_vault_item | quote }}"
-      delegate_to: machamp-infra
       environment:
         BW_SESSION: "{{ _bw_session.stdout }}"
-        NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
+        NODE_EXTRA_CA_CERTS: /tmp/step-ca.crt
       register: _pia_username
       changed_when: false
       no_log: true
@@ -520,22 +529,25 @@
     - name: Retrieve PIA password from Vaultwarden
       ansible.builtin.command:
         cmd: "bw get password {{ _pia_vault_item | quote }}"
-      delegate_to: machamp-infra
       environment:
         BW_SESSION: "{{ _bw_session.stdout }}"
-        NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
+        NODE_EXTRA_CA_CERTS: /tmp/step-ca.crt
       register: _pia_password
       changed_when: false
       no_log: true
 
-    - name: Logout from Vaultwarden on machamp-infra
+    - name: Logout from Vaultwarden
       ansible.builtin.command: bw logout
-      delegate_to: machamp-infra
       environment:
         BW_SESSION: "{{ _bw_session.stdout }}"
-        NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
+        NODE_EXTRA_CA_CERTS: /tmp/step-ca.crt
       changed_when: false
       failed_when: false
+
+    - name: Remove step-ca root cert temp file
+      ansible.builtin.file:
+        path: /tmp/step-ca.crt
+        state: absent
 
     - name: Push PIA credentials to Infisical
       ansible.builtin.command:
