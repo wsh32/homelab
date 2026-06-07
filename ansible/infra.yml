@@ -255,7 +255,7 @@
 
     - name: Check if machamp-services identity already exists
       ansible.builtin.uri:
-        url: "{{ _infisical_host }}/api/v1/identities?organizationId={{ _org_id }}"
+        url: "{{ _infisical_host }}/api/v1/identities?orgId={{ _org_id }}"
         headers:
           Authorization: "Bearer {{ _bootstrap_token }}"
         status_code: 200
