@@ -4,7 +4,7 @@ services:
     image: jellyfin/jellyfin:latest
     container_name: jellyfin
     restart: unless-stopped
-    runtime: nvidia
+    # runtime: nvidia  # re-enable after Terraform GPU passthrough is applied
     ports:
       - "8096:8096"
     volumes:
