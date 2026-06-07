@@ -583,7 +583,7 @@
           configContract: QBittorrentSettings
           fields:
             - name: host
-              value: "localhost"
+              value: "gluetun"
             - name: port
               value: "{{ qbittorrent_webui_port }}"
             - name: movieCategory
@@ -623,7 +623,7 @@
           configContract: QBittorrentSettings
           fields:
             - name: host
-              value: "localhost"
+              value: "gluetun"
             - name: port
               value: "{{ qbittorrent_webui_port }}"
             - name: tvCategory
