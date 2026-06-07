@@ -1066,6 +1066,12 @@
 
     # ── Block 10: Recyclarr — run one-shot sync ──────────────────────────────
 
+    - name: Create Recyclarr config directory on NFS
+      ansible.builtin.file:
+        path: /mnt/nas/docker/recyclarr
+        state: directory
+        mode: "0755"
+
     - name: Copy Recyclarr config to NFS
       ansible.builtin.synchronize:
         src: "{{ playbook_dir }}/../services/machamp-services/config/recyclarr/"
