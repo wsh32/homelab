@@ -756,12 +756,22 @@
         _jellyseerr_client_id: "{{ _jellyseerr_settings_raw.stdout.split('|')[1] | trim }}"
       when: (_jellyseerr_settings_raw.stdout | trim) not in ['', '|']
 
+    - name: Ensure Jellyseerr container is running
+      ansible.builtin.command: docker start jellyseerr
+      become: true
+      changed_when: false
+      failed_when: false
+      when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+
     - name: Check Jellyseerr initialization status
       ansible.builtin.uri:
         url: "{{ jellyseerr_url }}/api/v1/settings/public"
         status_code: 200
         return_content: true
       register: jellyseerr_public
+      until: jellyseerr_public.status == 200
+      retries: 20
+      delay: 5
       when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
 
     - name: Authenticate with Jellyfin to get admin user ID for Jellyseerr
