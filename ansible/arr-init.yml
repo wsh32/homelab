@@ -972,7 +972,7 @@
           activeDirectory: /data/movies
           is4k: false
           isDefault: true
-          externalUrl: "https://radarr.wsh"
+          externalUrl: "http://radarr.home"
         status_code: 201
       when: >
         jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
@@ -1006,7 +1006,7 @@
           activeDirectory: /data/tv
           is4k: false
           isDefault: true
-          externalUrl: "https://sonarr.wsh"
+          externalUrl: "http://sonarr.home"
         status_code: 201
       when: >
         jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
