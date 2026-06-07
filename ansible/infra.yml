@@ -484,18 +484,24 @@
     - name: Clear any existing bw session on machamp-infra
       ansible.builtin.command: bw logout
       delegate_to: machamp-infra
+      environment:
+        NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
       failed_when: false
       changed_when: false
 
     - name: Configure bw server to vault.home on machamp-infra
       ansible.builtin.command: bw config server https://vault.home
       delegate_to: machamp-infra
+      environment:
+        NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
       changed_when: false
 
     - name: Login to Vaultwarden as service account on machamp-infra
       ansible.builtin.shell:
         cmd: "bw login {{ _vw_svc_email }} {{ _vw_svc_password }} --raw --nointeraction"
       delegate_to: machamp-infra
+      environment:
+        NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
       register: _bw_session
       changed_when: false
       no_log: true
@@ -506,6 +512,7 @@
       delegate_to: machamp-infra
       environment:
         BW_SESSION: "{{ _bw_session.stdout }}"
+        NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
       register: _pia_username
       changed_when: false
       no_log: true
@@ -516,6 +523,7 @@
       delegate_to: machamp-infra
       environment:
         BW_SESSION: "{{ _bw_session.stdout }}"
+        NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
       register: _pia_password
       changed_when: false
       no_log: true
@@ -525,6 +533,7 @@
       delegate_to: machamp-infra
       environment:
         BW_SESSION: "{{ _bw_session.stdout }}"
+        NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
       changed_when: false
       failed_when: false
 
