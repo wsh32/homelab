@@ -825,7 +825,6 @@
         and _jellyfin_auth_for_jellyseerr is not skipped
         and _jellyfin_auth_for_jellyseerr.json.User.Id is defined
       changed_when: true
-      no_log: true
 
     - name: Restart Jellyseerr to apply DB initialization
       ansible.builtin.command: docker restart jellyseerr
