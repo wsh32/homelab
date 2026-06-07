@@ -501,8 +501,32 @@
       failed_when: false
       changed_when: false
 
+    - name: Wait for Vaultwarden HTTPS to be reachable via Traefik
+      ansible.builtin.uri:
+        url: "https://vault.home/api/config"
+        ca_path: /tmp/step-ca.crt
+        status_code: 200
+      register: _vw_health
+      retries: 12
+      delay: 10
+      until: _vw_health.status == 200
+      failed_when: false
+
+    - name: Fail if Vaultwarden unreachable
+      ansible.builtin.fail:
+        msg: >
+          https://vault.home/api/config is not reachable (status: {{ _vw_health.status | default('no response') }}).
+          Check: (1) docker ps on machamp-infra shows vaultwarden running,
+          (2) Traefik dashboard shows vault-home-tls route active,
+          (3) step-ca has issued a cert for vault.home (check acme.json).
+      when: _vw_health.status | default(0) != 200
+
     - name: Configure bw server to vault.home
-      ansible.builtin.command: bw config server https://vault.home
+      ansible.builtin.command: >
+        bw config server
+        --api https://vault.home/api
+        --identity https://vault.home/identity
+        https://vault.home
       environment:
         NODE_EXTRA_CA_CERTS: /tmp/step-ca.crt
       changed_when: false
