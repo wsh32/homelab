@@ -454,7 +454,7 @@
     - name: Check Jellyfin wizard status
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Startup/Configuration"
-        status_code: [200, 400, 404]
+        status_code: [200, 400, 403, 404]
         return_content: true
       register: jellyfin_wizard
 
@@ -468,7 +468,7 @@
           MetadataCountryCode: US
           PreferredMetadataLanguage: en
         status_code: 204
-      when: jellyfin_wizard.status == 200 and (jellyfin_wizard.json.UICulture is not defined or jellyfin_wizard.json.UICulture == '')
+      when: jellyfin_wizard.status == 200
 
     - name: Create Jellyfin admin user
       ansible.builtin.uri:
@@ -479,7 +479,7 @@
           Name: admin
           Password: "{{ jellyfin_admin_password }}"
         status_code: 204
-      when: jellyfin_wizard.status == 200 and (jellyfin_wizard.json.UICulture is not defined or jellyfin_wizard.json.UICulture == '')
+      when: jellyfin_wizard.status == 200
 
     - name: Configure Jellyfin remote access
       ansible.builtin.uri:
@@ -490,14 +490,14 @@
           EnableRemoteAccess: true
           EnableAutomaticPortMapping: false
         status_code: 204
-      when: jellyfin_wizard.status == 200 and (jellyfin_wizard.json.UICulture is not defined or jellyfin_wizard.json.UICulture == '')
+      when: jellyfin_wizard.status == 200
 
     - name: Complete Jellyfin wizard
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Startup/Complete"
         method: POST
         status_code: 204
-      when: jellyfin_wizard.status == 200 and (jellyfin_wizard.json.UICulture is not defined or jellyfin_wizard.json.UICulture == '')
+      when: jellyfin_wizard.status == 200
 
     # ── Block 4: Volume migration — Radarr ──────────────────────────────────
 
