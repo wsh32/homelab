@@ -142,14 +142,6 @@
         - /mnt/nas/media/tv
         - /mnt/nas/media/downloads/complete
 
-    - name: Create service config directories on NFS
-      ansible.builtin.file:
-        path: "{{ item }}"
-        state: directory
-      loop:
-        - /mnt/nas/docker/recyclarr
-        - /mnt/nas/docker/bazarr
-        - /mnt/nas/docker/jellyseerr
 
     # ── Compose stack ───────────────────────────────────────────────────────────
 

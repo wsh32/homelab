@@ -1065,19 +1065,28 @@
       when: _jellyseerr_key_new and jellyseerr_api_key != 'placeholder' and jellyseerr_api_key != ''
 
     # ── Block 10: Recyclarr — run one-shot sync ──────────────────────────────
+    # Recyclarr is stateless for sync purposes; use a local VM temp dir to
+    # avoid needing write access to the NFS docker share root.
 
-    - name: Copy Recyclarr config to NFS
-      ansible.builtin.synchronize:
+    - name: Create local Recyclarr config temp directory
+      ansible.builtin.file:
+        path: /tmp/recyclarr-config
+        state: directory
+        mode: "0755"
+
+    - name: Copy Recyclarr config to VM
+      ansible.builtin.copy:
         src: "{{ playbook_dir }}/../services/machamp-services/config/recyclarr/"
-        dest: /mnt/nas/docker/recyclarr/
-        recursive: true
+        dest: /tmp/recyclarr-config/
+        mode: "0644"
 
     - name: Run Recyclarr sync
+      become: true
       community.docker.docker_container:
         name: recyclarr-init
         image: ghcr.io/recyclarr/recyclarr:7
         volumes:
-          - /mnt/nas/docker/recyclarr:/config
+          - /tmp/recyclarr-config:/config
         env:
           RADARR_API_KEY: "{{ radarr_api_key }}"
           SONARR_API_KEY: "{{ sonarr_api_key }}"
