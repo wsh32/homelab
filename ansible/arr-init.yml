@@ -785,6 +785,15 @@
         jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
         and not (jellyseerr_public.json.initialized | default(false))
 
+    - name: Stop Jellyseerr before DB write to release SQLite lock
+      ansible.builtin.command: docker stop jellyseerr
+      become: true
+      changed_when: true
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and not (jellyseerr_public.json.initialized | default(false))
+        and _jellyfin_auth_for_jellyseerr is not skipped
+
     - name: Write Jellyfin admin user into Jellyseerr database
       ansible.builtin.shell: |
         python3 - <<PYEOF
