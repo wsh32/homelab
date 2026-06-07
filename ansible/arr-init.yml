@@ -962,7 +962,9 @@
           useSsl: false
           baseUrl: ""
           activeProfileId: 1
+          activeProfileName: "Any"
           activeDirectory: /data/movies
+          minimumAvailability: released
           is4k: false
           isDefault: true
           externalUrl: "http://radarr.home"
@@ -996,7 +998,9 @@
           useSsl: false
           baseUrl: ""
           activeProfileId: 1
+          activeProfileName: "Any"
           activeDirectory: /data/tv
+          minimumAvailability: released
           is4k: false
           isDefault: true
           externalUrl: "http://sonarr.home"
