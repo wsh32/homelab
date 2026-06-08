@@ -10,6 +10,11 @@
   register: nfs_current_mount_src
   changed_when: false
 
+- name: Check current mount options for {{ nfs_mount_path }}
+  ansible.builtin.shell: awk '$2 == "{{ nfs_mount_path }}" {print $4}' /proc/mounts
+  register: nfs_current_mount_opts
+  changed_when: false
+
 - name: Check if {{ nfs_mount_path }} is accessible (detects stale mounts)
   ansible.builtin.command: timeout 5 stat {{ nfs_mount_path }}
   register: nfs_mount_accessible
@@ -17,14 +22,15 @@
   failed_when: false
   become: true
 
-- name: Force unmount if stale or wrong source
+- name: Force unmount if stale, wrong source, or missing local_lock=all
   ansible.builtin.command: umount -f -l {{ nfs_mount_path }}
   become: true
   changed_when: true
   failed_when: false
   when: >
     (nfs_current_mount_src.stdout != '' and nfs_mount_accessible.rc != 0) or
-    (nfs_current_mount_src.stdout != '' and nfs_current_mount_src.stdout != nfs_source_path)
+    (nfs_current_mount_src.stdout != '' and nfs_current_mount_src.stdout != nfs_source_path) or
+    (nfs_current_mount_src.stdout != '' and 'local_lock=all' not in nfs_current_mount_opts.stdout)
 
 - name: Ensure NFS mount point exists
   ansible.builtin.file:
@@ -32,7 +38,10 @@
     state: directory
     mode: "0755"
   become: true
-  when: nfs_current_mount_src.stdout == '' or nfs_mount_accessible.rc != 0
+  when: >
+    nfs_current_mount_src.stdout == '' or
+    nfs_mount_accessible.rc != 0 or
+    'local_lock=all' not in nfs_current_mount_opts.stdout
 
 - name: Mount Alakazam NFS share ({{ nfs_source_path }})
   ansible.posix.mount:
