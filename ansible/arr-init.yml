@@ -1054,6 +1054,21 @@
         and not (jellyseerr_public.json.initialized | default(false))
         and _jellyfin_users is not skipped
 
+    - name: Get Jellyfin server info for Jellyseerr DB init
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/System/Info"
+        headers:
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ jellyfin_api_key }}"'
+        status_code: 200
+        return_content: true
+      register: _jellyfin_server_info
+      no_log: true
+      when: >
+        jellyfin_api_key != ''
+        and jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and not (jellyseerr_public.json.initialized | default(false))
+        and _jellyfin_auth_for_jellyseerr is defined
+
     - name: Stop Jellyseerr before DB write to release SQLite lock
       ansible.builtin.command: docker stop jellyseerr
       become: true
@@ -1069,9 +1084,11 @@
         mode: "0644"
         content: |
           import json, os, sqlite3, sys
-          jf_uid    = os.environ['JF_UID']
-          jf_token  = os.environ['JF_TOKEN']
-          jf_client = os.environ['JF_CLIENT']
+          jf_uid      = os.environ['JF_UID']
+          jf_token    = os.environ['JF_TOKEN']
+          jf_client   = os.environ['JF_CLIENT']
+          jf_api_key  = os.environ['JF_API_KEY']
+          jf_serverid = os.environ['JF_SERVER_ID']
           db_path   = '/app/config/db/db.sqlite3'
           try:
               conn   = sqlite3.connect(db_path, timeout=30)
@@ -1110,16 +1127,17 @@
           with open('/app/config/settings.json') as f:
               settings = json.load(f)
           settings.setdefault('public', {})['initialized'] = True
+          settings.setdefault('public', {})['mediaServerLogin'] = True
           settings['jellyfin'] = {
               'ip': 'jellyfin',
               'port': 8096,
               'useSsl': False,
               'urlBase': '',
               'externalHostname': '',
-              'serverId': '',
+              'serverId': jf_serverid,
               'serverName': 'TeamRocket',
               'name': 'TeamRocket',
-              'apiKey': '',
+              'apiKey': jf_api_key,
               'libraries': [],
           }
           with open('/app/config/settings.json', 'w') as f:
@@ -1150,6 +1168,8 @@
           -e "JF_UID={{ _jellyfin_auth_for_jellyseerr.json.User.Id }}"
           -e "JF_TOKEN={{ _jellyfin_auth_for_jellyseerr.json.AccessToken }}"
           -e "JF_CLIENT={{ _jellyseerr_client_id | default('jellyseerr') }}"
+          -e "JF_API_KEY={{ jellyfin_api_key }}"
+          -e "JF_SERVER_ID={{ _jellyfin_server_info.json.Id | default('') }}"
           python:3-alpine python3 /init.py
       when: >
         jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
@@ -1157,6 +1177,7 @@
         and _jellyfin_auth_for_jellyseerr is defined
         and _jellyfin_auth_for_jellyseerr.json.User.Id is defined
         and _jellyseerr_db_stat is not skipped
+        and _jellyfin_server_info is defined
       changed_when: true
       no_log: true
 
@@ -1199,6 +1220,79 @@
       ansible.builtin.set_fact:
         jellyseerr_api_key: "{{ _jellyseerr_key_refreshed.stdout | trim }}"
       when: (_jellyseerr_key_refreshed.stdout | trim) != ''
+
+    - name: Read Jellyseerr settings.json to check Jellyfin connection
+      ansible.builtin.slurp:
+        src: /mnt/nas/docker/jellyseerr/settings.json
+      register: _jellyseerr_settings_json
+      become: true
+      when: jellyfin_api_key != '' and jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+
+    - name: Parse Jellyseerr Jellyfin API key from settings.json
+      ansible.builtin.set_fact:
+        _jellyseerr_jf_apikey: "{{ (_jellyseerr_settings_json.content | b64decode | from_json).jellyfin.apiKey | default('') }}"
+      when: _jellyseerr_settings_json is not skipped and _jellyseerr_settings_json.content is defined
+
+    - name: Fetch Jellyfin server info for settings patch
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/System/Info"
+        headers:
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ jellyfin_api_key }}"'
+        status_code: 200
+        return_content: true
+      register: _jellyfin_server_info_patch
+      no_log: true
+      when: >
+        jellyfin_api_key != ''
+        and (_jellyseerr_jf_apikey | default('')) == ''
+
+    - name: Patch Jellyseerr settings.json with Jellyfin API key and server ID
+      ansible.builtin.shell: |
+        python3 -c "
+        import json
+        with open('/mnt/nas/docker/jellyseerr/settings.json') as f:
+            s = json.load(f)
+        changed = False
+        s.setdefault('public', {})['mediaServerLogin'] = True
+        jf = s.setdefault('jellyfin', {})
+        if not jf.get('apiKey'):
+            jf['apiKey'] = '{{ jellyfin_api_key }}'
+            jf['serverId'] = '{{ _jellyfin_server_info_patch.json.Id | default('') }}'
+            jf.setdefault('ip', 'jellyfin')
+            jf.setdefault('port', 8096)
+            changed = True
+        if changed:
+            with open('/mnt/nas/docker/jellyseerr/settings.json', 'w') as f:
+                json.dump(s, f, indent=2)
+            print('patched')
+        else:
+            print('ok')
+        "
+      register: _jellyseerr_settings_patch
+      changed_when: _jellyseerr_settings_patch.stdout | trim == 'patched'
+      become: true
+      no_log: true
+      when: >
+        jellyfin_api_key != ''
+        and (_jellyseerr_jf_apikey | default('')) == ''
+        and _jellyfin_server_info_patch is defined
+        and _jellyfin_server_info_patch.json is defined
+
+    - name: Restart Jellyseerr after settings patch
+      ansible.builtin.command: docker restart jellyseerr
+      become: true
+      changed_when: true
+      when: _jellyseerr_settings_patch is defined and (_jellyseerr_settings_patch.changed | default(false))
+
+    - name: Wait for Jellyseerr after settings patch restart
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/settings/public"
+        status_code: 200
+      register: _jellyseerr_patch_wait
+      until: _jellyseerr_patch_wait.status == 200
+      retries: 20
+      delay: 5
+      when: _jellyseerr_settings_patch is defined and (_jellyseerr_settings_patch.changed | default(false))
 
     - name: Get existing Radarr instances in Jellyseerr
       ansible.builtin.uri:
@@ -1282,6 +1376,7 @@
         body_format: json
         body:
           localLogin: false
+          mediaServerLogin: true
         status_code: 200
       when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
 
