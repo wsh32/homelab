@@ -995,11 +995,11 @@
     _outpost_provider_pks: >-
       {{
         (_embedded_outpost.json.results[0].providers | default([])) +
-        (_arr_provider_lookup.results
-          | selectattr('json.pagination.count', '>', 0)
-          | map(attribute='json.results')
-          | map('first')
-          | map(attribute='pk')
+        (_arr_proxy_services
+          | map(attribute='name')
+          | map('extract',
+              _arr_provider_lookup.results[0].json.results
+              | items2dict(key_name='name', value_name='pk'))
           | list)
         | unique
       }}
