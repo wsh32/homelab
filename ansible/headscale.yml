@@ -140,6 +140,8 @@
         --force-reauth
         --reset
       become: true
+      async: 30
+      poll: 5
 
     - name: Update headscale DNS nameserver to diglett-dns tailscale IP
       when: inventory_hostname == 'diglett-dns'
