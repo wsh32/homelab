@@ -140,7 +140,7 @@
         --force-reauth
         --reset
       become: true
-      async: 30
+      async: 120
       poll: 5
 
     - name: Update headscale DNS nameserver to diglett-dns tailscale IP
