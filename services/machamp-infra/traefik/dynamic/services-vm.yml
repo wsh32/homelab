@@ -69,7 +69,7 @@ http:
     # API/app paths (not matching /web or /) pass through directly.
     # Local admin bypass: /web/index.html#!/login.html?mode=0
     jellyfin-sso-redirect:
-      rule: "Host(`jellyfin.home`) && (Path(`/`) || PathPrefix(`/web`))"
+      rule: "Host(`jellyfin.home`) && Path(`/`)"
       entryPoints: [websecure]
       middlewares: [jellyfin-sso]
       service: jellyfin-svc
