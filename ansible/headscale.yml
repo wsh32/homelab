@@ -129,6 +129,22 @@
       become: true
       delegate_to: diglett-dns
 
+    - name: Resolve headscale hostname from deploy host
+      ansible.builtin.command: >-
+        getent hosts {{ headscale_server_url | urlsplit('hostname') }}
+      register: _headscale_resolved
+      delegate_to: localhost
+      run_once: true
+      changed_when: false
+
+    - name: Pin headscale hostname in /etc/hosts
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: "{{ headscale_server_url | urlsplit('hostname') }}"
+        line: "{{ _headscale_resolved.stdout.split()[0] }}  {{ headscale_server_url | urlsplit('hostname') }}"
+        state: present
+      become: true
+
     - name: Join tailscale network
       ansible.builtin.command: >-
         tailscale up
