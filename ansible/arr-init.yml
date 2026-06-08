@@ -16,7 +16,7 @@
   gather_facts: false
 
   vars:
-    jellyfin_sso_plugin_version: "3.5.2.1"
+    jellyfin_sso_plugin_version: "4.0.0.4"
     prowlarr_url: "http://localhost:9696"
     radarr_url: "http://localhost:7878"
     sonarr_url: "http://localhost:8989"
@@ -544,7 +544,7 @@
 
         - name: Download jellyfin-plugin-sso zip
           ansible.builtin.get_url:
-            url: "https://github.com/9p4/jellyfin-plugin-sso/releases/download/v{{ jellyfin_sso_plugin_version }}/sso-auth_{{ jellyfin_sso_plugin_version }}.zip"
+            url: "https://github.com/9p4/jellyfin-plugin-sso/releases/download/v{{ jellyfin_sso_plugin_version }}/sso-authentication_{{ jellyfin_sso_plugin_version }}.zip"
             dest: "/tmp/jellyfin-sso-{{ jellyfin_sso_plugin_version }}.zip"
             mode: "0644"
 
