@@ -1109,7 +1109,7 @@
               sys.exit(1)
           with open('/app/config/settings.json') as f:
               settings = json.load(f)
-          settings.setdefault('main', {})['initialized'] = True
+          settings.setdefault('public', {})['initialized'] = True
           settings['jellyfin'] = {
               'ip': 'jellyfin',
               'port': 8096,
