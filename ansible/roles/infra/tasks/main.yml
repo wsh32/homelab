@@ -920,7 +920,7 @@
 
 - name: Check which arr proxy providers already exist
   ansible.builtin.uri:
-    url: "http://localhost:9000/api/v3/providers/proxy/?name={{ item.name }}"
+    url: "http://localhost:9000/api/v3/providers/proxy/?page_size=100&name={{ item.name }}"
     method: GET
     headers:
       Authorization: "Bearer {{ _authentik_token }}"
@@ -950,7 +950,7 @@
 # Re-fetch after creation so PKs are available whether providers are new or pre-existing.
 - name: Look up arr proxy provider PKs
   ansible.builtin.uri:
-    url: "http://localhost:9000/api/v3/providers/proxy/?name={{ item.name }}"
+    url: "http://localhost:9000/api/v3/providers/proxy/?page_size=100&name={{ item.name }}"
     method: GET
     headers:
       Authorization: "Bearer {{ _authentik_token }}"
@@ -960,7 +960,7 @@
 
 - name: Check which arr applications already exist
   ansible.builtin.uri:
-    url: "http://localhost:9000/api/v3/core/applications/?slug={{ item.slug }}"
+    url: "http://localhost:9000/api/v3/core/applications/?page_size=100&slug={{ item.slug }}"
     method: GET
     headers:
       Authorization: "Bearer {{ _authentik_token }}"
