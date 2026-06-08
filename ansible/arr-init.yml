@@ -1111,13 +1111,16 @@
               settings = json.load(f)
           settings.setdefault('main', {})['initialized'] = True
           settings['jellyfin'] = {
-              'hostname': 'jellyfin',
+              'ip': 'jellyfin',
               'port': 8096,
               'useSsl': False,
               'urlBase': '',
               'externalHostname': '',
               'serverId': '',
               'serverName': 'TeamRocket',
+              'name': 'TeamRocket',
+              'apiKey': '',
+              'libraries': [],
           }
           with open('/app/config/settings.json', 'w') as f:
               json.dump(settings, f, indent=2)
