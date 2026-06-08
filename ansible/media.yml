@@ -180,6 +180,7 @@
       ansible.builtin.file:
         path: /mnt/nas/docker/qbittorrent/qBittorrent
         state: directory
+      become: true
 
     - name: Pre-seed qBittorrent.conf
       ansible.builtin.copy:
@@ -198,6 +199,7 @@
           Downloads\TempPath=/incomplete
           Downloads\TempPathEnabled=true
           Downloads\PreAllocation=false
+      become: true
 
     - name: Start machamp-services compose stack
       community.docker.docker_compose_v2:
