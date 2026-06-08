@@ -356,53 +356,55 @@
         label: "{{ item.item }}"
 
     # ── Block 2.5: Harvest arr API keys from service config files ────────────
+    # Record whether each key was already in Infisical before harvesting, so
+    # we know to POST (create) vs PATCH (update) when pushing back.
 
-    - name: Record which arr API keys need harvesting
+    - name: Record pre-harvest key presence
       ansible.builtin.set_fact:
-        _radarr_key_new: "{{ radarr_api_key == '' }}"
-        _sonarr_key_new: "{{ sonarr_api_key == '' }}"
-        _prowlarr_key_new: "{{ prowlarr_api_key == '' }}"
+        _radarr_key_in_infisical: "{{ radarr_api_key != '' }}"
+        _sonarr_key_in_infisical: "{{ sonarr_api_key != '' }}"
+        _prowlarr_key_in_infisical: "{{ prowlarr_api_key != '' }}"
 
     - name: Read Radarr API key from config.xml
       ansible.builtin.shell: grep -oP '(?<=<ApiKey>)[^<]+' /mnt/nas/docker/radarr/config.xml
       register: _radarr_key_file
       become: true
       changed_when: false
-      when: _radarr_key_new
 
     - name: Set Radarr API key from config
       ansible.builtin.set_fact:
         radarr_api_key: "{{ _radarr_key_file.stdout | trim }}"
-      when: _radarr_key_new and (_radarr_key_file.stdout | default('') | trim) != ''
+        _radarr_key_new: "{{ (_radarr_key_file.stdout | trim) != radarr_api_key }}"
+      when: (_radarr_key_file.stdout | default('') | trim) != ''
 
     - name: Read Sonarr API key from config.xml
       ansible.builtin.shell: grep -oP '(?<=<ApiKey>)[^<]+' /mnt/nas/docker/sonarr/config.xml
       register: _sonarr_key_file
       become: true
       changed_when: false
-      when: _sonarr_key_new
 
     - name: Set Sonarr API key from config
       ansible.builtin.set_fact:
         sonarr_api_key: "{{ _sonarr_key_file.stdout | trim }}"
-      when: _sonarr_key_new and (_sonarr_key_file.stdout | default('') | trim) != ''
+        _sonarr_key_new: "{{ (_sonarr_key_file.stdout | trim) != sonarr_api_key }}"
+      when: (_sonarr_key_file.stdout | default('') | trim) != ''
 
     - name: Read Prowlarr API key from config.xml
       ansible.builtin.shell: grep -oP '(?<=<ApiKey>)[^<]+' /mnt/nas/docker/prowlarr/config.xml
       register: _prowlarr_key_file
       become: true
       changed_when: false
-      when: _prowlarr_key_new
 
     - name: Set Prowlarr API key from config
       ansible.builtin.set_fact:
         prowlarr_api_key: "{{ _prowlarr_key_file.stdout | trim }}"
-      when: _prowlarr_key_new and (_prowlarr_key_file.stdout | default('') | trim) != ''
+        _prowlarr_key_new: "{{ (_prowlarr_key_file.stdout | trim) != prowlarr_api_key }}"
+      when: (_prowlarr_key_file.stdout | default('') | trim) != ''
 
     - name: Push Radarr API key to Infisical
       ansible.builtin.uri:
         url: "{{ infisical_host }}/api/v3/secrets/raw/RADARR_API_KEY"
-        method: POST
+        method: "{{ 'PATCH' if _radarr_key_in_infisical else 'POST' }}"
         headers:
           Authorization: "Bearer {{ _inf_token.json.accessToken }}"
         body_format: json
@@ -419,7 +421,7 @@
     - name: Push Sonarr API key to Infisical
       ansible.builtin.uri:
         url: "{{ infisical_host }}/api/v3/secrets/raw/SONARR_API_KEY"
-        method: POST
+        method: "{{ 'PATCH' if _sonarr_key_in_infisical else 'POST' }}"
         headers:
           Authorization: "Bearer {{ _inf_token.json.accessToken }}"
         body_format: json
@@ -436,7 +438,7 @@
     - name: Push Prowlarr API key to Infisical
       ansible.builtin.uri:
         url: "{{ infisical_host }}/api/v3/secrets/raw/PROWLARR_API_KEY"
-        method: POST
+        method: "{{ 'PATCH' if _prowlarr_key_in_infisical else 'POST' }}"
         headers:
           Authorization: "Bearer {{ _inf_token.json.accessToken }}"
         body_format: json
