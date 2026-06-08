@@ -1037,7 +1037,7 @@
       when: >
         jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
         and not (jellyseerr_public.json.initialized | default(false))
-        and _jellyfin_auth_for_jellyseerr is not skipped
+        and _jellyfin_auth_for_jellyseerr is defined
 
     - name: Write Jellyseerr DB init script to temp file
       ansible.builtin.copy:
@@ -1101,7 +1101,7 @@
       when: >
         jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
         and not (jellyseerr_public.json.initialized | default(false))
-        and _jellyfin_auth_for_jellyseerr is not skipped
+        and _jellyfin_auth_for_jellyseerr is defined
 
     - name: Get Jellyseerr DB file owner for docker run
       ansible.builtin.stat:
@@ -1110,7 +1110,7 @@
       when: >
         jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
         and not (jellyseerr_public.json.initialized | default(false))
-        and _jellyfin_auth_for_jellyseerr is not skipped
+        and _jellyfin_auth_for_jellyseerr is defined
 
     - name: Write Jellyfin admin user into Jellyseerr database
       become: true
@@ -1127,7 +1127,7 @@
       when: >
         jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
         and not (jellyseerr_public.json.initialized | default(false))
-        and _jellyfin_auth_for_jellyseerr is not skipped
+        and _jellyfin_auth_for_jellyseerr is defined
         and _jellyfin_auth_for_jellyseerr.json.User.Id is defined
         and _jellyseerr_db_stat is not skipped
       changed_when: true
@@ -1140,7 +1140,7 @@
       when: >
         jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
         and not (jellyseerr_public.json.initialized | default(false))
-        and _jellyfin_auth_for_jellyseerr is not skipped
+        and _jellyfin_auth_for_jellyseerr is defined
 
     - name: Wait for Jellyseerr after restart
       ansible.builtin.uri:
@@ -1153,7 +1153,7 @@
       when: >
         jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
         and not (jellyseerr_public.json.initialized | default(false))
-        and _jellyfin_auth_for_jellyseerr is not skipped
+        and _jellyfin_auth_for_jellyseerr is defined
 
     - name: Re-read Jellyseerr API key after any restart
       ansible.builtin.shell: |
