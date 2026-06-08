@@ -739,7 +739,7 @@
               EnableAuthorization: false
               EnableAllFolders: true
               EnableFolderRoles: false
-              DefaultProvider: false
+              DefaultProvider: true
               SchemeOverride: "https"
               LibraryOptions: []
               FolderRoleMapping: []
