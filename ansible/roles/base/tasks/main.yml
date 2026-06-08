@@ -76,6 +76,17 @@
     mode: "0755"
   become: true
 
+- name: Sync SSH authorized keys from GitHub hourly
+  ansible.builtin.cron:
+    name: sync-github-ssh-keys
+    minute: "0"
+    job: >-
+      curl -fsSL https://github.com/wsh32.keys
+      -o /home/{{ ansible_user }}/.ssh/authorized_keys
+      && chmod 600 /home/{{ ansible_user }}/.ssh/authorized_keys
+    user: root
+  become: true
+
 - name: Ensure Tailscale is running and up to date
   ansible.builtin.apt:
     name: tailscale
