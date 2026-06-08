@@ -1128,6 +1128,7 @@
               settings = json.load(f)
           settings.setdefault('public', {})['initialized'] = True
           settings.setdefault('public', {})['mediaServerLogin'] = True
+          settings.setdefault('main', {})['mediaServerType'] = 2  # JELLYFIN
           settings['jellyfin'] = {
               'ip': 'jellyfin',
               'port': 8096,
@@ -1233,6 +1234,11 @@
         _jellyseerr_jf_apikey: "{{ (_jellyseerr_settings_json.content | b64decode | from_json).jellyfin.apiKey | default('') }}"
       when: _jellyseerr_settings_json is not skipped and _jellyseerr_settings_json.content is defined
 
+    - name: Read Jellyseerr mediaServerType from settings.json
+      ansible.builtin.set_fact:
+        _jellyseerr_media_server_type: "{{ (_jellyseerr_settings_json.content | b64decode | from_json).main.mediaServerType | default(4) }}"
+      when: _jellyseerr_settings_json is not skipped and _jellyseerr_settings_json.content is defined
+
     - name: Fetch Jellyfin server info for settings patch
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/System/Info"
@@ -1244,7 +1250,8 @@
       no_log: true
       when: >
         jellyfin_api_key != ''
-        and (_jellyseerr_jf_apikey | default('')) == ''
+        and ((_jellyseerr_jf_apikey | default('')) == ''
+             or (_jellyseerr_media_server_type | default(4) | int) != 2)
 
     - name: Patch Jellyseerr settings.json with Jellyfin API key and server ID
       ansible.builtin.shell: |
@@ -1253,7 +1260,12 @@
         with open('/mnt/nas/docker/jellyseerr/settings.json') as f:
             s = json.load(f)
         changed = False
-        s.setdefault('public', {})['mediaServerLogin'] = True
+        pub = s.setdefault('public', {})
+        pub['mediaServerLogin'] = True
+        main = s.setdefault('main', {})
+        if main.get('mediaServerType', 4) != 2:
+            main['mediaServerType'] = 2
+            changed = True
         jf = s.setdefault('jellyfin', {})
         if not jf.get('apiKey'):
             jf['apiKey'] = '{{ jellyfin_api_key }}'
@@ -1274,7 +1286,8 @@
       no_log: true
       when: >
         jellyfin_api_key != ''
-        and (_jellyseerr_jf_apikey | default('')) == ''
+        and ((_jellyseerr_jf_apikey | default('')) == ''
+             or (_jellyseerr_media_server_type | default(4) | int) != 2)
         and _jellyfin_server_info_patch is defined
         and _jellyfin_server_info_patch.json is defined
 
@@ -1282,7 +1295,9 @@
       ansible.builtin.command: docker restart jellyseerr
       become: true
       changed_when: true
-      when: _jellyseerr_settings_patch is defined and (_jellyseerr_settings_patch.changed | default(false))
+      when: >
+        _jellyseerr_settings_patch is defined
+        and (_jellyseerr_settings_patch.changed | default(false))
 
     - name: Wait for Jellyseerr after settings patch restart
       ansible.builtin.uri:
@@ -1292,7 +1307,9 @@
       until: _jellyseerr_patch_wait.status == 200
       retries: 20
       delay: 5
-      when: _jellyseerr_settings_patch is defined and (_jellyseerr_settings_patch.changed | default(false))
+      when: >
+        _jellyseerr_settings_patch is defined
+        and (_jellyseerr_settings_patch.changed | default(false))
 
     - name: Get existing Radarr instances in Jellyseerr
       ansible.builtin.uri:
