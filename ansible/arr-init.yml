@@ -746,6 +746,8 @@
               AdminRoles: []
               Roles: []
               OidScopes: []
+              DoNotValidateEndpoints: true
+              DoNotValidateIssuerName: true
         status_code: 204
       no_log: true
       when: >
