@@ -517,16 +517,7 @@
         status_code: 204
       when: jellyfin_wizard.status == 200
 
-    - name: Complete Jellyfin wizard
-      ansible.builtin.uri:
-        url: "{{ jellyfin_url }}/Startup/Complete"
-        method: POST
-        headers:
-          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
-        status_code: 204
-      when: jellyfin_wizard.status == 200
-
-    - name: Authenticate as Jellyfin root user (no password) to get token
+    - name: Authenticate as Jellyfin root user (no password, before Complete)
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Users/AuthenticateByName"
         method: POST
@@ -540,6 +531,18 @@
         return_content: true
       register: _jf_root_auth
       no_log: true
+      until: _jf_root_auth.status == 200
+      retries: 10
+      delay: 3
+      when: jellyfin_wizard.status == 200
+
+    - name: Complete Jellyfin wizard
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Startup/Complete"
+        method: POST
+        headers:
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
+        status_code: 204
       when: jellyfin_wizard.status == 200
 
     - name: Create persistent Jellyfin API key for automation
