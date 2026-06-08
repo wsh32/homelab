@@ -10,7 +10,7 @@ services:
     volumes:
       - /mnt/nas/docker/jellyfin:/config
       - /mnt/nas/media:/data:ro
-      - ./config/jellyfin-encoding.xml:/config/config/encoding.xml:ro
+      - ./config/jellyfin-encoding.xml:/config/config/encoding.xml
     environment:
       JELLYFIN_PublishedServerUrl: https://jellyfin.home
       NVIDIA_VISIBLE_DEVICES: all
