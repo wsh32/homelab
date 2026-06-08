@@ -918,7 +918,17 @@
         slug: qbittorrent
         external_host: "https://qbittorrent.home"
 
-- name: Create arr proxy providers in Authentik (idempotent)
+- name: Check which arr proxy providers already exist
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/providers/proxy/?name={{ item.name }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _arr_provider_check
+  loop: "{{ _arr_proxy_services }}"
+
+- name: Create missing arr proxy providers
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/providers/proxy/"
     method: POST
@@ -927,15 +937,17 @@
       Content-Type: "application/json"
     body_format: json
     body:
-      name: "{{ item.name }}"
+      name: "{{ item.0.name }}"
       authorization_flow: "{{ _auth_flow_result.json.results[0].pk }}"
       invalidation_flow: "{{ _invalidation_flow_result.json.results[0].pk }}"
       mode: "forward_auth_single"
-      external_host: "{{ item.external_host }}"
-    status_code: [201, 400]
-  loop: "{{ _arr_proxy_services }}"
+      external_host: "{{ item.0.external_host }}"
+    status_code: 201
+  loop: "{{ _arr_proxy_services | zip(_arr_provider_check.results) | list }}"
+  when: item.1.json.pagination.count == 0
 
-- name: Look up arr proxy provider PKs by name
+# Re-fetch after creation so PKs are available whether providers are new or pre-existing.
+- name: Look up arr proxy provider PKs
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/providers/proxy/?name={{ item.name }}"
     method: GET
@@ -945,7 +957,17 @@
   register: _arr_provider_lookup
   loop: "{{ _arr_proxy_services }}"
 
-- name: Create arr Authentik applications (idempotent)
+- name: Check which arr applications already exist
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/core/applications/?slug={{ item.slug }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _arr_app_check
+  loop: "{{ _arr_proxy_services }}"
+
+- name: Create missing arr Authentik applications
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/core/applications/"
     method: POST
@@ -956,10 +978,14 @@
     body:
       name: "{{ item.0.slug | capitalize }}"
       slug: "{{ item.0.slug }}"
-      provider: "{{ item.1.json.results[0].pk }}"
-    status_code: [201, 400]
+      provider: "{{ (item.1.json.results | first).pk }}"
+    status_code: 201
   loop: "{{ _arr_proxy_services | zip(_arr_provider_lookup.results) | list }}"
-  when: item.1.json.pagination.count > 0
+  when:
+    - item.1.json.pagination.count > 0
+    - (_arr_app_check.results[loop_index].json.pagination.count == 0)
+  loop_control:
+    index_var: loop_index
 
 - name: Get embedded Authentik outpost
   ansible.builtin.uri:
