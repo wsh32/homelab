@@ -82,6 +82,32 @@
         enabled: true
       become: true
 
+    - name: Recover headscale SQLite database if malformed
+      ansible.builtin.shell: |
+        set -e
+        DB=/mnt/nas/docker/headscale/db.sqlite
+        sqlite3 "$DB" "PRAGMA integrity_check;" 2>&1 | grep -q '^ok$' && exit 0
+        sqlite3 "$DB" ".recover" | sqlite3 "${DB}.recovered"
+        mv "$DB" "${DB}.bak"
+        mv "${DB}.recovered" "$DB"
+      args:
+        executable: /bin/bash
+      register: _db_recover
+      changed_when: "'ok' not in _db_recover.stdout"
+      become: true
+      run_once: true
+      delegate_to: diglett-dns
+
+    - name: Restart headscale after database recovery
+      community.docker.docker_container:
+        name: headscale
+        state: started
+        restart: true
+      become: true
+      run_once: true
+      delegate_to: diglett-dns
+      when: _db_recover.changed
+
     - name: Look up existing headscale node by hostname
       community.docker.docker_container_exec:
         container: headscale
