@@ -940,7 +940,7 @@
       name: "{{ item.0.name }}"
       authorization_flow: "{{ _auth_flow_result.json.results[0].pk }}"
       invalidation_flow: "{{ _invalidation_flow_result.json.results[0].pk }}"
-      mode: "forward_auth_single"
+      mode: "forward_single"
       external_host: "{{ item.0.external_host }}"
     status_code: 201
   loop: "{{ _arr_proxy_services | zip(_arr_provider_check.results) | list }}"
