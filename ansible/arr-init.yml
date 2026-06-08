@@ -732,21 +732,20 @@
           SamlConfigs: {}
           OidConfigs:
             authentik:
-              OIDEndpoint: "https://auth.home/application/o/jellyfin/"
-              OIDClientId: "{{ _jf_oidc_client_id }}"
-              OIDSecret: "{{ _jf_oidc_client_secret }}"
+              OidEndpoint: "https://auth.home/application/o/jellyfin/"
+              OidClientId: "{{ _jf_oidc_client_id }}"
+              OidSecret: "{{ _jf_oidc_client_secret }}"
               Enabled: true
               EnableAuthorization: false
               EnableAllFolders: true
               EnableFolderRoles: false
               DefaultProvider: false
               SchemeOverride: ""
-              LibraryAccessList: []
+              LibraryOptions: []
               FolderRoleMapping: []
               AdminRoles: []
               Roles: []
-              RolesClaim: ""
-              OIDScopes: []
+              OidScopes: []
         status_code: 204
       no_log: true
       when: >
