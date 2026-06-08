@@ -741,6 +741,12 @@
               EnableFolderRoles: false
               DefaultProvider: false
               SchemeOverride: ""
+              LibraryAccessList: []
+              FolderRoleMapping: []
+              AdminRoles: []
+              Roles: []
+              RolesClaim: ""
+              OIDScopes: []
         status_code: 204
       no_log: true
       when: >
