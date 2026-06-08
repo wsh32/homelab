@@ -1034,6 +1034,57 @@
     _jf_provider_exists: "{{ _jf_existing_result.json.pagination.count > 0 }}"
     _jf_existing_provider: "{{ _jf_existing_result.json.results[0] | default({}) }}"
 
+- name: Check if Jellyfin groups scope mapping exists
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/propertymappings/provider/scope/?name=jellyfin-groups"
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _jf_groups_mapping_result
+
+- name: Create Jellyfin groups scope mapping
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/propertymappings/provider/scope/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "jellyfin-groups"
+      scope_name: "groups"
+      description: "Include Authentik group names in groups claim for Jellyfin SSO"
+      expression: "return [g.name for g in request.user.ak_groups.all()]"
+    status_code: 201
+  register: _jf_groups_mapping_new
+  when: _jf_groups_mapping_result.json.pagination.count == 0
+
+- name: Set Jellyfin groups mapping PK
+  ansible.builtin.set_fact:
+    _jf_groups_mapping_pk: >-
+      {{ (_jf_groups_mapping_result.json.pagination.count > 0)
+         | ternary(_jf_groups_mapping_result.json.results[0].pk,
+                   _jf_groups_mapping_new.json.pk) }}
+
+- name: Add groups scope mapping to Jellyfin OIDC provider
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/providers/oauth2/{{ _jf_existing_provider.pk }}/"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      property_mappings: >-
+        {{ (_jf_existing_provider.property_mappings | default([]))
+           + ([_jf_groups_mapping_pk]
+              if _jf_groups_mapping_pk not in (_jf_existing_provider.property_mappings | default([]))
+              else []) }}
+    status_code: 200
+  when: >
+    _jf_provider_exists and
+    _jf_groups_mapping_pk not in (_jf_existing_provider.property_mappings | default([]))
+
 - name: Get built-in OIDC scope property mappings (Jellyfin)
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/propertymappings/provider/scope/?page_size=100"
@@ -1056,6 +1107,7 @@
           ])
         | map(attribute='pk')
         | list
+        + [_jf_groups_mapping_pk]
       }}
   when: not _jf_provider_exists
 

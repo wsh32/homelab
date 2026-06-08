@@ -736,16 +736,19 @@
               OidClientId: "{{ _jf_oidc_client_id }}"
               OidSecret: "{{ _jf_oidc_client_secret }}"
               Enabled: true
-              EnableAuthorization: false
+              EnableAuthorization: true
               EnableAllFolders: true
               EnableFolderRoles: false
               DefaultProvider: true
               SchemeOverride: "https"
               LibraryOptions: []
               FolderRoleMapping: []
-              AdminRoles: []
+              AdminRoles:
+                - admins
               Roles: []
-              OidScopes: []
+              OidScopes:
+                - groups
+              RolesClaim: "groups"
               DoNotValidateEndpoints: true
               DoNotValidateIssuerName: true
         status_code: 204
