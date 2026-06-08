@@ -455,9 +455,10 @@ SSH to machamp as root (`ssh root@192.168.0.5`):
 find /sys/kernel/iommu_groups -name "*0000:41:00.0*" | grep -oP 'iommu_groups/\K[0-9]+'
 
 # Create the mapping — replace N with the IOMMU group number from above
+# Note: path= is the PCI address; id= is the optional vendor:device ID (omitted here)
 pvesh create /cluster/mapping/pci \
   --id quadro-p2200 \
-  --map "node=machamp,id=0000:41:00.0,iommugroup=N" \
+  --map "node=machamp,path=0000:41:00.0,iommugroup=N" \
   --description "Quadro P2200 GPU"
 
 # Grant the Terraform API token permission to use the mapping
