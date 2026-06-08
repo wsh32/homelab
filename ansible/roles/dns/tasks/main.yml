@@ -37,7 +37,7 @@
     - /mnt/nas/docker/headplane
   become: true
 
-- name: Generate headplane cookie secret (32 hex chars, regenerate if wrong length)
+- name: Generate headplane cookie secret
   ansible.builtin.shell: |
     target=/mnt/nas/docker/headplane/cookie.secret
     if [ ! -f "$target" ] || [ "$(tr -d '\n' < "$target" | wc -c)" -ne 32 ]; then
@@ -171,7 +171,7 @@
   notify: Restart diglett-dns stack
   when: _hs_oidc_env_stat.stat.exists
 
-- name: Enable IP forwarding (required for tailscale exit node)
+- name: Enable IP forwarding
   ansible.posix.sysctl:
     name: "{{ item }}"
     value: "1"
@@ -183,7 +183,7 @@
     - net.ipv6.conf.all.forwarding
   become: true
 
-- name: Disable systemd-resolved stub listener (frees port 53)
+- name: Disable systemd-resolved stub listener
   ansible.builtin.lineinfile:
     path: /etc/systemd/resolved.conf
     regexp: '^#?DNSStubListener='

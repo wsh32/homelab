@@ -27,7 +27,7 @@
     nas_ip: "{{ network.nodes.alakazam.ip }}"
 
   pre_tasks:
-    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+    - name: Load local secrets file if present
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
@@ -71,7 +71,7 @@
 
     # Write machine identity credentials so the VM can re-export secrets without
     # Ansible (e.g. on cron or after a secret rotation).
-    - name: Write /etc/infisical.env (machine identity for on-VM use)
+    - name: Write /etc/infisical.env
       ansible.builtin.copy:
         dest: /etc/infisical.env
         mode: "0600"

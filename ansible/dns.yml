@@ -20,7 +20,7 @@
     nas_ip: "{{ network.nodes.alakazam.ip }}"
 
   pre_tasks:
-    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+    - name: Load local secrets file if present
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
@@ -87,7 +87,7 @@
             (preauthkeys_list.stdout | default('[]') | from_json | map(attribute='key') | list)
           }}
 
-    - name: Generate reusable pre-auth key (1 year expiry)
+    - name: Generate reusable pre-auth key
       community.docker.docker_container_exec:
         container: headscale
         command: "headscale preauthkeys create --user {{ headscale_user_id }} --reusable --expiration 8760h --output json"
@@ -95,12 +95,12 @@
       become: true
       when: not _cached_key_valid
 
-    - name: Set pre-auth key fact (newly generated)
+    - name: Set pre-auth key from generation
       ansible.builtin.set_fact:
         headscale_preauth_key: "{{ (preauthkey_result.stdout | from_json).key }}"
       when: not _cached_key_valid
 
-    - name: Set pre-auth key fact (from cache)
+    - name: Set pre-auth key from cache
       ansible.builtin.set_fact:
         headscale_preauth_key: "{{ tailscale_auth_key_raw.content | b64decode | trim }}"
       when: _cached_key_valid
@@ -115,7 +115,7 @@
       ansible.builtin.set_fact:
         headscale_server_url: "{{ headscale_env_bootstrap.content | b64decode | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\\1') | first }}"
 
-    - name: Write tailscale auth key to disk (only when newly generated)
+    - name: Write tailscale auth key to disk
       ansible.builtin.copy:
         content: "{{ headscale_preauth_key }}"
         dest: /etc/tailscale-auth.key
@@ -266,7 +266,7 @@
       - "{{ playbook_dir }}/../terraform/machamp/terraform.tfvars"
 
   tasks:
-    - name: Skip if no pre-auth key was obtained (bootstrap headscale play may have failed)
+    - name: Skip if no pre-auth key was obtained
       ansible.builtin.meta: end_play
       when: preauth_key == ''
 

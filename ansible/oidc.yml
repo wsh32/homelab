@@ -10,7 +10,7 @@
 # Usage:
 #   ansible-playbook ansible/oidc.yml
 
-- name: Inject OIDC credentials into Headplane (diglett-dns)
+- name: Configure Headplane OIDC
   hosts: diglett-dns
   gather_facts: false
 
@@ -19,7 +19,7 @@
     nas_ip: "{{ network.nodes.alakazam.ip }}"
 
   pre_tasks:
-    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+    - name: Load local secrets file if present
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
@@ -105,7 +105,7 @@
         restart: true
       become: true
 
-- name: Inject OIDC credentials into Headscale (diglett-dns)
+- name: Configure Headscale OIDC
   hosts: diglett-dns
   gather_facts: false
 
@@ -114,7 +114,7 @@
     nas_ip: "{{ network.nodes.alakazam.ip }}"
 
   pre_tasks:
-    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+    - name: Load local secrets file if present
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false

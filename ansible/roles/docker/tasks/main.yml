@@ -39,7 +39,7 @@
     append: true
   become: true
 
-- name: Configure Docker daemon (log rotation, storage driver)
+- name: Configure Docker daemon
   ansible.builtin.copy:
     dest: /etc/docker/daemon.json
     content: |

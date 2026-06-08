@@ -37,7 +37,7 @@
       loop: "{{ _existing_keys.stdout | from_json | map(attribute='id') | list }}"
       become: true
 
-    - name: Generate fresh pre-auth key (1h expiry, reusable, tag:infra)
+    - name: Generate fresh pre-auth key
       community.docker.docker_container_exec:
         container: headscale
         command: >-

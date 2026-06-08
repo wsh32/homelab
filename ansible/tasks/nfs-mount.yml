@@ -10,7 +10,7 @@
   register: nfs_current_mount_src
   changed_when: false
 
-- name: Check if {{ nfs_mount_path }} is accessible (detects stale mounts)
+- name: Check if {{ nfs_mount_path }} is accessible
   ansible.builtin.command: timeout 5 stat {{ nfs_mount_path }}
   register: nfs_mount_accessible
   changed_when: false
@@ -34,7 +34,7 @@
   become: true
   when: nfs_current_mount_src.stdout == '' or nfs_mount_accessible.rc != 0
 
-- name: Mount Alakazam NFS share ({{ nfs_source_path }})
+- name: Mount Alakazam NFS share
   ansible.posix.mount:
     path: "{{ nfs_mount_path }}"
     src: "{{ nfs_source_path }}"

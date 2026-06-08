@@ -27,7 +27,7 @@
     nfs_mount_path: /mnt/nas/docker
     nfs_source_path: "{{ nas_ip }}:/mnt/apps/docker"
 
-- name: Create local data directories (VM disk — not NFS, avoids soft-mount corruption)
+- name: Create local data directories on VM disk
   ansible.builtin.file:
     path: "{{ item.path }}"
     state: directory
@@ -70,7 +70,7 @@
     - { path: /mnt/nas/docker/step-ca, owner: "1000" }
   become: true
 
-- name: Create Authentik NFS media directories (owned by uid 1000 — authentik container user)
+- name: Create Authentik NFS media directories
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
@@ -83,7 +83,7 @@
     - /mnt/nas/docker/authentik/custom-templates
   become: true
 
-- name: Check for inconsistent state (data dir exists but NFS sentinel missing)
+- name: Check for inconsistent state
   ansible.builtin.shell: |
     sentinel=/mnt/nas/docker/infisical-backups/.secrets.env
     if [ -d /var/lib/postgres ] && [ "$(ls -A /var/lib/postgres 2>/dev/null)" ] \
@@ -104,7 +104,7 @@
       data, then re-run.
   when: state_check.stdout == 'INCONSISTENT'
 
-- name: Generate bootstrap secrets (idempotent — skipped if NFS sentinel exists)
+- name: Generate bootstrap secrets
   ansible.builtin.shell: |
     nfs_secrets=/mnt/nas/docker/infisical-backups/.secrets.env
     local_env=/etc/homelab.env
@@ -135,7 +135,7 @@
   changed_when: "'changed' in secrets_result.stdout"
   become: true
 
-- name: Write AUTHENTIK_HOST to homelab.env (sets canonical public URL for OIDC token issuers)
+- name: Write AUTHENTIK_HOST to homelab.env
   ansible.builtin.lineinfile:
     path: "{{ item }}"
     regexp: '^AUTHENTIK_HOST='
@@ -211,7 +211,7 @@
   register: postgres_backups
   become: true
 
-- name: Restore postgres from NFS backup (data dir empty, backup present)
+- name: Restore postgres from NFS backup
   when:
     - postgres_data_contents.files | length == 0
     - postgres_backups.files | length > 0
@@ -255,7 +255,7 @@
   register: vaultwarden_backup_check
   become: true
 
-- name: Restore vaultwarden from litestream backup (db missing, backup present)
+- name: Restore vaultwarden from litestream backup
   ansible.builtin.shell: |
     docker run --rm \
       -v /var/lib/vaultwarden:/data \
@@ -273,7 +273,7 @@
   vars:
     compose_project_src: /home/{{ ansible_user }}/homelab/services/machamp-infra
 
-- name: Ensure step-ca root cert is world-readable (required by ca-page nginx container)
+- name: Ensure step-ca root cert is world-readable
   ansible.builtin.file:
     path: /mnt/nas/docker/step-ca/certs/root_ca.crt
     mode: "o+r"
@@ -298,7 +298,7 @@
   failed_when: false
   become: true
 
-- name: Clear stale acme.json (Traefik serving a non-step-ca cert)
+- name: Clear stale acme.json
   ansible.builtin.shell: truncate -s 0 /mnt/nas/docker/traefik/acme/acme.json
   become: true
   register: acme_cleared
@@ -322,7 +322,7 @@
   changed_when: false
   become: true
 
-- name: Wait for Vaultwarden container to be running (needed for hash command)
+- name: Wait for Vaultwarden container to be running
   ansible.builtin.shell: docker inspect --format='{{"{{"}} .State.Running {{"}}"}}' vaultwarden
   register: vw_running
   retries: 15
@@ -332,7 +332,7 @@
   become: true
   when: vw_token_state.stdout == 'plain'
 
-- name: Hash Vaultwarden admin token with Argon2 PHC (idempotent — skipped if already hashed)
+- name: Hash Vaultwarden admin token with Argon2 PHC
   ansible.builtin.shell: |
     token=$(grep '^VAULTWARDEN_ADMIN_TOKEN=' /etc/homelab.env | cut -d= -f2-)
     hashed=$(echo -n "$token" | docker exec -i vaultwarden /vaultwarden hash --preset owasp 2>/dev/null)
@@ -366,7 +366,7 @@
 # Creates a headless service account used by Ansible to retrieve secrets from
 # the vault without operator credentials. Credentials are stored in /etc/homelab.env.
 
-- name: Wait for Vaultwarden to accept HTTP connections (after admin token restart)
+- name: Wait for Vaultwarden to accept HTTP connections
   ansible.builtin.shell: |
     vw_ip=$(docker inspect vaultwarden | python3 -c \
       "import json,sys; nets=json.load(sys.stdin)[0]['NetworkSettings']['Networks']; \
@@ -477,7 +477,7 @@
               sys.exit(1)
   become: true
 
-- name: Install python3-cryptography (required by registration script)
+- name: Install python3-cryptography
   ansible.builtin.apt:
     name: python3-cryptography
     state: present
@@ -492,7 +492,7 @@
   changed_when: false
   become: true
 
-- name: Register Vaultwarden service account (idempotent)
+- name: Register Vaultwarden service account
   ansible.builtin.shell: |
     set -e
     svc_email=$(grep '^VAULTWARDEN_SVC_EMAIL='    /etc/homelab.env | cut -d= -f2-)
@@ -507,7 +507,7 @@
   become: true
   no_log: true
 
-- name: Show Vaultwarden registration error output (safe — contains no credentials)
+- name: Show Vaultwarden registration error output
   ansible.builtin.shell: cat /tmp/vw_reg_err.txt 2>/dev/null || true
   become: true
   register: _vw_reg_err
@@ -565,7 +565,7 @@
   changed_when: true
   when: _step_ca_cert.changed
 
-- name: Install Bitwarden CLI via snap (used by infra.yml PIA seeding)
+- name: Install Bitwarden CLI via snap
   community.general.snap:
     name: bw
     state: present
@@ -580,7 +580,7 @@
   until: pg_ready.rc == 0
   changed_when: false
 
-- name: Wait for Infisical to be healthy, unlocking migration table on each retry (up to 5 minutes)
+- name: Wait for Infisical to be healthy
   ansible.builtin.shell: |
     # Unlock any stuck knex migration lock before each health check attempt.
     docker exec postgres psql -U postgres -d infisical \
@@ -595,7 +595,7 @@
 
 # ── Authentik OIDC bootstrap ──────────────────────────────────────────────────
 
-- name: Wait for Authentik to be healthy (up to 15 minutes — migrations can be slow on first boot)
+- name: Wait for Authentik to be healthy
   ansible.builtin.uri:
     url: "http://localhost:9000/-/health/ready/"
     status_code: 200
@@ -615,7 +615,7 @@
   ansible.builtin.set_fact:
     _authentik_token: "{{ _authentik_token_raw.stdout | trim }}"
 
-- name: Wait for Authentik API to be ready (post-migration setup and blueprints can take extra time)
+- name: Wait for Authentik API to be ready
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/core/applications/"
     method: GET
@@ -651,7 +651,7 @@
     status_code: 200
   register: _certs_result
 
-- name: Set signing key fact (first available cert with a private key)
+- name: Set signing key fact
   ansible.builtin.set_fact:
     _signing_key_pk: "{{ _certs_result.json.results[0].pk }}"
 
@@ -665,7 +665,7 @@
   register: _scope_mappings_result
   when: not _provider_exists
 
-- name: Extract standard scope mapping PKs (openid, email, profile)
+- name: Extract standard scope mapping PKs
   ansible.builtin.set_fact:
     _scope_pks: >-
       {{
@@ -779,7 +779,7 @@
     _hp_provider_exists: "{{ _hp_existing_result.json.pagination.count > 0 }}"
     _hp_existing_provider: "{{ _hp_existing_result.json.results[0] | default({}) }}"
 
-- name: Get built-in OIDC scope property mappings (headplane)
+- name: Get built-in OIDC scope property mappings for headplane
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/propertymappings/provider/scope/?page_size=100"
     method: GET
@@ -789,7 +789,7 @@
   register: _hp_scope_mappings_result
   when: not _hp_provider_exists
 
-- name: Extract standard scope mapping PKs for headplane (openid, email, profile)
+- name: Extract standard scope mapping PKs for headplane
   ansible.builtin.set_fact:
     _hp_scope_pks: >-
       {{
@@ -859,7 +859,7 @@
     _hp_oidc_client_secret: "{{ _hp_existing_provider.client_secret }}"
   when: _hp_provider_exists
 
-- name: Look up headplane application PK (provider already existed)
+- name: Look up headplane application PK
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/core/applications/?slug=headplane"
     method: GET

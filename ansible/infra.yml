@@ -24,12 +24,12 @@
     nas_ip: "{{ network.nodes.alakazam.ip }}"
 
   pre_tasks:
-    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+    - name: Load local secrets file if present
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
 
-    - name: Load group config (Authentik app→group bindings)
+    - name: Load Authentik group config
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/vars/group_config.yml"
 
@@ -42,7 +42,7 @@
   gather_facts: false
 
   tasks:
-    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+    - name: Load local secrets file if present
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
@@ -108,7 +108,7 @@
       become: true
       register: _bootstrap_json_exists
 
-    - name: Login as Infisical admin (recovery path)
+    - name: Log in as Infisical admin
       ansible.builtin.uri:
         url: "http://localhost:8080/api/v3/auth/login"
         method: POST
@@ -241,13 +241,13 @@
       no_log: true
       when: _project_check.status == 404
 
-    - name: Resolve project ID (newly created)
+    - name: Set project ID from new project
       ansible.builtin.set_fact:
         _project_id: "{{ _project_new.json.project.id }}"
       no_log: true
       when: _project_check.status == 404
 
-    - name: Resolve project ID (existing)
+    - name: Set project ID from existing project
       ansible.builtin.set_fact:
         _project_id: "{{ _project_check.json.id }}"
       no_log: true
@@ -287,13 +287,13 @@
       no_log: true
       when: _existing_identity_id == ''
 
-    - name: Resolve identity ID (newly created)
+    - name: Set identity ID from new identity
       ansible.builtin.set_fact:
         _identity_id: "{{ _identity_new.json.identity.id }}"
       no_log: true
       when: _existing_identity_id == ''
 
-    - name: Resolve identity ID (existing)
+    - name: Set identity ID from existing identity
       ansible.builtin.set_fact:
         _identity_id: "{{ _existing_identity_id }}"
       no_log: true
@@ -338,13 +338,13 @@
       no_log: true
       when: _ua_check.status == 404
 
-    - name: Resolve Universal Auth client ID (newly configured)
+    - name: Set Universal Auth client ID from new config
       ansible.builtin.set_fact:
         _ua_client_id: "{{ _ua_new.json.identityUniversalAuth.clientId }}"
       no_log: true
       when: _ua_check.status == 404
 
-    - name: Resolve Universal Auth client ID (existing)
+    - name: Set Universal Auth client ID from existing config
       ansible.builtin.set_fact:
         _ua_client_id: "{{ _ua_check.json.identityUniversalAuth.clientId }}"
       no_log: true

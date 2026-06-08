@@ -6,7 +6,7 @@
 #   static_ip:            "192.168.0.5/24"
 #   proxmox_bridge_port:  "eno1"  (physical NIC bridged to vmbr0)
 
-- name: Ensure ifupdown2 is installed (provides ifreload)
+- name: Ensure ifupdown2 is installed
   ansible.builtin.apt:
     name: ifupdown2
     state: present
@@ -30,7 +30,7 @@
   become: true
   notify: Reload network
 
-- name: Disable TSO/GSO/GRO on physical NIC (e1000e/I219 hang workaround)
+- name: Disable TSO/GSO/GRO on physical NIC
   ansible.builtin.command: ethtool -K {{ proxmox_bridge_port }} tso off gso off gro off
   become: true
   when: disable_nic_offload | default(false)

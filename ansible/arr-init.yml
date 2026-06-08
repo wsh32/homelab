@@ -35,7 +35,7 @@
 
     # ── Load Infisical push credentials from the target ──────────────────────
 
-    - name: Load /etc/infisical.env (push credentials)
+    - name: Load /etc/infisical.env
       ansible.builtin.slurp:
         src: /etc/infisical.env
       register: _infisical_env_raw
@@ -99,7 +99,7 @@
         bazarr_api_key: "{{ lookup('ansible.builtin.password', '/dev/null', length=32, chars=['0123456789abcdef']) }}"
       when: _bazarr_key_new
 
-    - name: Generate Jellyseerr API key (placeholder — real key retrieved after init)
+    - name: Generate Jellyseerr API key
       ansible.builtin.set_fact:
         jellyseerr_api_key: "placeholder"
       when: _jellyseerr_key_new
@@ -172,7 +172,7 @@
         path: /mnt/nas/docker/bazarr/config
         state: directory
 
-    - name: Pre-seed Bazarr config.ini (skips if already exists)
+    - name: Pre-seed Bazarr config.ini
       ansible.builtin.copy:
         dest: /mnt/nas/docker/bazarr/config/config.ini
         force: false
