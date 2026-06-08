@@ -16,6 +16,7 @@
   gather_facts: false
 
   vars:
+    jellyfin_sso_plugin_version: "3.5.2.1"
     prowlarr_url: "http://localhost:9696"
     radarr_url: "http://localhost:7878"
     sonarr_url: "http://localhost:8989"
@@ -499,6 +500,123 @@
         method: POST
         status_code: 204
       when: jellyfin_wizard.status == 200
+
+    # ── Block 3.5: Jellyfin SSO plugin (jellyfin-plugin-sso) ────────────────
+    # Installs the SSO plugin and configures Authentik as the OIDC provider.
+    # Credentials come from /mnt/nas/docker/jellyfin-oidc.env written by infra.yml.
+
+    - name: Check if Jellyfin OIDC credentials are available on NFS
+      ansible.builtin.stat:
+        path: /mnt/nas/docker/jellyfin-oidc.env
+      register: _jf_oidc_env_stat
+      become: true
+
+    - name: Read Jellyfin OIDC credentials from NFS
+      ansible.builtin.slurp:
+        src: /mnt/nas/docker/jellyfin-oidc.env
+      register: _jf_oidc_env_raw
+      become: true
+      when: _jf_oidc_env_stat.stat.exists
+
+    - name: Parse Jellyfin OIDC credentials
+      ansible.builtin.set_fact:
+        _jf_oidc_client_id: "{{ (_jf_oidc_env_raw.content | b64decode) | regex_search('(?m)^JELLYFIN_OIDC_CLIENT_ID=(.+)$', '\\1') | first }}"
+        _jf_oidc_client_secret: "{{ (_jf_oidc_env_raw.content | b64decode) | regex_search('(?m)^JELLYFIN_OIDC_CLIENT_SECRET=(.+)$', '\\1') | first }}"
+      when: _jf_oidc_env_stat.stat.exists
+
+    - name: Check if SSO plugin DLL is already installed
+      ansible.builtin.stat:
+        path: "/mnt/nas/docker/jellyfin/plugins/SSO-Auth_{{ jellyfin_sso_plugin_version }}/SSO-Auth.dll"
+      register: _sso_dll_stat
+      when: _jf_oidc_env_stat.stat.exists
+
+    - name: Install jellyfin-plugin-sso
+      when:
+        - _jf_oidc_env_stat.stat.exists
+        - not _sso_dll_stat.stat.exists
+      block:
+        - name: Create SSO plugin directory
+          ansible.builtin.file:
+            path: "/mnt/nas/docker/jellyfin/plugins/SSO-Auth_{{ jellyfin_sso_plugin_version }}"
+            state: directory
+            mode: "0755"
+
+        - name: Download jellyfin-plugin-sso zip
+          ansible.builtin.get_url:
+            url: "https://github.com/9p4/jellyfin-plugin-sso/releases/download/v{{ jellyfin_sso_plugin_version }}/sso-auth_{{ jellyfin_sso_plugin_version }}.zip"
+            dest: "/tmp/jellyfin-sso-{{ jellyfin_sso_plugin_version }}.zip"
+            mode: "0644"
+
+        - name: Extract SSO plugin
+          ansible.builtin.unarchive:
+            src: "/tmp/jellyfin-sso-{{ jellyfin_sso_plugin_version }}.zip"
+            dest: "/mnt/nas/docker/jellyfin/plugins/SSO-Auth_{{ jellyfin_sso_plugin_version }}"
+            remote_src: true
+
+        - name: Remove plugin zip
+          ansible.builtin.file:
+            path: "/tmp/jellyfin-sso-{{ jellyfin_sso_plugin_version }}.zip"
+            state: absent
+
+    - name: Create Jellyfin plugin configurations directory
+      ansible.builtin.file:
+        path: /mnt/nas/docker/jellyfin/plugins/configurations
+        state: directory
+        mode: "0755"
+      when: _jf_oidc_env_stat.stat.exists
+
+    - name: Write SSO plugin configuration XML
+      ansible.builtin.copy:
+        dest: /mnt/nas/docker/jellyfin/plugins/configurations/SSO-Auth.xml
+        force: false
+        content: |
+          <?xml version="1.0" encoding="utf-8"?>
+          <PluginConfiguration xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+            <SSOConfigs>
+              <item>
+                <key>authentik</key>
+                <value>
+                  <OIDEndpoint>https://auth.home/application/o/jellyfin/</OIDEndpoint>
+                  <OIDClientId>{{ _jf_oidc_client_id }}</OIDClientId>
+                  <OIDSecret>{{ _jf_oidc_client_secret }}</OIDSecret>
+                  <Enabled>true</Enabled>
+                  <EnableAuthorization>false</EnableAuthorization>
+                  <EnableAllFolders>true</EnableAllFolders>
+                  <EnableFolderRoles>false</EnableFolderRoles>
+                  <LibraryAccessList />
+                  <FolderRoleMapping />
+                  <AdminRoles />
+                  <Roles />
+                  <DefaultProvider>false</DefaultProvider>
+                  <RolesClaim />
+                  <OIDScopes />
+                </value>
+              </item>
+            </SSOConfigs>
+            <SchemeOverride />
+          </PluginConfiguration>
+      register: _sso_config_written
+      when: _jf_oidc_env_stat.stat.exists
+
+    - name: Restart Jellyfin to load SSO plugin
+      ansible.builtin.command: docker restart jellyfin
+      become: true
+      changed_when: true
+      when:
+        - _jf_oidc_env_stat.stat.exists
+        - not _sso_dll_stat.stat.exists or _sso_config_written.changed
+
+    - name: Wait for Jellyfin after SSO plugin restart
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/health"
+        status_code: 200
+      register: _jf_sso_health
+      until: _jf_sso_health.status == 200
+      retries: 40
+      delay: 5
+      when:
+        - _jf_oidc_env_stat.stat.exists
+        - not _sso_dll_stat.stat.exists or _sso_config_written.changed
 
     # ── Block 4: Volume migration — Radarr ──────────────────────────────────
 

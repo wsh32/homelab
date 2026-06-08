@@ -115,7 +115,7 @@ services:
       PUID: "1000"
       PGID: "1000"
     ports:
-      - "127.0.0.1:6767:6767"
+      - "6767:6767"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.bazarr-wsh.rule=Host(`bazarr.wsh`)"
@@ -131,7 +131,7 @@ services:
     volumes:
       - /mnt/nas/docker/jellyseerr:/app/config
     ports:
-      - "127.0.0.1:5055:5055"
+      - "5055:5055"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.jellyseerr-wsh.rule=Host(`jellyseerr.wsh`)"
