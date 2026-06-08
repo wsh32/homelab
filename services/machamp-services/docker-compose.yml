@@ -7,10 +7,12 @@ services:
     runtime: nvidia
     ports:
       - "8096:8096"
+    entrypoint: ["/bin/sh", "-c", "cp /step-ca-root.crt /usr/local/share/ca-certificates/step-ca.crt && update-ca-certificates -f 2>/dev/null; exec /jellyfin/jellyfin"]
     volumes:
       - /mnt/nas/docker/jellyfin:/config
       - /mnt/nas/media:/data:ro
       - ./config/jellyfin-encoding.xml:/config/config/encoding.xml
+      - /mnt/nas/docker/step-ca/certs/root_ca.crt:/step-ca-root.crt:ro
     environment:
       JELLYFIN_PublishedServerUrl: https://jellyfin.home
       NVIDIA_VISIBLE_DEVICES: all
