@@ -3,6 +3,13 @@
 # All services are LAN (.home) only until Tailscale is wired up — see TODOS.md.
 http:
   middlewares:
+    # Redirect Jellyfin web UI to Authentik SSO via jellyfin-plugin-sso.
+    jellyfin-sso:
+      redirectRegex:
+        regex: "^https://jellyfin\\.home(/web.*|/?)$"
+        replacement: "https://jellyfin.home/SSO/OID/start/authentik"
+        permanent: false
+
     # Authentik forward auth — all arr/media services require authentication.
     # Authentik proxy providers (forward_auth_single) are bootstrapped by ansible/roles/infra/tasks/main.yml.
     authentik:
@@ -58,6 +65,17 @@ http:
         certResolver: step
 
     # ── Jellyfin ──────────────────────────────────────────────────────────────
+    # SSO redirect: web UI paths go to Authentik via jellyfin-plugin-sso.
+    # API/app paths (not matching /web or /) pass through directly.
+    # Local admin bypass: /web/index.html#!/login.html?mode=0
+    jellyfin-sso-redirect:
+      rule: "Host(`jellyfin.home`) && (Path(`/`) || PathPrefix(`/web`))"
+      entryPoints: [websecure]
+      priority: 10
+      middlewares: [jellyfin-sso]
+      service: jellyfin-svc
+      tls:
+        certResolver: step
     jellyfin-home:
       rule: "Host(`jellyfin.home`)"
       entryPoints: [web]

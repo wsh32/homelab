@@ -761,21 +761,6 @@
              or (_sso_config_current.json.OidConfigs.authentik.DefaultProvider | default('false')) != 'true'
              or ('admins' not in (_sso_config_current.json.OidConfigs.authentik.AdminRoles | default([]))))
 
-    - name: Add Jellyfin canonical link for auto-redirect
-      ansible.builtin.uri:
-        url: "{{ jellyfin_url }}/SSO/OID/AddCanonicalLink"
-        method: POST
-        headers:
-          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ jellyfin_api_key }}"'
-          Content-Type: application/json
-        body_format: json
-        body:
-          link: "jellyfin.home"
-          provider: "authentik"
-        status_code: [200, 204]
-      when: _jf_oidc_env_stat.stat.exists and jellyfin_api_key != ''
-      failed_when: false
-
     # ── Block 4: Volume migration — Radarr ──────────────────────────────────
 
     - name: Get Radarr root folders
