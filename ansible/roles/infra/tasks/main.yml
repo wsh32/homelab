@@ -944,7 +944,8 @@
       external_host: "{{ item.0.external_host }}"
     status_code: 201
   loop: "{{ _arr_proxy_services | zip(_arr_provider_check.results) | list }}"
-  when: item.1.json.pagination.count == 0
+  # ?name= is a contains match — use selectattr for exact name check.
+  when: (item.1.json.results | selectattr('name', 'equalto', item.0.name) | list | length) == 0
 
 # Re-fetch after creation so PKs are available whether providers are new or pre-existing.
 - name: Look up arr proxy provider PKs
@@ -984,7 +985,8 @@
   loop: "{{ _arr_proxy_services | zip(_arr_provider_lookup.results) | list }}"
   when:
     - (item.1.json.results | selectattr('name', 'equalto', item.0.name) | list | length) > 0
-    - (_arr_app_check.results[loop_index].json.pagination.count == 0)
+    # ?slug= is a contains match — use selectattr for exact slug check.
+    - (_arr_app_check.results[loop_index].json.results | selectattr('slug', 'equalto', item.0.slug) | list | length) == 0
   loop_control:
     index_var: loop_index
 
