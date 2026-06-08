@@ -4,13 +4,13 @@ services:
     image: jellyfin/jellyfin:latest
     container_name: jellyfin
     restart: unless-stopped
-    # runtime: nvidia  # re-enable after Terraform GPU passthrough is applied
+    runtime: nvidia
     ports:
       - "8096:8096"
     volumes:
       - /mnt/nas/docker/jellyfin:/config
       - /mnt/nas/media:/data:ro
-      # - ./config/jellyfin-encoding.xml:/config/config/encoding.xml:ro  # re-enable with GPU passthrough
+      - ./config/jellyfin-encoding.xml:/config/config/encoding.xml:ro
     environment:
       JELLYFIN_PublishedServerUrl: https://jellyfin.home
       NVIDIA_VISIBLE_DEVICES: all
