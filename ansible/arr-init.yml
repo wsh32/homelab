@@ -540,6 +540,7 @@
             path: "/mnt/nas/docker/jellyfin/plugins/SSO-Auth_{{ jellyfin_sso_plugin_version }}"
             state: directory
             mode: "0755"
+          become: true
 
         - name: Download jellyfin-plugin-sso zip
           ansible.builtin.get_url:
@@ -552,6 +553,7 @@
             src: "/tmp/jellyfin-sso-{{ jellyfin_sso_plugin_version }}.zip"
             dest: "/mnt/nas/docker/jellyfin/plugins/SSO-Auth_{{ jellyfin_sso_plugin_version }}"
             remote_src: true
+          become: true
 
         - name: Remove plugin zip
           ansible.builtin.file:
@@ -563,6 +565,7 @@
         path: /mnt/nas/docker/jellyfin/plugins/configurations
         state: directory
         mode: "0755"
+      become: true
       when: _jf_oidc_env_stat.stat.exists
 
     - name: Write SSO plugin configuration XML
@@ -595,6 +598,7 @@
             </SSOConfigs>
             <SchemeOverride />
           </PluginConfiguration>
+      become: true
       register: _sso_config_written
       when: _jf_oidc_env_stat.stat.exists
 
