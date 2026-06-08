@@ -506,7 +506,7 @@
         body:
           Name: admin
           Password: "{{ jellyfin_admin_password }}"
-        status_code: 204
+        status_code: [204, 404]
       when: jellyfin_wizard.status == 200
 
     - name: Configure Jellyfin remote access
