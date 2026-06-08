@@ -958,17 +958,7 @@
   register: _arr_provider_lookup
   loop: "{{ _arr_proxy_services }}"
 
-- name: Check which arr applications already exist
-  ansible.builtin.uri:
-    url: "http://localhost:9000/api/v3/core/applications/?page_size=100&slug={{ item.slug }}"
-    method: GET
-    headers:
-      Authorization: "Bearer {{ _authentik_token }}"
-    status_code: 200
-  register: _arr_app_check
-  loop: "{{ _arr_proxy_services }}"
-
-- name: Create missing arr Authentik applications
+- name: Create arr Authentik applications (idempotent)
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/core/applications/"
     method: POST
@@ -981,14 +971,15 @@
       slug: "{{ item.0.slug }}"
       # Filter by exact name — the ?name= API param does a contains match.
       provider: "{{ (item.1.json.results | selectattr('name', 'equalto', item.0.name) | first).pk }}"
-    status_code: 201
+    status_code: [201, 400]
+  register: _arr_app_create
   loop: "{{ _arr_proxy_services | zip(_arr_provider_lookup.results) | list }}"
-  when:
-    - (item.1.json.results | selectattr('name', 'equalto', item.0.name) | list | length) > 0
-    # ?slug= is a contains match — use selectattr for exact slug check.
-    - (_arr_app_check.results[loop_index].json.results | selectattr('slug', 'equalto', item.0.slug) | list | length) == 0
-  loop_control:
-    index_var: loop_index
+  when: (item.1.json.results | selectattr('name', 'equalto', item.0.name) | list | length) > 0
+  # 400 is acceptable only when the slug or provider already exists — any other 400 is a real error.
+  failed_when:
+    - _arr_app_create.status == 400
+    - >-
+      'already exists' not in ((_arr_app_create.json.slug | default([])) + (_arr_app_create.json.provider | default([]))) | join(' ')
 
 - name: Get embedded Authentik outpost
   ansible.builtin.uri:
