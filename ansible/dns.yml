@@ -180,13 +180,38 @@
         path: /mnt/nas/docker/headplane/api.key
       register: headplane_api_key_stat
 
+    - name: Read existing headplane API key from NFS
+      ansible.builtin.slurp:
+        src: /mnt/nas/docker/headplane/api.key
+      register: _existing_api_key_raw
+      become: true
+      when: headplane_api_key_stat.stat.exists
+
+    - name: Validate existing API key against headscale
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale apikeys list --output json
+      register: _apikeys_list
+      become: true
+      when: headplane_api_key_stat.stat.exists
+
+    - name: Determine if stored API key is still valid
+      ansible.builtin.set_fact:
+        _api_key_valid: >-
+          {{
+            headplane_api_key_stat.stat.exists and
+            (_apikeys_list.stdout | from_json
+             | selectattr('prefix', 'in', (_existing_api_key_raw.content | b64decode | trim))
+             | list | length > 0)
+          }}
+
     - name: Generate headscale API key for headplane
       community.docker.docker_container_exec:
         container: headscale
-        command: headscale apikeys create --output json
+        command: headscale apikeys create --expiration 0 --output json
       register: headplane_apikey_result
       become: true
-      when: not headplane_api_key_stat.stat.exists
+      when: not _api_key_valid
 
     - name: Extract headscale API key from result
       ansible.builtin.set_fact:
@@ -194,15 +219,15 @@
           {{ (headplane_apikey_result.stdout | from_json).key
              if (headplane_apikey_result.stdout | from_json) is mapping
              else headplane_apikey_result.stdout | from_json }}
-      when: not headplane_api_key_stat.stat.exists
+      when: not _api_key_valid
 
-    - name: Write headscale API key to NFS (idempotency marker)
+    - name: Write headscale API key to NFS
       ansible.builtin.copy:
         content: "{{ headplane_apikey }}"
         dest: /mnt/nas/docker/headplane/api.key
         mode: "0600"
       become: true
-      when: not headplane_api_key_stat.stat.exists
+      when: not _api_key_valid
 
     - name: Read headscale API key from NFS
       ansible.builtin.slurp:
@@ -228,7 +253,7 @@
     - name: Display headplane login key for Vaultwarden
       ansible.builtin.debug:
         msg: "headplane login — navigate to :3001/admin and enter this API key: {{ headplane_api_key_nfs.content | b64decode | trim }}"
-      when: not headplane_api_key_stat.stat.exists
+      when: not _api_key_valid
 
 - name: Write pre-auth key to terraform.tfvars
   hosts: localhost
