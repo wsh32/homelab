@@ -759,7 +759,8 @@
         and _sso_config_current is not skipped
         and (('authentik' not in (_sso_config_current.json.OidConfigs | default({})))
              or (_sso_config_current.json.OidConfigs.authentik.DefaultProvider | default('false')) != 'true'
-             or ('admins' not in (_sso_config_current.json.OidConfigs.authentik.AdminRoles | default([]))))
+             or ('admins' not in (_sso_config_current.json.OidConfigs.authentik.AdminRoles | default([])))
+             or (_sso_config_current.json.OidConfigs.authentik.RolesClaim | default('')) != 'groups')
 
     # ── Block 4: Volume migration — Radarr ──────────────────────────────────
 
