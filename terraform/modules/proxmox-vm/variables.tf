@@ -112,6 +112,12 @@ variable "tags" {
   default     = []
 }
 
+variable "machine" {
+  description = "QEMU machine type. Use 'q35' for PCIe passthrough (GPU). Default (null) uses the Proxmox default (i440fx)."
+  type        = string
+  default     = null
+}
+
 variable "hostpci_mappings" {
   description = "List of Proxmox hardware mapping names to pass through (e.g. [\"quadro-p2200\"]). Create mappings via pvesh before use."
   type        = list(string)

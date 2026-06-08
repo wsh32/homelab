@@ -90,6 +90,7 @@ module "services" {
 
   extra_runcmd = []
 
+  machine          = "q35"
   hostpci_mappings = var.services_gpu_mappings
   # Fill in services_gpu_mappings in terraform.tfvars after creating the Proxmox
   # hardware mapping. See GPU passthrough section in docs/runbook.md.

@@ -2,7 +2,7 @@ terraform {
   required_providers {
     proxmox = {
       source  = "bpg/proxmox"
-      version = "~> 0.73"
+      version = "~> 0.109"
     }
   }
 }
@@ -39,6 +39,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
   name        = var.name
   description = var.description
   tags        = var.tags
+  machine     = var.machine
 
   on_boot = true
 
