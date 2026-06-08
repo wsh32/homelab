@@ -90,8 +90,8 @@ module "services" {
 
   extra_runcmd = []
 
-  hostpci_devices = var.services_gpu_pci_ids
-  # Fill in services_gpu_pci_ids in terraform.tfvars after running:
-  #   ssh root@machamp lspci | grep -i quadro
+  hostpci_mappings = var.services_gpu_mappings
+  # Fill in services_gpu_mappings in terraform.tfvars after creating the Proxmox
+  # hardware mapping. See GPU passthrough section in docs/runbook.md.
   # Applying this to a running VM requires a full VM restart.
 }

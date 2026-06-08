@@ -112,8 +112,8 @@ variable "tags" {
   default     = []
 }
 
-variable "hostpci_devices" {
-  description = "List of PCI device IDs to pass through to the VM (e.g. [\"0000:01:00\"]). Find addresses with: lspci on the Proxmox host."
+variable "hostpci_mappings" {
+  description = "List of Proxmox hardware mapping names to pass through (e.g. [\"quadro-p2200\"]). Create mappings via pvesh before use."
   type        = list(string)
   default     = []
 }

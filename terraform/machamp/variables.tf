@@ -49,8 +49,8 @@ variable "authentik_subdomain" {
   default     = "auth"
 }
 
-variable "services_gpu_pci_ids" {
-  description = "PCI IDs for Quadro P2200 GPU passthrough to machamp-services. Find via: ssh root@machamp lspci | grep -i quadro"
+variable "services_gpu_mappings" {
+  description = "Proxmox hardware mapping names for GPU passthrough to machamp-services (e.g. [\"quadro-p2200\"]). Create mappings via pvesh first — see GPU passthrough section in docs/runbook.md."
   type        = list(string)
   default     = []
 }

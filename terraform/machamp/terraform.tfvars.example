@@ -29,6 +29,6 @@ cloudflare_zone_id = "REPLACE_ME"
 # Subdomain for the public Authentik OIDC endpoint (creates auth.<your-domain>)
 authentik_subdomain = "auth"
 
-# Quadro P2200 PCI passthrough address(es) — find via: ssh root@machamp lspci | grep -i quadro
-# GPU at 41:00.0, audio at 41:00.1 (pass both to avoid IOMMU group split issues)
-services_gpu_pci_ids = ["0000:41:00.0", "0000:41:00.1"]
+# Proxmox hardware mapping name(s) for GPU passthrough — see docs/runbook.md for setup steps.
+# The mapping must be created via pvesh on the Proxmox host before applying.
+services_gpu_mappings = ["quadro-p2200"]
