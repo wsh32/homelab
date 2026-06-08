@@ -71,7 +71,6 @@ http:
     jellyfin-sso-redirect:
       rule: "Host(`jellyfin.home`) && (Path(`/`) || PathPrefix(`/web`))"
       entryPoints: [websecure]
-      priority: 10
       middlewares: [jellyfin-sso]
       service: jellyfin-svc
       tls:
