@@ -39,6 +39,6 @@
     path: "{{ nfs_mount_path }}"
     src: "{{ nfs_source_path }}"
     fstype: nfs
-    opts: soft,timeo=30,nfsvers=4
+    opts: soft,timeo=30,nfsvers=4,local_lock=all
     state: mounted
   become: true
