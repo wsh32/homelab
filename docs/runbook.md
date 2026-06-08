@@ -454,18 +454,22 @@ SSH to machamp as root (`ssh root@192.168.0.5`):
 # Find the IOMMU group number for the P2200 GPU function
 find /sys/kernel/iommu_groups -name "*0000:41:00.0*" | grep -oP 'iommu_groups/\K[0-9]+'
 
-# Create the mapping — replace N with the IOMMU group number from above
-# Note: path= is the PCI address; id= is the optional vendor:device ID (omitted here)
+# Get the vendor:device ID for the GPU (the 4+4 hex digits after the class code)
+lspci -n | grep "41:00.0"
+# e.g.: 41:00.0 0300: 10de:1c31 (rev a1)  ← use 10de:1c31 as VENDOR_DEV below
+
+# Create the mapping — replace N with IOMMU group, VENDOR_DEV with id from lspci -n
 pvesh create /cluster/mapping/pci \
   --id quadro-p2200 \
-  --map "node=machamp,path=0000:41:00.0,iommugroup=N" \
+  --map "node=machamp,id=VENDOR_DEV,path=0000:41:00.0,iommugroup=N" \
   --description "Quadro P2200 GPU"
 
 # Grant the Terraform API token permission to use the mapping
+# Use single quotes around the token to prevent bash history expansion of '!'
 pvesh set /access/acl \
   --path /mapping/pci/quadro-p2200 \
   --roles PVEMappingUser \
-  --tokens terraform@pam!terraform
+  --tokens 'terraform@pam!terraform'
 ```
 
 Note: only the GPU function (`41:00.0`) is mapped. The audio function (`41:00.1`) is for
