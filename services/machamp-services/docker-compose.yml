@@ -4,16 +4,17 @@ services:
     image: jellyfin/jellyfin:latest
     container_name: jellyfin
     restart: unless-stopped
+    runtime: nvidia
     ports:
       - "8096:8096"
     volumes:
       - /mnt/nas/docker/jellyfin:/config
-      - /mnt/nas/media:/media:ro
+      - /mnt/nas/media:/data:ro
+      - ./config/jellyfin-encoding.xml:/config/config/encoding.xml
     environment:
       JELLYFIN_PublishedServerUrl: https://jellyfin.home
-    # GPU transcoding: Quadro P2200 passed through to VM; expose via /dev/dri
-    devices:
-      - /dev/dri:/dev/dri
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,video,utility
 
   # ── Servarr ────────────────────────────────────────────────────────────────
   prowlarr:
@@ -24,7 +25,6 @@ services:
       - "9696:9696"
     volumes:
       - /mnt/nas/docker/prowlarr:/config
-      - ./config/prowlarr.xml:/config/config.xml:ro
     environment:
       PUID: "1000"
       PGID: "1000"
@@ -37,9 +37,7 @@ services:
       - "7878:7878"
     volumes:
       - /mnt/nas/docker/radarr:/config
-      - ./config/radarr.xml:/config/config.xml:ro
-      - /mnt/nas/media/movies:/movies
-      - /mnt/nas/media/downloads:/downloads
+      - /mnt/nas/media:/data
     environment:
       PUID: "1000"
       PGID: "1000"
@@ -52,144 +50,110 @@ services:
       - "8989:8989"
     volumes:
       - /mnt/nas/docker/sonarr:/config
-      - ./config/sonarr.xml:/config/config.xml:ro
-      - /mnt/nas/media/tv:/tv
-      - /mnt/nas/media/downloads:/downloads
+      - /mnt/nas/media:/data
     environment:
       PUID: "1000"
       PGID: "1000"
 
-  # ── PhotoPrism ─────────────────────────────────────────────────────────────
-  photoprism:
-    image: photoprism/photoprism:latest
-    container_name: photoprism
+  # ── VPN + Torrent ──────────────────────────────────────────────────────────
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
     restart: unless-stopped
-    ports:
-      - "2342:2342"
-    volumes:
-      - /mnt/nas/docker/photoprism:/photoprism/storage
-      - /mnt/nas/photos:/photoprism/originals:ro
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
     environment:
-      PHOTOPRISM_ADMIN_PASSWORD: ${PHOTOPRISM_ADMIN_PASSWORD}
-      PHOTOPRISM_SITE_URL: https://photos.home
-      PHOTOPRISM_ORIGINALS_LIMIT: -1
-      PHOTOPRISM_HTTP_COMPRESSION: gzip
+      VPN_SERVICE_PROVIDER: private internet access
+      VPN_TYPE: openvpn
+      OPENVPN_USER: ${PIA_USERNAME}
+      OPENVPN_PASSWORD: ${PIA_PASSWORD}
+      SERVER_REGIONS: US East
+    healthcheck:
+      test: ["CMD", "/gluetun-entrypoint", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    ports:
+      - "8080:8080"   # qBittorrent WebUI — also used by Traefik backend routing
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.qbittorrent-wsh.rule=Host(`qbittorrent.wsh`)"
+      - "traefik.http.routers.qbittorrent-wsh.entrypoints=websecure"
+      - "traefik.http.routers.qbittorrent-wsh.tls=true"
+      - "traefik.http.services.qbittorrent-svc.loadbalancer.server.port=8080"
 
-  # ── Calibre-Web ────────────────────────────────────────────────────────────
-  calibre-web:
-    image: lscr.io/linuxserver/calibre-web:latest
-    container_name: calibre-web
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
     restart: unless-stopped
-    ports:
-      - "8083:8083"
-    volumes:
-      - /mnt/nas/docker/calibre-web:/config
-      - /mnt/nas/media/books:/books
-    environment:
-      PUID: "1000"
-      PGID: "1000"
-
-  # ── n8n ────────────────────────────────────────────────────────────────────
-  n8n:
-    image: n8nio/n8n:latest
-    container_name: n8n
-    restart: unless-stopped
-    ports:
-      - "5678:5678"
-    volumes:
-      - /mnt/nas/docker/n8n:/home/node/.n8n
-    environment:
-      N8N_HOST: n8n.home
-      N8N_PROTOCOL: https
-      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
-      WEBHOOK_URL: https://n8n.home
-
-  # ── Obsidian LiveSync (CouchDB) ────────────────────────────────────────────
-  couchdb:
-    image: couchdb:3.5.2
-    container_name: couchdb
-    restart: unless-stopped
-    ports:
-      - "5984:5984"
-    volumes:
-      - /mnt/nas/docker/couchdb:/opt/couchdb/data
-    environment:
-      COUCHDB_USER: ${COUCHDB_USER}
-      COUCHDB_PASSWORD: ${COUCHDB_PASSWORD}
-
-  couchdb-init:
-    image: curlimages/curl:latest
-    container_name: couchdb-init
-    restart: on-failure
+    network_mode: "service:gluetun"
     depends_on:
-      - couchdb
+      gluetun:
+        condition: service_healthy
     volumes:
-      - ./couchdb-init.sh:/couchdb-init.sh:ro
-    entrypoint: ["/bin/sh", "/couchdb-init.sh"]
+      - /mnt/nas/docker/qbittorrent:/config
+      - /mnt/nas/media:/data
+      - /var/lib/qbittorrent/incomplete:/incomplete
     environment:
-      COUCHDB_USER: ${COUCHDB_USER}
-      COUCHDB_PASSWORD: ${COUCHDB_PASSWORD}
+      PUID: "1000"
+      PGID: "1000"
+      WEBUI_PORT: "8080"
+    # No ports or labels — network is shared with gluetun
 
-  # ── Quartz (Obsidian vault publishing) ─────────────────────────────────────
-  quartz:
-    image: ghcr.io/jackyzha0/quartz:v4
-    container_name: quartz
+  # ── Subtitles ──────────────────────────────────────────────────────────────
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
     restart: unless-stopped
-    ports:
-      - "8080:8080"
     volumes:
-      - /mnt/nas/media/obsidian-vault:/vault:ro
-
-  # ── Homepage dashboard ─────────────────────────────────────────────────────
-  homepage:
-    image: ghcr.io/gethomepage/homepage:latest
-    container_name: homepage
-    restart: unless-stopped
-    ports:
-      # host 3001 avoids conflict with grafana on 3000
-      - "3001:3000"
-    volumes:
-      - /mnt/nas/docker/homepage:/app/config
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-
-  # ── Monitoring: Prometheus ─────────────────────────────────────────────────
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    restart: unless-stopped
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - /mnt/nas/docker/prometheus:/prometheus
-
-  # ── Monitoring: Grafana ────────────────────────────────────────────────────
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    volumes:
-      - /mnt/nas/docker/grafana:/var/lib/grafana
+      - /mnt/nas/docker/bazarr:/config
+      - /mnt/nas/media:/data
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
-      GF_SERVER_ROOT_URL: https://grafana.home
+      PUID: "1000"
+      PGID: "1000"
+    ports:
+      - "127.0.0.1:6767:6767"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bazarr-wsh.rule=Host(`bazarr.wsh`)"
+      - "traefik.http.routers.bazarr-wsh.entrypoints=websecure"
+      - "traefik.http.routers.bazarr-wsh.tls=true"
+      - "traefik.http.services.bazarr-svc.loadbalancer.server.port=6767"
 
-  # ── Monitoring: Loki ───────────────────────────────────────────────────────
-  loki:
-    image: grafana/loki:latest
-    container_name: loki
+  # ── Media Requests ─────────────────────────────────────────────────────────
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
     restart: unless-stopped
     volumes:
-      - ./loki/loki.yml:/etc/loki/local-config.yaml:ro
-      - /mnt/nas/docker/loki:/loki
+      - /mnt/nas/docker/jellyseerr:/app/config
+    ports:
+      - "127.0.0.1:5055:5055"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.jellyseerr-wsh.rule=Host(`jellyseerr.wsh`)"
+      - "traefik.http.routers.jellyseerr-wsh.entrypoints=websecure"
+      - "traefik.http.routers.jellyseerr-wsh.tls=true"
+      - "traefik.http.routers.jellyseerr-home.rule=Host(`jellyseerr.home`)"
+      - "traefik.http.routers.jellyseerr-home.entrypoints=web"
+      - "traefik.http.services.jellyseerr-svc.loadbalancer.server.port=5055"
 
-  promtail:
-    image: grafana/promtail:latest
-    container_name: promtail
+  # ── Archive Extraction ─────────────────────────────────────────────────────
+  unpackerr:
+    image: golift/unpackerr:latest
+    container_name: unpackerr
     restart: unless-stopped
     volumes:
-      - ./loki/promtail.yml:/etc/promtail/config.yml:ro
-      - /var/log:/var/log:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /mnt/nas/media:/data
+    environment:
+      UN_SONARR_0_URL: http://sonarr:8989
+      UN_SONARR_0_API_KEY: ${SONARR_API_KEY}
+      UN_SONARR_0_PATHS: /data/downloads/complete
+      UN_RADARR_0_URL: http://radarr:7878
+      UN_RADARR_0_API_KEY: ${RADARR_API_KEY}
+      UN_RADARR_0_PATHS: /data/downloads/complete
+    # No ports or labels — background daemon with no UI
+

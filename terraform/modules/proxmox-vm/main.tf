@@ -2,7 +2,7 @@ terraform {
   required_providers {
     proxmox = {
       source  = "bpg/proxmox"
-      version = "~> 0.73"
+      version = "~> 0.109"
     }
   }
 }
@@ -39,6 +39,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
   name        = var.name
   description = var.description
   tags        = var.tags
+  machine     = var.machine
 
   on_boot = true
 
@@ -97,6 +98,16 @@ resource "proxmox_virtual_environment_vm" "vm" {
     }
 
     user_data_file_id = proxmox_virtual_environment_file.user_data.id
+  }
+
+  dynamic "hostpci" {
+    for_each = var.hostpci_mappings
+    content {
+      device  = "hostpci${hostpci.key}"
+      mapping = hostpci.value
+      pcie    = true
+      rombar  = true
+    }
   }
 
   lifecycle {

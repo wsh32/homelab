@@ -28,3 +28,7 @@ cloudflare_zone_id = "REPLACE_ME"
 
 # Subdomain for the public Authentik OIDC endpoint (creates auth.<your-domain>)
 authentik_subdomain = "auth"
+
+# Proxmox hardware mapping name(s) for GPU passthrough — see docs/runbook.md for setup steps.
+# The mapping must be created via pvesh on the Proxmox host before applying.
+services_gpu_mappings = ["quadro-p2200"]

@@ -1,10 +1,11 @@
 ---
-# Install Docker on all service VMs (everything except dev machines).
+# Install Docker on all service VMs.
 # Run after base.yml.
 #
-# Usage: ansible-playbook ansible/services.yml
+# Usage:
+#   ansible-playbook ansible/services.yml
 
-- name: Install Docker on service VMs
+- name: Install Docker on all service VMs
   hosts: services
   gather_facts: true
 

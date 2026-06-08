@@ -32,6 +32,7 @@
     state: directory
     mode: "0755"
   become: true
+  when: nfs_current_mount_src.stdout == '' or nfs_mount_accessible.rc != 0
 
 - name: Mount Alakazam NFS share ({{ nfs_source_path }})
   ansible.posix.mount:

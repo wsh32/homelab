@@ -1,0 +1,1103 @@
+---
+# Idempotent initialization playbook for the machamp arr/media stack.
+# Replaces scripts/servarr-init.sh and scripts/jellyfin-init.sh.
+#
+# Imported by site.yml after media.yml has started the compose stack.
+#
+# On first run: reads Infisical push credentials from /etc/infisical.env,
+# auto-generates any missing secrets, harvests arr API keys from service
+# config files, and pushes everything back to Infisical.
+# Only PIA_USERNAME and PIA_PASSWORD must be seeded manually.
+#
+# Subsequent runs: all keys already in homelab.env; no Infisical writes occur.
+
+- name: Initialize arr and media stack on machamp-services
+  hosts: machamp-services
+  gather_facts: false
+
+  vars:
+    prowlarr_url: "http://localhost:9696"
+    radarr_url: "http://localhost:7878"
+    sonarr_url: "http://localhost:8989"
+    jellyfin_url: "http://localhost:8096"
+    bazarr_url: "http://localhost:6767"
+    jellyseerr_url: "http://localhost:5055"
+    qbittorrent_webui_port: 8080
+    infisical_host: "http://192.168.0.32:8080"
+
+  pre_tasks:
+
+    # Allow infisical_host override from secrets.yml on the control node
+    - name: Load local secrets file if present
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      failed_when: false
+
+    # ── Load Infisical push credentials from the target ──────────────────────
+
+    - name: Load /etc/infisical.env (push credentials)
+      ansible.builtin.slurp:
+        src: /etc/infisical.env
+      register: _infisical_env_raw
+      become: true
+
+    - name: Set Infisical push credentials
+      ansible.builtin.set_fact:
+        _inf_client_id: "{{ _inf | regex_search('(?m)^INFISICAL_CLIENT_ID=(.+)$', '\\1') | first }}"
+        _inf_client_secret: "{{ _inf | regex_search('(?m)^INFISICAL_CLIENT_SECRET=(.+)$', '\\1') | first }}"
+        _inf_project_id: "{{ _inf | regex_search('(?m)^INFISICAL_PROJECT_ID=(.+)$', '\\1') | first }}"
+        _inf_environment: "{{ (_inf | regex_search('(?m)^INFISICAL_ENVIRONMENT=(.+)$', '\\1') or ['prod']) | first }}"
+      vars:
+        _inf: "{{ _infisical_env_raw.content | b64decode }}"
+
+    - name: Get Infisical access token via Universal Auth
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v1/auth/universal-auth/login"
+        method: POST
+        body_format: json
+        body:
+          clientId: "{{ _inf_client_id }}"
+          clientSecret: "{{ _inf_client_secret }}"
+        status_code: 200
+      register: _inf_token
+      no_log: true
+
+    # ── Load current secrets (default '' for keys not yet in Infisical) ──────
+
+    - name: Load secrets from /etc/homelab.env
+      ansible.builtin.slurp:
+        src: /etc/homelab.env
+      register: _homelab_env_raw
+      become: true
+
+    - name: Set API key facts from homelab.env
+      ansible.builtin.set_fact:
+        prowlarr_api_key: "{{ (_env | regex_search('(?m)^PROWLARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        radarr_api_key: "{{ (_env | regex_search('(?m)^RADARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        sonarr_api_key: "{{ (_env | regex_search('(?m)^SONARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        bazarr_api_key: "{{ (_env | regex_search('(?m)^BAZARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        jellyseerr_api_key: "{{ (_env | regex_search('(?m)^JELLYSEERR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        jellyfin_admin_password: "{{ (_env | regex_search('(?m)^JELLYFIN_ADMIN_PASSWORD=(.+)$', '\\1') or ['']) | first }}"
+      vars:
+        _env: "{{ _homelab_env_raw.content | b64decode }}"
+
+    # ── Generate secrets we control (only if absent) ─────────────────────────
+
+    - name: Record which secrets need generation
+      ansible.builtin.set_fact:
+        _jellyfin_password_new: "{{ jellyfin_admin_password == '' }}"
+        _bazarr_key_new: "{{ bazarr_api_key == '' }}"
+        _jellyseerr_key_new: "{{ jellyseerr_api_key == '' }}"
+
+    - name: Generate Jellyfin admin password
+      ansible.builtin.set_fact:
+        jellyfin_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=24, chars=['ascii_letters', 'digits']) }}"
+      when: _jellyfin_password_new
+
+    - name: Generate Bazarr API key
+      ansible.builtin.set_fact:
+        bazarr_api_key: "{{ lookup('ansible.builtin.password', '/dev/null', length=32, chars=['0123456789abcdef']) }}"
+      when: _bazarr_key_new
+
+    - name: Generate Jellyseerr API key (placeholder — real key retrieved after init)
+      ansible.builtin.set_fact:
+        jellyseerr_api_key: "placeholder"
+      when: _jellyseerr_key_new
+
+    - name: Push Jellyfin admin password to Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/JELLYFIN_ADMIN_PASSWORD"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ jellyfin_admin_password }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
+      when: _jellyfin_password_new
+
+    - name: Push Bazarr API key to Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/BAZARR_API_KEY"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ bazarr_api_key }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
+      when: _bazarr_key_new
+
+    - name: Fetch all secrets from Infisical after generating keys
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        status_code: 200
+      register: _infisical_refreshed
+      no_log: true
+      when: _jellyfin_password_new or _bazarr_key_new
+
+    - name: Write refreshed /etc/homelab.env after generating keys
+      ansible.builtin.copy:
+        dest: /etc/homelab.env
+        mode: "0600"
+        owner: root
+        group: root
+        content: |
+          {% for s in _infisical_refreshed.json.secrets %}
+          {{ s.secretKey }}={{ s.secretValue }}
+          {% endfor %}
+      become: true
+      no_log: true
+      when: _jellyfin_password_new or _bazarr_key_new
+
+  tasks:
+
+    # ── Block 1: Pre-seed config files on NFS ────────────────────────────────
+    # qBittorrent config is pre-seeded in media.yml before compose up.
+
+    - name: Create Bazarr config directory on NFS
+      ansible.builtin.file:
+        path: /mnt/nas/docker/bazarr/config
+        state: directory
+
+    - name: Pre-seed Bazarr config.ini (skips if already exists)
+      ansible.builtin.copy:
+        dest: /mnt/nas/docker/bazarr/config/config.ini
+        force: false
+        content: |
+          [auth]
+          apikey = {{ bazarr_api_key }}
+          type = None
+
+          [sonarr]
+          ip = sonarr
+          port = 8989
+          apikey = {{ sonarr_api_key }}
+          ssl = False
+          base_url = /
+          use_sonarr = True
+          full_update = Daily
+          full_update_hour = 4
+
+          [radarr]
+          ip = radarr
+          port = 7878
+          apikey = {{ radarr_api_key }}
+          ssl = False
+          base_url = /
+          use_radarr = True
+          full_update = Daily
+          full_update_hour = 4
+
+          [general]
+          ip = 0.0.0.0
+          port = 6767
+          base_url = /
+          debug = False
+          branch = master
+          auto_update = True
+          single_language = False
+          minimum_score = 90
+          use_postprocessing = False
+          postprocessing_cmd =
+          use_sonarr = True
+          use_radarr = True
+          path_mappings = []
+          path_mappings_movie = []
+
+    - name: Create local qBittorrent incomplete downloads directory
+      ansible.builtin.file:
+        path: /var/lib/qbittorrent/incomplete
+        state: directory
+        mode: "0777"
+      become: true
+
+    # ── Ensure qBittorrent subnet-whitelist config is applied ────────────────
+    # If qBittorrent started before media.yml wrote the pre-seed config, it
+    # generated a default password-protected config. Stop it so it flushes
+    # its in-memory config to disk, then force-write the correct config and
+    # restart so qBittorrent reads the whitelist on next boot.
+    #
+    # qBittorrent 5.x adds host-header validation (returns 403 for requests
+    # where Host != configured domain) and CSRF protection. Both are disabled
+    # in the pre-seeded config; Traefik handles external auth instead.
+
+    - name: Wait for qBittorrent WebUI
+      ansible.builtin.uri:
+        url: "http://localhost:8080/api/v2/app/webapiVersion"
+        status_code: [200, 401, 403]
+      register: qbt_auth_check
+      until: qbt_auth_check.status in [200, 401, 403]
+      retries: 30
+      delay: 5
+
+    - name: Stop qBittorrent to flush in-memory config before overwrite
+      ansible.builtin.command: docker stop qbittorrent
+      become: true
+      changed_when: true
+      when: qbt_auth_check.status in [401, 403]
+
+    - name: Force qBittorrent.conf with subnet whitelist auth bypass
+      ansible.builtin.copy:
+        dest: /mnt/nas/docker/qbittorrent/qBittorrent/qBittorrent.conf
+        force: true
+        content: |
+          [Preferences]
+          WebUI\Enabled=true
+          WebUI\Port=8080
+          WebUI\LocalHostAuth=false
+          WebUI\AuthSubnetWhitelist=172.16.0.0/12,192.168.0.0/16
+          WebUI\AuthSubnetWhitelistEnabled=true
+          WebUI\HostHeaderValidation=false
+          WebUI\CSRFProtection=false
+          Downloads\SavePath=/data/downloads/complete
+          Downloads\TempPath=/incomplete
+          Downloads\TempPathEnabled=true
+          Downloads\PreAllocation=false
+      when: qbt_auth_check.status in [401, 403]
+
+    - name: Start qBittorrent container after config overwrite
+      ansible.builtin.command: docker start qbittorrent
+      become: true
+      changed_when: true
+      when: qbt_auth_check.status in [401, 403]
+
+    - name: Wait for qBittorrent WebUI after config reload
+      ansible.builtin.uri:
+        url: "http://localhost:8080/api/v2/app/webapiVersion"
+        status_code: 200
+      register: qbt_webui_check
+      until: qbt_webui_check.status == 200
+      retries: 30
+      delay: 5
+      when: qbt_auth_check.status in [401, 403]
+
+    # ── Block 2: Wait for services healthy ───────────────────────────────────
+    # Accept 401 (Unauthorized) as "service is up" — API keys may not be in
+    # homelab.env yet on first run; we harvest them from config files below.
+
+    - name: Wait for Prowlarr
+      ansible.builtin.uri:
+        url: "{{ prowlarr_url }}/api/v1/system/status"
+        headers:
+          X-Api-Key: "{{ prowlarr_api_key }}"
+        status_code: [200, 401]
+      register: prowlarr_status
+      until: prowlarr_status.status in [200, 401]
+      retries: 40
+      delay: 10
+
+    - name: Wait for Radarr
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/system/status"
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        status_code: [200, 401]
+      register: radarr_status
+      until: radarr_status.status in [200, 401]
+      retries: 40
+      delay: 10
+
+    - name: Wait for Sonarr
+      ansible.builtin.uri:
+        url: "{{ sonarr_url }}/api/v3/system/status"
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        status_code: [200, 401]
+      register: sonarr_status
+      until: sonarr_status.status in [200, 401]
+      retries: 40
+      delay: 10
+
+    - name: Wait for Jellyfin
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/health"
+        status_code: 200
+      register: jellyfin_health
+      until: jellyfin_health.status == 200
+      retries: 40
+      delay: 10
+
+    # ── Block 2.5: Harvest arr API keys from service config files ────────────
+
+    - name: Record which arr API keys need harvesting
+      ansible.builtin.set_fact:
+        _radarr_key_new: "{{ radarr_api_key == '' }}"
+        _sonarr_key_new: "{{ sonarr_api_key == '' }}"
+        _prowlarr_key_new: "{{ prowlarr_api_key == '' }}"
+
+    - name: Read Radarr API key from config.xml
+      ansible.builtin.shell: grep -oP '(?<=<ApiKey>)[^<]+' /mnt/nas/docker/radarr/config.xml
+      register: _radarr_key_file
+      become: true
+      changed_when: false
+      when: _radarr_key_new
+
+    - name: Set Radarr API key from config
+      ansible.builtin.set_fact:
+        radarr_api_key: "{{ _radarr_key_file.stdout | trim }}"
+      when: _radarr_key_new and (_radarr_key_file.stdout | default('') | trim) != ''
+
+    - name: Read Sonarr API key from config.xml
+      ansible.builtin.shell: grep -oP '(?<=<ApiKey>)[^<]+' /mnt/nas/docker/sonarr/config.xml
+      register: _sonarr_key_file
+      become: true
+      changed_when: false
+      when: _sonarr_key_new
+
+    - name: Set Sonarr API key from config
+      ansible.builtin.set_fact:
+        sonarr_api_key: "{{ _sonarr_key_file.stdout | trim }}"
+      when: _sonarr_key_new and (_sonarr_key_file.stdout | default('') | trim) != ''
+
+    - name: Read Prowlarr API key from config.xml
+      ansible.builtin.shell: grep -oP '(?<=<ApiKey>)[^<]+' /mnt/nas/docker/prowlarr/config.xml
+      register: _prowlarr_key_file
+      become: true
+      changed_when: false
+      when: _prowlarr_key_new
+
+    - name: Set Prowlarr API key from config
+      ansible.builtin.set_fact:
+        prowlarr_api_key: "{{ _prowlarr_key_file.stdout | trim }}"
+      when: _prowlarr_key_new and (_prowlarr_key_file.stdout | default('') | trim) != ''
+
+    - name: Push Radarr API key to Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/RADARR_API_KEY"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ radarr_api_key }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
+      when: _radarr_key_new and radarr_api_key != ''
+
+    - name: Push Sonarr API key to Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/SONARR_API_KEY"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ sonarr_api_key }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
+      when: _sonarr_key_new and sonarr_api_key != ''
+
+    - name: Push Prowlarr API key to Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/PROWLARR_API_KEY"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ prowlarr_api_key }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
+      when: _prowlarr_key_new and prowlarr_api_key != ''
+
+    - name: Fetch all secrets from Infisical after arr key harvest
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        status_code: 200
+      register: _infisical_refreshed2
+      no_log: true
+      when: _radarr_key_new or _sonarr_key_new or _prowlarr_key_new
+
+    - name: Write refreshed /etc/homelab.env after arr key harvest
+      ansible.builtin.copy:
+        dest: /etc/homelab.env
+        mode: "0600"
+        owner: root
+        group: root
+        content: |
+          {% for s in _infisical_refreshed2.json.secrets %}
+          {{ s.secretKey }}={{ s.secretValue }}
+          {% endfor %}
+      become: true
+      no_log: true
+      when: _radarr_key_new or _sonarr_key_new or _prowlarr_key_new
+
+    # ── Block 3: Jellyfin startup wizard ────────────────────────────────────
+
+    - name: Check Jellyfin wizard status
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Startup/Configuration"
+        status_code: [200, 400, 401, 403, 404]
+        return_content: true
+      register: jellyfin_wizard
+
+    - name: Set Jellyfin locale
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Startup/Configuration"
+        method: POST
+        body_format: json
+        body:
+          ServerName: TeamRocket
+          UICulture: en-US
+          MetadataCountryCode: US
+          PreferredMetadataLanguage: en
+        status_code: 204
+      when: jellyfin_wizard.status == 200
+
+    - name: Create Jellyfin admin user
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Startup/User"
+        method: POST
+        body_format: json
+        body:
+          Name: admin
+          Password: "{{ jellyfin_admin_password }}"
+        status_code: 204
+      when: jellyfin_wizard.status == 200
+
+    - name: Configure Jellyfin remote access
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Startup/RemoteAccess"
+        method: POST
+        body_format: json
+        body:
+          EnableRemoteAccess: true
+          EnableAutomaticPortMapping: false
+        status_code: 204
+      when: jellyfin_wizard.status == 200
+
+    - name: Complete Jellyfin wizard
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Startup/Complete"
+        method: POST
+        status_code: 204
+      when: jellyfin_wizard.status == 200
+
+    # ── Block 4: Volume migration — Radarr ──────────────────────────────────
+
+    - name: Get Radarr root folders
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/rootfolder"
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        return_content: true
+      register: radarr_folders
+
+    - name: Delete legacy Radarr /movies root folder
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/rootfolder/{{ item.id }}"
+        method: DELETE
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        status_code: 200
+      loop: "{{ radarr_folders.json | selectattr('path', 'equalto', '/movies') | list }}"
+
+    - name: Add /data/movies root folder to Radarr
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/rootfolder"
+        method: POST
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        body_format: json
+        body:
+          path: /data/movies
+        status_code: 201
+      when: radarr_folders.json | selectattr('path', 'equalto', '/data/movies') | list | length == 0
+
+    - name: Trigger Radarr library rescan
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/command"
+        method: POST
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        body_format: json
+        body:
+          name: RescanMovie
+        status_code: 201
+      when: radarr_folders.json | selectattr('path', 'equalto', '/movies') | list | length > 0
+
+    # ── Block 5: Volume migration — Sonarr ──────────────────────────────────
+
+    - name: Get Sonarr root folders
+      ansible.builtin.uri:
+        url: "{{ sonarr_url }}/api/v3/rootfolder"
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        return_content: true
+      register: sonarr_folders
+
+    - name: Delete legacy Sonarr /tv root folder
+      ansible.builtin.uri:
+        url: "{{ sonarr_url }}/api/v3/rootfolder/{{ item.id }}"
+        method: DELETE
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        status_code: 200
+      loop: "{{ sonarr_folders.json | selectattr('path', 'equalto', '/tv') | list }}"
+
+    - name: Add /data/tv root folder to Sonarr
+      ansible.builtin.uri:
+        url: "{{ sonarr_url }}/api/v3/rootfolder"
+        method: POST
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        body_format: json
+        body:
+          path: /data/tv
+        status_code: 201
+      when: sonarr_folders.json | selectattr('path', 'equalto', '/data/tv') | list | length == 0
+
+    - name: Trigger Sonarr library rescan
+      ansible.builtin.uri:
+        url: "{{ sonarr_url }}/api/v3/command"
+        method: POST
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        body_format: json
+        body:
+          name: RescanSeries
+        status_code: 201
+      when: sonarr_folders.json | selectattr('path', 'equalto', '/tv') | list | length > 0
+
+    # ── Block 6: Prowlarr — link Radarr and Sonarr ──────────────────────────
+
+    - name: Get existing Prowlarr applications
+      ansible.builtin.uri:
+        url: "{{ prowlarr_url }}/api/v1/applications"
+        headers:
+          X-Api-Key: "{{ prowlarr_api_key }}"
+        return_content: true
+      register: prowlarr_apps
+
+    - name: Link Prowlarr to Radarr
+      ansible.builtin.uri:
+        url: "{{ prowlarr_url }}/api/v1/applications"
+        method: POST
+        headers:
+          X-Api-Key: "{{ prowlarr_api_key }}"
+        body_format: json
+        body:
+          name: Radarr
+          syncLevel: fullSync
+          implementationName: Radarr
+          implementation: Radarr
+          configContract: RadarrSettings
+          fields:
+            - name: prowlarrUrl
+              value: "http://prowlarr:9696"
+            - name: baseUrl
+              value: "http://radarr:7878"
+            - name: apiKey
+              value: "{{ radarr_api_key }}"
+            - name: syncCategories
+              value: [2000, 2010, 2020, 2030, 2040, 2045, 2050, 2060]
+        status_code: 201
+      when: prowlarr_apps.json | selectattr('name', 'equalto', 'Radarr') | list | length == 0
+
+    - name: Link Prowlarr to Sonarr
+      ansible.builtin.uri:
+        url: "{{ prowlarr_url }}/api/v1/applications"
+        method: POST
+        headers:
+          X-Api-Key: "{{ prowlarr_api_key }}"
+        body_format: json
+        body:
+          name: Sonarr
+          syncLevel: fullSync
+          implementationName: Sonarr
+          implementation: Sonarr
+          configContract: SonarrSettings
+          fields:
+            - name: prowlarrUrl
+              value: "http://prowlarr:9696"
+            - name: baseUrl
+              value: "http://sonarr:8989"
+            - name: apiKey
+              value: "{{ sonarr_api_key }}"
+            - name: syncCategories
+              value: [5000, 5010, 5020, 5030, 5040, 5045, 5050, 5060, 5070, 5080, 5090]
+        status_code: 201
+      when: prowlarr_apps.json | selectattr('name', 'equalto', 'Sonarr') | list | length == 0
+
+    # ── Block 7: Radarr — add qBittorrent download client ───────────────────
+
+    - name: Get existing Radarr download clients
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/downloadclient"
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        return_content: true
+      register: radarr_dlclients_check
+
+    - name: Add qBittorrent to Radarr
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/downloadclient"
+        method: POST
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        body_format: json
+        body:
+          name: qBittorrent
+          enable: true
+          protocol: torrent
+          priority: 1
+          implementation: QBittorrent
+          configContract: QBittorrentSettings
+          fields:
+            - name: host
+              value: "gluetun"
+            - name: port
+              value: "{{ qbittorrent_webui_port }}"
+            - name: movieCategory
+              value: radarr
+            - name: recentMoviePriority
+              value: 0
+            - name: olderMoviePriority
+              value: 0
+            - name: initialState
+              value: 0
+        status_code: 201
+      when: radarr_dlclients_check.json | selectattr('name', 'equalto', 'qBittorrent') | list | length == 0
+
+    # ── Block 8: Sonarr — add qBittorrent download client ───────────────────
+
+    - name: Get existing Sonarr download clients
+      ansible.builtin.uri:
+        url: "{{ sonarr_url }}/api/v3/downloadclient"
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        return_content: true
+      register: sonarr_dlclients_check
+
+    - name: Add qBittorrent to Sonarr
+      ansible.builtin.uri:
+        url: "{{ sonarr_url }}/api/v3/downloadclient"
+        method: POST
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        body_format: json
+        body:
+          name: qBittorrent
+          enable: true
+          protocol: torrent
+          priority: 1
+          implementation: QBittorrent
+          configContract: QBittorrentSettings
+          fields:
+            - name: host
+              value: "gluetun"
+            - name: port
+              value: "{{ qbittorrent_webui_port }}"
+            - name: tvCategory
+              value: sonarr
+            - name: recentTvPriority
+              value: 0
+            - name: olderTvPriority
+              value: 0
+            - name: initialState
+              value: 0
+        status_code: 201
+      when: sonarr_dlclients_check.json | selectattr('name', 'equalto', 'qBittorrent') | list | length == 0
+
+    # ── Block 9: Jellyseerr initialization and configuration ─────────────────
+    # Jellyseerr's POST /api/v1/auth/jellyfin calls GET /Users without a token.
+    # After wizard completion Jellyfin requires auth for that endpoint, so
+    # Jellyseerr sees an empty user list and returns NO_ADMIN_USER.
+    #
+    # Fix: authenticate with Jellyfin to get the admin user ID, write it
+    # directly into Jellyseerr's SQLite database, mark settings.json as
+    # initialized, then restart the container to apply.
+
+    - name: Read Jellyseerr settings.json
+      ansible.builtin.shell: |
+        python3 -c "
+        import json, sys
+        try:
+            d = json.load(open('/mnt/nas/docker/jellyseerr/settings.json'))
+            k   = d.get('main', {}).get('apiKey', '') or d.get('apiKey', '')
+            cid = d.get('clientId', '')
+            print(k + '|' + cid)
+        except Exception:
+            print('|')
+        "
+      register: _jellyseerr_settings_raw
+      changed_when: false
+
+    - name: Set Jellyseerr API key and client ID from settings.json
+      ansible.builtin.set_fact:
+        jellyseerr_api_key: "{{ _jellyseerr_settings_raw.stdout.split('|')[0] | trim }}"
+        _jellyseerr_client_id: "{{ _jellyseerr_settings_raw.stdout.split('|')[1] | trim }}"
+      when: (_jellyseerr_settings_raw.stdout | trim) not in ['', '|']
+
+    - name: Ensure Jellyseerr container is running
+      ansible.builtin.command: docker start jellyseerr
+      become: true
+      changed_when: false
+      failed_when: false
+      when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+
+    - name: Check Jellyseerr initialization status
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/settings/public"
+        status_code: 200
+        return_content: true
+      register: jellyseerr_public
+      until: jellyseerr_public.status == 200
+      retries: 20
+      delay: 5
+      when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+
+    - name: Authenticate with Jellyfin to get admin user ID for Jellyseerr
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Users/AuthenticateByName"
+        method: POST
+        headers:
+          X-Emby-Authorization: >-
+            MediaBrowser Client="Ansible", Device="ansible-init",
+            DeviceId="{{ _jellyseerr_client_id | default('ansible-init') }}",
+            Version="1.0"
+        body_format: json
+        body:
+          Username: admin
+          Pw: "{{ jellyfin_admin_password }}"
+        status_code: 200
+        return_content: true
+      register: _jellyfin_auth_for_jellyseerr
+      no_log: true
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and not (jellyseerr_public.json.initialized | default(false))
+
+    - name: Stop Jellyseerr before DB write to release SQLite lock
+      ansible.builtin.command: docker stop jellyseerr
+      become: true
+      changed_when: true
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and not (jellyseerr_public.json.initialized | default(false))
+        and _jellyfin_auth_for_jellyseerr is not skipped
+
+    - name: Write Jellyseerr DB init script to temp file
+      ansible.builtin.copy:
+        dest: /tmp/jellyseerr-db-init.py
+        mode: "0644"
+        content: |
+          import json, os, sqlite3, sys
+          jf_uid    = os.environ['JF_UID']
+          jf_token  = os.environ['JF_TOKEN']
+          jf_client = os.environ['JF_CLIENT']
+          db_path   = '/app/config/db/db.sqlite3'
+          try:
+              conn   = sqlite3.connect(db_path, timeout=30)
+              cursor = conn.cursor()
+              cursor.execute('PRAGMA table_info(user)')
+              schema = cursor.fetchall()
+              # schema rows: (cid, name, type, notnull, dflt_value, pk)
+              # Build a set of NOT NULL columns that have no default value —
+              # we must supply a value for these or the INSERT will fail.
+              notnull_no_default = {
+                  row[1] for row in schema
+                  if row[3] == 1 and row[4] is None and row[5] == 0
+              }
+              fields = {'id': 1, 'email': 'admin@team.rocket', 'avatar': '',
+                        'jellyfinUserId': jf_uid, 'jellyfinUsername': 'admin',
+                        'jellyfinAuthToken': jf_token, 'jellyfinDeviceId': jf_client,
+                        'permissions': 2}
+              # Fill any remaining NOT NULL / no-default columns with safe defaults
+              # so the INSERT never fails on constraint violations we haven't seen yet.
+              type_defaults = {'INTEGER': 0, 'REAL': 0.0}
+              for row in schema:
+                  col_name, col_type, notnull, dflt, pk = row[1], row[2], row[3], row[4], row[5]
+                  if col_name not in fields and notnull and dflt is None and pk == 0:
+                      fields[col_name] = type_defaults.get(col_type.upper(), '')
+              col_names    = ', '.join(fields.keys()) + ', createdAt, updatedAt'
+              placeholders = ', '.join(['?'] * len(fields)) + ", datetime('now'), datetime('now')"
+              cursor.execute(
+                  'INSERT OR REPLACE INTO user (' + col_names + ') VALUES (' + placeholders + ')',
+                  list(fields.values()))
+              conn.commit()
+              conn.close()
+              print('Upserted Jellyseerr admin user at id=1')
+          except Exception as e:
+              print('DB error: ' + str(e), file=sys.stderr)
+              sys.exit(1)
+          with open('/app/config/settings.json') as f:
+              settings = json.load(f)
+          settings.setdefault('main', {})['initialized'] = True
+          settings['jellyfin'] = {
+              'hostname': 'jellyfin',
+              'port': 8096,
+              'useSsl': False,
+              'urlBase': '',
+              'externalHostname': '',
+              'serverId': '',
+              'serverName': 'TeamRocket',
+          }
+          with open('/app/config/settings.json', 'w') as f:
+              json.dump(settings, f, indent=2)
+          print('Marked Jellyseerr as initialized with Jellyfin config')
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and not (jellyseerr_public.json.initialized | default(false))
+        and _jellyfin_auth_for_jellyseerr is not skipped
+
+    - name: Get Jellyseerr DB file owner for docker run
+      ansible.builtin.stat:
+        path: /mnt/nas/docker/jellyseerr/db/db.sqlite3
+      register: _jellyseerr_db_stat
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and not (jellyseerr_public.json.initialized | default(false))
+        and _jellyfin_auth_for_jellyseerr is not skipped
+
+    - name: Write Jellyfin admin user into Jellyseerr database
+      become: true
+      ansible.builtin.shell:
+        cmd: >-
+          docker run --rm
+          --user "{{ _jellyseerr_db_stat.stat.uid }}:{{ _jellyseerr_db_stat.stat.gid }}"
+          -v /mnt/nas/docker/jellyseerr:/app/config
+          -v /tmp/jellyseerr-db-init.py:/init.py:ro
+          -e "JF_UID={{ _jellyfin_auth_for_jellyseerr.json.User.Id }}"
+          -e "JF_TOKEN={{ _jellyfin_auth_for_jellyseerr.json.AccessToken }}"
+          -e "JF_CLIENT={{ _jellyseerr_client_id | default('jellyseerr') }}"
+          python:3-alpine python3 /init.py
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and not (jellyseerr_public.json.initialized | default(false))
+        and _jellyfin_auth_for_jellyseerr is not skipped
+        and _jellyfin_auth_for_jellyseerr.json.User.Id is defined
+        and _jellyseerr_db_stat is not skipped
+      changed_when: true
+      no_log: true
+
+    - name: Restart Jellyseerr to apply DB initialization
+      ansible.builtin.command: docker restart jellyseerr
+      become: true
+      changed_when: true
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and not (jellyseerr_public.json.initialized | default(false))
+        and _jellyfin_auth_for_jellyseerr is not skipped
+
+    - name: Wait for Jellyseerr after restart
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/settings/public"
+        status_code: 200
+      register: jellyseerr_post_restart
+      until: jellyseerr_post_restart.status == 200
+      retries: 20
+      delay: 5
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and not (jellyseerr_public.json.initialized | default(false))
+        and _jellyfin_auth_for_jellyseerr is not skipped
+
+    - name: Re-read Jellyseerr API key after any restart
+      ansible.builtin.shell: |
+        python3 -c "
+        import json, sys
+        try:
+            d = json.load(open('/mnt/nas/docker/jellyseerr/settings.json'))
+            print(d.get('main', {}).get('apiKey', '') or d.get('apiKey', ''))
+        except Exception:
+            print('')
+        "
+      register: _jellyseerr_key_refreshed
+      changed_when: false
+
+    - name: Update Jellyseerr API key fact after restart
+      ansible.builtin.set_fact:
+        jellyseerr_api_key: "{{ _jellyseerr_key_refreshed.stdout | trim }}"
+      when: (_jellyseerr_key_refreshed.stdout | trim) != ''
+
+    - name: Get existing Radarr instances in Jellyseerr
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/settings/radarr"
+        headers:
+          X-Api-Key: "{{ jellyseerr_api_key }}"
+        return_content: true
+      register: jellyseerr_radarr_list
+      when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+
+    - name: Add Radarr to Jellyseerr
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/settings/radarr"
+        method: POST
+        headers:
+          X-Api-Key: "{{ jellyseerr_api_key }}"
+        body_format: json
+        body:
+          name: Radarr
+          hostname: radarr
+          port: 7878
+          apiKey: "{{ radarr_api_key }}"
+          useSsl: false
+          baseUrl: ""
+          activeProfileId: 1
+          activeProfileName: "Any"
+          activeDirectory: /data/movies
+          minimumAvailability: released
+          is4k: false
+          isDefault: true
+          externalUrl: "http://radarr.home"
+        status_code: 201
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and jellyseerr_radarr_list is not skipped
+        and (jellyseerr_radarr_list.json | selectattr('name', 'equalto', 'Radarr') | list | length == 0)
+
+    - name: Get existing Sonarr instances in Jellyseerr
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/settings/sonarr"
+        headers:
+          X-Api-Key: "{{ jellyseerr_api_key }}"
+        return_content: true
+      register: jellyseerr_sonarr_list
+      when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+
+    - name: Add Sonarr to Jellyseerr
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/settings/sonarr"
+        method: POST
+        headers:
+          X-Api-Key: "{{ jellyseerr_api_key }}"
+        body_format: json
+        body:
+          name: Sonarr
+          hostname: sonarr
+          port: 8989
+          apiKey: "{{ sonarr_api_key }}"
+          useSsl: false
+          baseUrl: ""
+          activeProfileId: 1
+          activeProfileName: "Any"
+          activeDirectory: /data/tv
+          minimumAvailability: released
+          enableSeasonFolders: true
+          is4k: false
+          isDefault: true
+          externalUrl: "http://sonarr.home"
+        status_code: 201
+      when: >
+        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and jellyseerr_sonarr_list is not skipped
+        and (jellyseerr_sonarr_list.json | selectattr('name', 'equalto', 'Sonarr') | list | length == 0)
+
+    - name: Disable local account sign-up in Jellyseerr
+      ansible.builtin.uri:
+        url: "{{ jellyseerr_url }}/api/v1/settings/main"
+        method: POST
+        headers:
+          X-Api-Key: "{{ jellyseerr_api_key }}"
+        body_format: json
+        body:
+          localLogin: false
+        status_code: 200
+      when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+
+    - name: Push Jellyseerr API key to Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/JELLYSEERR_API_KEY"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ jellyseerr_api_key }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
+      when: _jellyseerr_key_new and jellyseerr_api_key != 'placeholder' and jellyseerr_api_key != ''
+
+    - name: Fetch all secrets from Infisical after Jellyseerr key
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        status_code: 200
+      register: _infisical_refreshed3
+      no_log: true
+      when: _jellyseerr_key_new and jellyseerr_api_key != 'placeholder' and jellyseerr_api_key != ''
+
+    - name: Write final /etc/homelab.env
+      ansible.builtin.copy:
+        dest: /etc/homelab.env
+        mode: "0600"
+        owner: root
+        group: root
+        content: |
+          {% for s in _infisical_refreshed3.json.secrets %}
+          {{ s.secretKey }}={{ s.secretValue }}
+          {% endfor %}
+      become: true
+      no_log: true
+      when: _jellyseerr_key_new and jellyseerr_api_key != 'placeholder' and jellyseerr_api_key != ''
+
+    # ── Block 10: Recyclarr — run one-shot sync ──────────────────────────────
+    # Recyclarr is stateless for sync purposes; use a local VM temp dir to
+    # avoid needing write access to the NFS docker share root.
+
+    - name: Create local Recyclarr config temp directory
+      ansible.builtin.file:
+        path: /tmp/recyclarr-config
+        state: directory
+        mode: "0755"
+
+    - name: Copy Recyclarr config to VM
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../services/machamp-services/config/recyclarr/"
+        dest: /tmp/recyclarr-config/
+        mode: "0644"
+
+    - name: Run Recyclarr sync
+      become: true
+      community.docker.docker_container:
+        name: recyclarr-init
+        image: ghcr.io/recyclarr/recyclarr:7
+        volumes:
+          - /tmp/recyclarr-config:/config
+        env:
+          RADARR_API_KEY: "{{ radarr_api_key }}"
+          SONARR_API_KEY: "{{ sonarr_api_key }}"
+        command: sync
+        detach: false
+        cleanup: true
+        auto_remove: true
+      register: recyclarr_result
+      ignore_errors: true
+
+    - name: Show Recyclarr sync output
+      ansible.builtin.debug:
+        var: recyclarr_result.container.Output
+      when: recyclarr_result is defined

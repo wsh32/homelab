@@ -49,7 +49,7 @@
 
     - name: Resolve credentials into facts
       ansible.builtin.set_fact:
-        _admin_email: "{{ infisical_admin_email | default('admin@homelab.local') }}"
+        _admin_email: "{{ infisical_admin_email | default('admin@team.rocket') }}"
         _admin_password: "{{ infisical_admin_password | default(lookup('env', 'INFISICAL_ADMIN_PASSWORD')) }}"
 
     - name: Fail if no admin password available
@@ -68,15 +68,537 @@
         group: root
       become: true
 
-    - name: Bootstrap Infisical via docker exec
-      ansible.builtin.shell: |
-        docker exec infisical infisical bootstrap \
-          --domain http://localhost:8080 \
-          --email "{{ _admin_email }}" \
-          --password "{{ _admin_password }}" \
-          --organization teamrocket \
-          --ignore-if-bootstrapped \
-          --output json
+    - name: Wait for Infisical port to be open
+      ansible.builtin.wait_for:
+        host: localhost
+        port: 8080
+        timeout: 120
+
+    - name: Bootstrap Infisical via REST API
+      ansible.builtin.uri:
+        url: "http://localhost:8080/api/v1/admin/bootstrap"
+        method: POST
+        body_format: json
+        body:
+          email: "{{ _admin_email }}"
+          password: "{{ _admin_password }}"
+          organization: teamrocket
+        status_code: [200, 201, 400, 409]
+      register: _bootstrap_api
+      no_log: true
+
+    - name: Save bootstrap credentials to file
+      ansible.builtin.copy:
+        content: "{{ _bootstrap_api.json | to_json }}"
+        dest: /var/lib/infisical/bootstrap.json
+        mode: "0600"
+        owner: root
+        group: root
       become: true
-      register: bootstrap_result
-      changed_when: "'already bootstrapped' not in bootstrap_result.stdout"
+      when: _bootstrap_api.status in [200, 201]
+      no_log: true
+
+    # ── Recovery path: Infisical already bootstrapped, no saved credentials ──
+    # Log in as admin, list orgs, select org → synthesise bootstrap.json so
+    # Phase 2 can still create the machine identity without wiping.
+
+    - name: Check if bootstrap credentials file already exists
+      ansible.builtin.stat:
+        path: /var/lib/infisical/bootstrap.json
+      become: true
+      register: _bootstrap_json_exists
+
+    - name: Login as Infisical admin (recovery path)
+      ansible.builtin.uri:
+        url: "http://localhost:8080/api/v3/auth/login"
+        method: POST
+        body_format: json
+        body:
+          email: "{{ _admin_email }}"
+          password: "{{ _admin_password }}"
+        status_code: 200
+      register: _admin_login
+      no_log: true
+      when: not _bootstrap_json_exists.stat.exists
+
+    - name: List Infisical organizations
+      ansible.builtin.uri:
+        url: "http://localhost:8080/api/v1/organization"
+        headers:
+          Authorization: "Bearer {{ _admin_login.json.accessToken }}"
+        status_code: 200
+      register: _orgs
+      no_log: true
+      when: not _bootstrap_json_exists.stat.exists
+
+    - name: Select Infisical organization to get org-scoped token
+      ansible.builtin.uri:
+        url: "http://localhost:8080/api/v3/auth/select-organization"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _admin_login.json.accessToken }}"
+        body_format: json
+        body:
+          organizationId: "{{ (_orgs.json.organizations | first).id }}"
+        status_code: 200
+      register: _select_org
+      no_log: true
+      when: not _bootstrap_json_exists.stat.exists
+
+    - name: Save synthesised bootstrap credentials to file
+      ansible.builtin.copy:
+        content: >-
+          {{ {
+            "organization": {"id": (_orgs.json.organizations | first).id},
+            "identity": {"credentials": {"token": _select_org.json.token}},
+            "user": {"id": "", "email": _admin_email}
+          } | to_json }}
+        dest: /var/lib/infisical/bootstrap.json
+        mode: "0600"
+        owner: root
+        group: root
+      become: true
+      no_log: true
+      when: not _bootstrap_json_exists.stat.exists
+
+# ── Phase 2: Create machamp-services machine identity in Infisical ───────────
+#
+# Uses the bootstrap token from Phase 1 to create a project, machine identity,
+# and Universal Auth credentials via the Infisical REST API — no SRP user login
+# required.  Skipped on re-runs when credentials are already in secrets.yml.
+- name: Create machamp-services machine identity in Infisical
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Load secrets.yml
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      failed_when: false
+
+    - name: Skip play if machine identity already configured
+      ansible.builtin.meta: end_play
+      when: >
+        (infisical_client_id | default('')) not in ['', 'REPLACE_ME']
+
+    - name: Check bootstrap credentials file exists on machamp-infra
+      ansible.builtin.stat:
+        path: /var/lib/infisical/bootstrap.json
+      delegate_to: machamp-infra
+      become: true
+      register: _bootstrap_file
+
+    - name: Fail if bootstrap credentials file not found
+      ansible.builtin.fail:
+        msg: >
+          /var/lib/infisical/bootstrap.json not found on machamp-infra.
+          Infisical was bootstrapped before credentials were captured.
+          Options: (A) wipe the Infisical instance (docker compose down,
+          remove its volumes, docker compose up -d) and re-run infra.yml —
+          Phase 1 will re-bootstrap and save credentials automatically.
+          Or (B) create a machine identity manually in the Infisical UI and
+          set infisical_project_id, infisical_client_id, and
+          infisical_client_secret in ansible/secrets.yml.
+      when: not _bootstrap_file.stat.exists
+
+    - name: Read bootstrap credentials from file
+      ansible.builtin.slurp:
+        src: /var/lib/infisical/bootstrap.json
+      delegate_to: machamp-infra
+      become: true
+      register: _bootstrap_raw
+      no_log: true
+
+    - name: Set Infisical host, bootstrap token, and org ID
+      ansible.builtin.set_fact:
+        _infisical_host: "{{ infisical_host | default('http://192.168.0.32:8080') }}"
+        _bootstrap_token: "{{ (_bootstrap_raw.content | b64decode | from_json).identity.credentials.token }}"
+        _org_id: "{{ (_bootstrap_raw.content | b64decode | from_json).organization.id }}"
+      no_log: true
+
+    - name: Check if machamp-services project already exists
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/projects/slug/machamp-services"
+        headers:
+          Authorization: "Bearer {{ _bootstrap_token }}"
+        status_code: [200, 404]
+      register: _project_check
+      no_log: true
+
+    - name: Create machamp-services project in Infisical
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/projects"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _bootstrap_token }}"
+        body_format: json
+        body:
+          projectName: "machamp-services"
+          slug: "machamp-services"
+          type: "secret-manager"
+        status_code: [200, 201]
+      register: _project_new
+      no_log: true
+      when: _project_check.status == 404
+
+    - name: Resolve project ID (newly created)
+      ansible.builtin.set_fact:
+        _project_id: "{{ _project_new.json.project.id }}"
+      no_log: true
+      when: _project_check.status == 404
+
+    - name: Resolve project ID (existing)
+      ansible.builtin.set_fact:
+        _project_id: "{{ _project_check.json.id }}"
+      no_log: true
+      when: _project_check.status != 404
+
+    - name: Check if machamp-services identity already exists
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/identities?orgId={{ _org_id }}"
+        headers:
+          Authorization: "Bearer {{ _bootstrap_token }}"
+        status_code: 200
+      register: _identities_list
+      no_log: true
+
+    - name: Resolve existing identity ID if present
+      ansible.builtin.set_fact:
+        _existing_identity_id: >-
+          {{ (_identities_list.json.identities
+              | selectattr('identity.name', 'equalto', 'machamp-services')
+              | map(attribute='identity.id')
+              | first | default('')) }}
+      no_log: true
+
+    - name: Create machine identity for machamp-services
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/identities"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _bootstrap_token }}"
+        body_format: json
+        body:
+          name: "machamp-services"
+          organizationId: "{{ _org_id }}"
+          role: "no-access"
+        status_code: [200, 201]
+      register: _identity_new
+      no_log: true
+      when: _existing_identity_id == ''
+
+    - name: Resolve identity ID (newly created)
+      ansible.builtin.set_fact:
+        _identity_id: "{{ _identity_new.json.identity.id }}"
+      no_log: true
+      when: _existing_identity_id == ''
+
+    - name: Resolve identity ID (existing)
+      ansible.builtin.set_fact:
+        _identity_id: "{{ _existing_identity_id }}"
+      no_log: true
+      when: _existing_identity_id != ''
+
+    - name: Add identity to machamp-services project
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/projects/{{ _project_id }}/identity-memberships/{{ _identity_id }}"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _bootstrap_token }}"
+        body_format: json
+        body:
+          role: "member"
+        status_code: [200, 201, 400, 409]
+      no_log: true
+
+    - name: Check if Universal Auth already configured for identity
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity_id }}"
+        headers:
+          Authorization: "Bearer {{ _bootstrap_token }}"
+        status_code: [200, 404]
+      register: _ua_check
+      no_log: true
+
+    - name: Configure Universal Auth for identity
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity_id }}"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _bootstrap_token }}"
+        body_format: json
+        body:
+          accessTokenTrustedIps:
+            - ipAddress: "0.0.0.0/0"
+            - ipAddress: "::/0"
+          accessTokenTTL: 7200
+          accessTokenMaxTTL: 43200
+        status_code: [200, 201]
+      register: _ua_new
+      no_log: true
+      when: _ua_check.status == 404
+
+    - name: Resolve Universal Auth client ID (newly configured)
+      ansible.builtin.set_fact:
+        _ua_client_id: "{{ _ua_new.json.identityUniversalAuth.clientId }}"
+      no_log: true
+      when: _ua_check.status == 404
+
+    - name: Resolve Universal Auth client ID (existing)
+      ansible.builtin.set_fact:
+        _ua_client_id: "{{ _ua_check.json.identityUniversalAuth.clientId }}"
+      no_log: true
+      when: _ua_check.status != 404
+
+    - name: Create Universal Auth client secret
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/auth/universal-auth/identities/{{ _identity_id }}/client-secrets"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _bootstrap_token }}"
+        body_format: json
+        body: {}
+        status_code: [200, 201]
+      register: _client_secret
+      no_log: true
+
+    - name: Write project ID to secrets.yml
+      ansible.builtin.lineinfile:
+        path: "{{ playbook_dir }}/secrets.yml"
+        regexp: '^infisical_project_id:'
+        line: 'infisical_project_id: "{{ _project_id }}"'
+        create: true
+
+    - name: Write client ID to secrets.yml
+      ansible.builtin.lineinfile:
+        path: "{{ playbook_dir }}/secrets.yml"
+        regexp: '^infisical_client_id:'
+        line: 'infisical_client_id: "{{ _ua_client_id }}"'
+        create: true
+
+    - name: Write client secret to secrets.yml
+      ansible.builtin.lineinfile:
+        path: "{{ playbook_dir }}/secrets.yml"
+        regexp: '^infisical_client_secret:'
+        line: 'infisical_client_secret: "{{ _client_secret.json.clientSecret }}"'
+        create: true
+      no_log: true
+
+    - name: Report machine identity created
+      ansible.builtin.debug:
+        msg: >
+          Infisical machine identity 'machamp-services' created.
+          Project ID, client ID, and client secret written to ansible/secrets.yml.
+
+# ── Phase 3: Seed PIA credentials from Vaultwarden ───────────────────────────
+#
+# Reads PIA_USERNAME and PIA_PASSWORD from the Vaultwarden service account on
+# machamp-infra (created by the infra role) and pushes them to Infisical.
+# Requires:
+#   - infra role to have run (service account created, bw snap installed)
+#   - Operator to have added a login item named "PIA VPN" to the service
+#     account's vault (infra@team.rocket)
+#   - pia_vault_item in secrets.yml if the item name differs from "PIA VPN"
+#
+# Skipped automatically if PIA_USERNAME is already populated in Infisical.
+- name: Seed PIA credentials from Vaultwarden via machamp-infra service account
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Load secrets.yml
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      failed_when: false
+
+    - name: Skip play if machine identity not configured
+      ansible.builtin.meta: end_play
+      when: >
+        (infisical_client_id | default('')) in ['', 'REPLACE_ME'] or
+        (infisical_client_secret | default('')) in ['', 'REPLACE_ME']
+
+    - name: Resolve Infisical settings
+      ansible.builtin.set_fact:
+        _infisical_host: "{{ infisical_host | default('http://192.168.0.32:8080') }}"
+        _client_id: "{{ infisical_client_id }}"
+        _client_secret: "{{ infisical_client_secret }}"
+        _project_id: "{{ infisical_project_id }}"
+        _environment: "{{ infisical_environment | default('prod') }}"
+        _pia_vault_item: "{{ pia_vault_item | default('PIA VPN') }}"
+
+    - name: Get machine identity access token
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v1/auth/universal-auth/login"
+        method: POST
+        body_format: json
+        body:
+          clientId: "{{ _client_id }}"
+          clientSecret: "{{ _client_secret }}"
+        status_code: 200
+      register: _ua_login
+      no_log: true
+
+    - name: Check if PIA_USERNAME already set in Infisical
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v3/secrets/raw/PIA_USERNAME?workspaceId={{ _project_id }}&environment={{ _environment }}&secretPath=/"
+        headers:
+          Authorization: "Bearer {{ _ua_login.json.accessToken }}"
+        status_code: [200, 404]
+      register: _pia_check
+      no_log: true
+
+    - name: Skip play if PIA_USERNAME already populated in Infisical
+      ansible.builtin.meta: end_play
+      when: >
+        _pia_check.status == 200 and
+        (_pia_check.json.secret.secretValue | default('')) != ''
+
+    - name: Read Vaultwarden service account credentials from machamp-infra
+      ansible.builtin.slurp:
+        src: /etc/homelab.env
+      delegate_to: machamp-infra
+      become: true
+      register: _homelab_env_raw
+
+    - name: Parse service account credentials
+      ansible.builtin.set_fact:
+        _vw_svc_email: >-
+          {{ (_homelab_env_raw.content | b64decode)
+             | regex_search('(?m)^VAULTWARDEN_SVC_EMAIL=.+')
+             | default('')
+             | regex_replace('^VAULTWARDEN_SVC_EMAIL=', '') }}
+        _vw_svc_password: >-
+          {{ (_homelab_env_raw.content | b64decode)
+             | regex_search('(?m)^VAULTWARDEN_SVC_PASSWORD=.+')
+             | default('')
+             | regex_replace('^VAULTWARDEN_SVC_PASSWORD=', '') }}
+      no_log: true
+
+    - name: Fail if service account credentials not found in homelab.env
+      ansible.builtin.fail:
+        msg: >
+          VAULTWARDEN_SVC_EMAIL or VAULTWARDEN_SVC_PASSWORD not found in
+          /etc/homelab.env on machamp-infra. Run ansible-playbook ansible/infra.yml first.
+      when: _vw_svc_email == '' or _vw_svc_password == ''
+
+    - name: Slurp step-ca root cert from machamp-infra
+      ansible.builtin.slurp:
+        src: /usr/local/share/ca-certificates/step-ca.crt
+      delegate_to: machamp-infra
+      become: true
+      register: _step_ca_cert_raw
+
+    - name: Write step-ca root cert to local temp file
+      ansible.builtin.copy:
+        content: "{{ _step_ca_cert_raw.content | b64decode }}"
+        dest: /tmp/step-ca.crt
+        mode: "0644"
+
+    - name: Clear any existing bw session
+      ansible.builtin.command: bw logout
+      environment:
+        NODE_EXTRA_CA_CERTS: /tmp/step-ca.crt
+      failed_when: false
+      changed_when: false
+
+    - name: Wait for Vaultwarden HTTPS to be reachable via Traefik
+      ansible.builtin.uri:
+        url: "https://vault.home/api/config"
+        ca_path: /tmp/step-ca.crt
+        status_code: 200
+      register: _vw_health
+      retries: 12
+      delay: 10
+      until: _vw_health.status == 200
+      failed_when: false
+
+    - name: Fail if Vaultwarden unreachable
+      ansible.builtin.fail:
+        msg: >
+          https://vault.home/api/config is not reachable (status: {{ _vw_health.status | default('no response') }}).
+          Check: (1) docker ps on machamp-infra shows vaultwarden running,
+          (2) Traefik dashboard shows vault-home-tls route active,
+          (3) step-ca has issued a cert for vault.home (check acme.json).
+      when: _vw_health.status | default(0) != 200
+
+    - name: Configure bw server to vault.home
+      ansible.builtin.command: >
+        bw config server
+        --api https://vault.home/api
+        --identity https://vault.home/identity
+        https://vault.home
+      environment:
+        NODE_EXTRA_CA_CERTS: /tmp/step-ca.crt
+      changed_when: false
+
+    - name: Login to Vaultwarden as service account
+      ansible.builtin.shell:
+        cmd: "bw login {{ _vw_svc_email }} {{ _vw_svc_password }} --raw --nointeraction"
+      environment:
+        NODE_EXTRA_CA_CERTS: /tmp/step-ca.crt
+      register: _bw_session
+      changed_when: false
+      no_log: true
+
+    - name: Retrieve PIA username from Vaultwarden
+      ansible.builtin.command:
+        cmd: "bw get username {{ _pia_vault_item | quote }}"
+      environment:
+        BW_SESSION: "{{ _bw_session.stdout }}"
+        NODE_EXTRA_CA_CERTS: /tmp/step-ca.crt
+      register: _pia_username
+      changed_when: false
+      failed_when: false
+      no_log: true
+
+    - name: Fail if PIA VPN item not found in Vaultwarden
+      ansible.builtin.fail:
+        msg: >
+          Vault item '{{ _pia_vault_item }}' not found in Vaultwarden (bw exited {{ _pia_username.rc }}).
+          Log into https://vault.home as infra@team.rocket (password in
+          /etc/homelab.env on machamp-infra as VAULTWARDEN_SVC_PASSWORD) and
+          create a login item named '{{ _pia_vault_item }}' with your PIA username and password.
+          Then re-run this playbook.
+      when: _pia_username.rc != 0
+
+    - name: Retrieve PIA password from Vaultwarden
+      ansible.builtin.command:
+        cmd: "bw get password {{ _pia_vault_item | quote }}"
+      environment:
+        BW_SESSION: "{{ _bw_session.stdout }}"
+        NODE_EXTRA_CA_CERTS: /tmp/step-ca.crt
+      register: _pia_password
+      changed_when: false
+      no_log: true
+
+    - name: Logout from Vaultwarden
+      ansible.builtin.command: bw logout
+      environment:
+        BW_SESSION: "{{ _bw_session.stdout }}"
+        NODE_EXTRA_CA_CERTS: /tmp/step-ca.crt
+      changed_when: false
+      failed_when: false
+
+    - name: Remove step-ca root cert temp file
+      ansible.builtin.file:
+        path: /tmp/step-ca.crt
+        state: absent
+
+    - name: Push PIA credentials to Infisical
+      ansible.builtin.command:
+        cmd: >
+          infisical secrets set
+          "PIA_USERNAME={{ _pia_username.stdout }}"
+          "PIA_PASSWORD={{ _pia_password.stdout }}"
+          --projectId "{{ _project_id }}"
+          --env "{{ _environment }}"
+          --domain "{{ _infisical_host }}"
+          --token "{{ _ua_login.json.accessToken }}"
+      changed_when: true
+      no_log: true
+
+    - name: Report PIA credentials seeded
+      ansible.builtin.debug:
+        msg: >
+          PIA credentials seeded from Vaultwarden item '{{ _pia_vault_item }}'
+          (service account: {{ _vw_svc_email }}) into Infisical.

@@ -51,9 +51,9 @@ Goal: `*.wsh` resolves and loads over HTTPS; `*.home` resolves and loads over HT
 
 Goal: everything in the plan is operational.
 
-- [ ] **GPU passthrough: extend proxmox-vm module** — add an optional `pci_devices` variable (list of PCI address strings) to `terraform/modules/proxmox-vm/`; add a dynamic `hostpci` block to the VM resource; default to empty list so existing VMs are unaffected
+- [x] **GPU passthrough: extend proxmox-vm module** — added `hostpci_devices` variable and dynamic `hostpci` block to `terraform/modules/proxmox-vm/`
 - [ ] **GPU passthrough: Machamp hardware setup** — on Machamp host, add `amd_iommu=on` to GRUB kernel params, load VFIO modules, bind both GPUs to VFIO before Proxmox claims them; document exact PCI addresses in `docs/hardware_inventory.md`
-- [ ] **GPU passthrough: wire up Services VM** — fill in the `pci_devices` argument for `module.services` (Quadro P2000) in `terraform/machamp/main.tf` once PCI address is confirmed
+- [ ] **GPU passthrough: wire up Services VM** — fill in `services_gpu_pci_ids` in `terraform/machamp/terraform.tfvars` once PCI address is confirmed (run `ssh root@machamp lspci | grep -i quadro`)
 - [ ] **Deploy node_exporter** — add `prom/node-exporter` to each service-running docker-compose stack (or as a standalone compose file on each VM); verify all targets appear green in Prometheus
 - [ ] **Resolve Quartz approach** — `ghcr.io/jackyzha0/quartz:v4` doesn't exist as a runnable web server image; Quartz is a static site generator. Options: (a) build the site in CI and serve the output with nginx, (b) run a Quartz build container on a cron and serve the output, (c) use a different publishing approach. Update `services/machamp-services/docker-compose.yml` once decided.
 - [ ] **NUT/UPS integration** — add Orange Pi to `network.yml` (type: other, assign IP in `.4–.19` range); write an Ansible role `roles/nut/` that installs and configures NUT server on Orange Pi and NUT clients on Machamp, Diglett, and Alakazam; add it to `ansible/physical.yml` and the relevant VM playbooks

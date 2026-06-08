@@ -10,3 +10,10 @@
     name: tailscaled
     state: restarted
   become: true
+
+- name: Restart avahi-daemon
+  ansible.builtin.service:
+    name: avahi-daemon
+    state: restarted
+  become: true
+  failed_when: false
