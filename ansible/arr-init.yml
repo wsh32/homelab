@@ -489,6 +489,8 @@
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Startup/Configuration"
         method: POST
+        headers:
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
         body_format: json
         body:
           ServerName: TeamRocket
@@ -502,17 +504,21 @@
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Startup/User"
         method: POST
+        headers:
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
         body_format: json
         body:
           Name: admin
           Password: "{{ jellyfin_admin_password }}"
-        status_code: [204, 404]
+        status_code: 204
       when: jellyfin_wizard.status == 200
 
     - name: Configure Jellyfin remote access
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Startup/RemoteAccess"
         method: POST
+        headers:
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
         body_format: json
         body:
           EnableRemoteAccess: true
@@ -524,6 +530,8 @@
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Startup/Complete"
         method: POST
+        headers:
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
         status_code: 204
       when: jellyfin_wizard.status == 200
 
