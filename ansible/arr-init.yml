@@ -955,7 +955,7 @@
         url: "{{ jellyfin_url }}/Users/AuthenticateByName"
         method: POST
         headers:
-          X-Emby-Authorization: >-
+          Authorization: >-
             MediaBrowser Client="Ansible", Device="ansible-init",
             DeviceId="{{ _jellyseerr_client_id | default('ansible-init') }}",
             Version="1.0"
