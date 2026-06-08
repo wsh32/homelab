@@ -331,6 +331,28 @@
       retries: 40
       delay: 10
 
+    # ── Block 2.5a: Set reverse-proxy auth mode on arr services ─────────────
+    # AuthenticationMethod=External tells *arr apps that auth is handled by
+    # the reverse proxy (Traefik + Authentik forwardAuth) — no double-login.
+
+    - name: Set arr services auth method to External
+      ansible.builtin.replace:
+        path: "/mnt/nas/docker/{{ item }}/config.xml"
+        regexp: '<AuthenticationMethod>[^<]*</AuthenticationMethod>'
+        replace: '<AuthenticationMethod>External</AuthenticationMethod>'
+      become: true
+      register: _arr_auth_method
+      loop: [prowlarr, radarr, sonarr]
+
+    - name: Restart arr services if auth method changed
+      ansible.builtin.command: "docker restart {{ item.item }}"
+      become: true
+      changed_when: true
+      when: item.changed
+      loop: "{{ _arr_auth_method.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
     # ── Block 2.5: Harvest arr API keys from service config files ────────────
 
     - name: Record which arr API keys need harvesting
