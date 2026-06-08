@@ -690,55 +690,13 @@
             path: "/tmp/jellyfin-sso-{{ jellyfin_sso_plugin_version }}.zip"
             state: absent
 
-    - name: Create Jellyfin plugin configurations directory
-      ansible.builtin.file:
-        path: /mnt/nas/docker/jellyfin/plugins/configurations
-        state: directory
-        mode: "0755"
-      become: true
-      when: _jf_oidc_env_stat.stat.exists
-
-    - name: Write SSO plugin configuration XML
-      ansible.builtin.copy:
-        dest: /mnt/nas/docker/jellyfin/plugins/configurations/SSO-Auth.xml
-        force: false
-        content: |
-          <?xml version="1.0" encoding="utf-8"?>
-          <PluginConfiguration xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-            <SSOConfigs>
-              <item>
-                <key>authentik</key>
-                <value>
-                  <OIDEndpoint>https://auth.home/application/o/jellyfin/</OIDEndpoint>
-                  <OIDClientId>{{ _jf_oidc_client_id }}</OIDClientId>
-                  <OIDSecret>{{ _jf_oidc_client_secret }}</OIDSecret>
-                  <Enabled>true</Enabled>
-                  <EnableAuthorization>false</EnableAuthorization>
-                  <EnableAllFolders>true</EnableAllFolders>
-                  <EnableFolderRoles>false</EnableFolderRoles>
-                  <LibraryAccessList />
-                  <FolderRoleMapping />
-                  <AdminRoles />
-                  <Roles />
-                  <DefaultProvider>false</DefaultProvider>
-                  <RolesClaim />
-                  <OIDScopes />
-                </value>
-              </item>
-            </SSOConfigs>
-            <SchemeOverride />
-          </PluginConfiguration>
-      become: true
-      register: _sso_config_written
-      when: _jf_oidc_env_stat.stat.exists
-
     - name: Restart Jellyfin to load SSO plugin
       ansible.builtin.command: docker restart jellyfin
       become: true
       changed_when: true
       when:
         - _jf_oidc_env_stat.stat.exists
-        - not _sso_dll_stat.stat.exists or _sso_config_written.changed
+        - not _sso_dll_stat.stat.exists
 
     - name: Wait for Jellyfin after SSO plugin restart
       ansible.builtin.uri:
@@ -750,7 +708,46 @@
       delay: 5
       when:
         - _jf_oidc_env_stat.stat.exists
-        - not _sso_dll_stat.stat.exists or _sso_config_written.changed
+        - not _sso_dll_stat.stat.exists
+
+    - name: Read current SSO plugin configuration
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Plugins/505ce9d1-d916-42fa-86ca-673ef241d7df/Configuration"
+        headers:
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ jellyfin_api_key }}"'
+        return_content: true
+      register: _sso_config_current
+      no_log: true
+      when: _jf_oidc_env_stat.stat.exists and jellyfin_api_key != ''
+
+    - name: Configure SSO plugin with Authentik OIDC provider
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Plugins/505ce9d1-d916-42fa-86ca-673ef241d7df/Configuration"
+        method: POST
+        headers:
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ jellyfin_api_key }}"'
+          Content-Type: application/json
+        body_format: json
+        body:
+          SamlConfigs: {}
+          OidConfigs:
+            authentik:
+              OIDEndpoint: "https://auth.home/application/o/jellyfin/"
+              OIDClientId: "{{ _jf_oidc_client_id }}"
+              OIDSecret: "{{ _jf_oidc_client_secret }}"
+              Enabled: true
+              EnableAuthorization: false
+              EnableAllFolders: true
+              EnableFolderRoles: false
+              DefaultProvider: false
+              SchemeOverride: ""
+        status_code: 204
+      no_log: true
+      when: >
+        _jf_oidc_env_stat.stat.exists
+        and jellyfin_api_key != ''
+        and _sso_config_current is not skipped
+        and ('authentik' not in (_sso_config_current.json.OidConfigs | default({})))
 
     # ── Block 4: Volume migration — Radarr ──────────────────────────────────
 
