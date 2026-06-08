@@ -477,6 +477,9 @@
       when: _radarr_key_new or _sonarr_key_new or _prowlarr_key_new
 
     # ── Block 3: Jellyfin startup wizard ────────────────────────────────────
+    # In Jellyfin 10.11+, POST /Startup/User was removed. The wizard auto-
+    # creates a "root" admin user with no password. After completing the wizard
+    # we authenticate as root (empty password) and set jellyfin_admin_password.
 
     - name: Check Jellyfin wizard status
       ansible.builtin.uri:
@@ -497,19 +500,6 @@
           UICulture: en-US
           MetadataCountryCode: US
           PreferredMetadataLanguage: en
-        status_code: 204
-      when: jellyfin_wizard.status == 200
-
-    - name: Create Jellyfin admin user
-      ansible.builtin.uri:
-        url: "{{ jellyfin_url }}/Startup/User"
-        method: POST
-        headers:
-          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
-        body_format: json
-        body:
-          Name: admin
-          Password: "{{ jellyfin_admin_password }}"
         status_code: 204
       when: jellyfin_wizard.status == 200
 
@@ -534,6 +524,36 @@
           Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
         status_code: 204
       when: jellyfin_wizard.status == 200
+
+    - name: Authenticate as Jellyfin root user (no password) to get token
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Users/AuthenticateByName"
+        method: POST
+        headers:
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
+        body_format: json
+        body:
+          Username: root
+          Pw: ""
+        status_code: 200
+        return_content: true
+      register: _jf_root_auth
+      no_log: true
+      when: jellyfin_wizard.status == 200
+
+    - name: Set Jellyfin root user password
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Users/{{ _jf_root_auth.json.User.Id }}/Password"
+        method: POST
+        headers:
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ _jf_root_auth.json.AccessToken }}"'
+        body_format: json
+        body:
+          CurrentPw: ""
+          NewPw: "{{ jellyfin_admin_password }}"
+        status_code: 204
+      no_log: true
+      when: jellyfin_wizard.status == 200 and _jf_root_auth is not skipped
 
     # ── Block 3.5: Jellyfin SSO plugin (jellyfin-plugin-sso) ────────────────
     # Installs the SSO plugin and configures Authentik as the OIDC provider.
@@ -941,7 +961,7 @@
             Version="1.0"
         body_format: json
         body:
-          Username: admin
+          Username: root
           Pw: "{{ jellyfin_admin_password }}"
         status_code: 200
         return_content: true
