@@ -978,11 +978,12 @@
     body:
       name: "{{ item.0.slug | capitalize }}"
       slug: "{{ item.0.slug }}"
-      provider: "{{ (item.1.json.results | first).pk }}"
+      # Filter by exact name — the ?name= API param does a contains match.
+      provider: "{{ (item.1.json.results | selectattr('name', 'equalto', item.0.name) | first).pk }}"
     status_code: 201
   loop: "{{ _arr_proxy_services | zip(_arr_provider_lookup.results) | list }}"
   when:
-    - item.1.json.pagination.count > 0
+    - (item.1.json.results | selectattr('name', 'equalto', item.0.name) | list | length) > 0
     - (_arr_app_check.results[loop_index].json.pagination.count == 0)
   loop_control:
     index_var: loop_index
