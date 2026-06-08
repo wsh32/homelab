@@ -172,6 +172,7 @@
       ansible.builtin.file:
         path: /mnt/nas/docker/bazarr/config
         state: directory
+      become: true
 
     - name: Pre-seed Bazarr config.ini (skips if already exists)
       ansible.builtin.copy:
@@ -217,6 +218,7 @@
           use_radarr = True
           path_mappings = []
           path_mappings_movie = []
+      become: true
 
     - name: Create local qBittorrent incomplete downloads directory
       ansible.builtin.file:
