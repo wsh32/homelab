@@ -79,6 +79,7 @@
         bazarr_api_key: "{{ (_env | regex_search('(?m)^BAZARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
         jellyseerr_api_key: "{{ (_env | regex_search('(?m)^JELLYSEERR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
         jellyfin_admin_password: "{{ (_env | regex_search('(?m)^JELLYFIN_ADMIN_PASSWORD=(.+)$', '\\1') or ['']) | first }}"
+        jellyfin_api_key: "{{ (_env | regex_search('(?m)^JELLYFIN_API_KEY=(.+)$', '\\1') or ['']) | first }}"
       vars:
         _env: "{{ _homelab_env_raw.content | b64decode }}"
 
@@ -541,19 +542,70 @@
       no_log: true
       when: jellyfin_wizard.status == 200
 
-    - name: Set Jellyfin root user password
+    - name: Create persistent Jellyfin API key for automation
       ansible.builtin.uri:
-        url: "{{ jellyfin_url }}/Users/{{ _jf_root_auth.json.User.Id }}/Password"
+        url: "{{ jellyfin_url }}/Auth/Keys?app=ansible-automation"
         method: POST
         headers:
           Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ _jf_root_auth.json.AccessToken }}"'
+        status_code: [200, 204]
+        return_content: true
+      register: _jf_api_key_create
+      no_log: true
+      when: jellyfin_wizard.status == 200 and _jf_root_auth is not skipped
+
+    - name: List Jellyfin API keys to retrieve ansible-automation key value
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Auth/Keys"
+        headers:
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ _jf_root_auth.json.AccessToken }}"'
+        status_code: 200
+        return_content: true
+      register: _jf_api_keys
+      no_log: true
+      when: jellyfin_wizard.status == 200 and _jf_root_auth is not skipped
+
+    - name: Store Jellyfin automation API key and root user ID
+      ansible.builtin.set_fact:
+        jellyfin_api_key: >-
+          {{ (_jf_api_keys.json.Items
+              | selectattr('AppName', 'equalto', 'ansible-automation')
+              | list | last).AccessToken }}
+        _jellyfin_root_user_id: "{{ _jf_root_auth.json.User.Id }}"
+        _jellyfin_api_key_new: true
+      no_log: true
+      when: jellyfin_wizard.status == 200 and _jf_root_auth is not skipped
+
+    - name: Push Jellyfin API key to Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/JELLYFIN_API_KEY"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ jellyfin_api_key }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
+      when: _jellyfin_api_key_new | default(false)
+
+    - name: Set Jellyfin root user password
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Users/{{ _jellyfin_root_user_id }}/Password"
+        method: POST
+        headers:
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ jellyfin_api_key }}"'
         body_format: json
         body:
           CurrentPw: ""
           NewPw: "{{ jellyfin_admin_password }}"
         status_code: 204
       no_log: true
-      when: jellyfin_wizard.status == 200 and _jf_root_auth is not skipped
+      when: jellyfin_wizard.status == 200 and _jellyfin_api_key_new | default(false)
 
     # ── Block 3.5: Jellyfin SSO plugin (jellyfin-plugin-sso) ────────────────
     # Installs the SSO plugin and configures Authentik as the OIDC provider.
@@ -950,26 +1002,33 @@
       delay: 5
       when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
 
-    - name: Authenticate with Jellyfin to get admin user ID for Jellyseerr
+    - name: Get Jellyfin root user info for Jellyseerr DB init
       ansible.builtin.uri:
-        url: "{{ jellyfin_url }}/Users/AuthenticateByName"
-        method: POST
+        url: "{{ jellyfin_url }}/Users"
         headers:
-          Authorization: >-
-            MediaBrowser Client="Ansible", Device="ansible-init",
-            DeviceId="{{ _jellyseerr_client_id | default('ansible-init') }}",
-            Version="1.0"
-        body_format: json
-        body:
-          Username: root
-          Pw: "{{ jellyfin_admin_password }}"
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ jellyfin_api_key }}"'
         status_code: 200
         return_content: true
-      register: _jellyfin_auth_for_jellyseerr
+      register: _jellyfin_users
       no_log: true
       when: >
-        jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        jellyfin_api_key != ''
+        and jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
         and not (jellyseerr_public.json.initialized | default(false))
+
+    - name: Set Jellyfin auth facts for Jellyseerr DB init
+      ansible.builtin.set_fact:
+        _jellyfin_auth_for_jellyseerr:
+          json:
+            User: "{{ _jellyfin_users.json | selectattr('Name', 'equalto', 'root') | first }}"
+            AccessToken: "{{ jellyfin_api_key }}"
+          skipped: false
+      no_log: true
+      when: >
+        jellyfin_api_key != ''
+        and jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
+        and not (jellyseerr_public.json.initialized | default(false))
+        and _jellyfin_users is not skipped
 
     - name: Stop Jellyseerr before DB write to release SQLite lock
       ansible.builtin.command: docker stop jellyseerr
