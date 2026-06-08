@@ -485,10 +485,22 @@
         return_content: true
       register: jellyfin_wizard
 
+    # Jellyfin 10.9+ requires the startup token from the wizard GET response
+    # to be sent as a header on all subsequent wizard POST requests.
+    - name: Extract Jellyfin startup token
+      ansible.builtin.set_fact:
+        _jf_startup_token: "{{ jellyfin_wizard.json.startupWizardToken | default('') }}"
+      when: jellyfin_wizard.status == 200
+
     - name: Set Jellyfin locale
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Startup/Configuration"
         method: POST
+        headers:
+          X-Emby-Authorization: >-
+            MediaBrowser Client="Ansible", Device="ansible-init",
+            DeviceId="ansible-init", Version="1.0",
+            Token="{{ _jf_startup_token }}"
         body_format: json
         body:
           ServerName: TeamRocket
@@ -502,6 +514,11 @@
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Startup/User"
         method: POST
+        headers:
+          X-Emby-Authorization: >-
+            MediaBrowser Client="Ansible", Device="ansible-init",
+            DeviceId="ansible-init", Version="1.0",
+            Token="{{ _jf_startup_token }}"
         body_format: json
         body:
           Name: admin
@@ -513,6 +530,11 @@
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Startup/RemoteAccess"
         method: POST
+        headers:
+          X-Emby-Authorization: >-
+            MediaBrowser Client="Ansible", Device="ansible-init",
+            DeviceId="ansible-init", Version="1.0",
+            Token="{{ _jf_startup_token }}"
         body_format: json
         body:
           EnableRemoteAccess: true
@@ -524,6 +546,11 @@
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Startup/Complete"
         method: POST
+        headers:
+          X-Emby-Authorization: >-
+            MediaBrowser Client="Ansible", Device="ansible-init",
+            DeviceId="ansible-init", Version="1.0",
+            Token="{{ _jf_startup_token }}"
         status_code: [204, 404]
       when: jellyfin_wizard.status == 200
 
