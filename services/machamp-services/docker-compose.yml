@@ -147,7 +147,7 @@ services:
 
   # ── Archive Extraction ─────────────────────────────────────────────────────
   unpackerr:
-    image: golift/unpackerr:v0.15.2
+    image: golift/unpackerr:0.15.2
     container_name: unpackerr
     restart: unless-stopped
     volumes:
