@@ -1177,11 +1177,13 @@
         - matching_mode: "strict"
           url: "https://jellyfin.home/SSO/OID/redirect/authentik"
     status_code: 200
+  vars:
+    _jf_desired_uris:
+      - matching_mode: "strict"
+        url: "https://jellyfin.home/SSO/OID/redirect/authentik"
   when: >
     _jf_provider_exists and
-    (_jf_existing_provider.redirect_uris | default([])
-     | selectattr('url', 'equalto', 'https://jellyfin.home/SSO/OID/redirect/authentik')
-     | list | length == 0)
+    (_jf_existing_provider.redirect_uris | default([]) | sort) != (_jf_desired_uris | sort)
 
 - name: Write Jellyfin OIDC credentials to NFS for arr-init.yml to consume
   ansible.builtin.copy:
