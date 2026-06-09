@@ -127,8 +127,9 @@ services:
 
   # ── Media Requests ─────────────────────────────────────────────────────────
   jellyseerr:
-    image: fallenbagel/jellyseerr:latest
+    image: ghcr.io/seerr-team/seerr:latest
     container_name: jellyseerr
+    init: true
     restart: unless-stopped
     volumes:
       - /mnt/nas/docker/jellyseerr:/app/config
@@ -136,11 +137,12 @@ services:
       - "5055:5055"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.jellyseerr-wsh.rule=Host(`jellyseerr.wsh`)"
-      - "traefik.http.routers.jellyseerr-wsh.entrypoints=websecure"
-      - "traefik.http.routers.jellyseerr-wsh.tls=true"
       - "traefik.http.routers.jellyseerr-home.rule=Host(`jellyseerr.home`)"
       - "traefik.http.routers.jellyseerr-home.entrypoints=web"
+      - "traefik.http.routers.jellyseerr-home-tls.rule=Host(`jellyseerr.home`)"
+      - "traefik.http.routers.jellyseerr-home-tls.entrypoints=websecure"
+      - "traefik.http.routers.jellyseerr-home-tls.tls=true"
+      - "traefik.http.routers.jellyseerr-home-tls.tls.certresolver=step"
       - "traefik.http.services.jellyseerr-svc.loadbalancer.server.port=5055"
 
   # ── Archive Extraction ─────────────────────────────────────────────────────

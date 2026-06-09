@@ -1139,7 +1139,6 @@
           settings.setdefault('public', {})['initialized'] = True
           settings.setdefault('public', {})['mediaServerLogin'] = True
           settings.setdefault('main', {})['mediaServerType'] = 2  # JELLYFIN
-          settings.setdefault('main', {})['localLogin'] = True  # bug: button hidden unless localLogin=true
           settings['jellyfin'] = {
               'ip': 'jellyfin',
               'port': 8096,
@@ -1277,9 +1276,6 @@
         if main.get('mediaServerType', 4) != 2:
             main['mediaServerType'] = 2
             changed = True
-        if not main.get('localLogin', False):
-            main['localLogin'] = True  # bug: Jellyfin button hidden unless localLogin=true
-            changed = True
         jf = s.setdefault('jellyfin', {})
         if not jf.get('apiKey'):
             jf['apiKey'] = '{{ jellyfin_api_key }}'
@@ -1406,7 +1402,7 @@
           X-Api-Key: "{{ jellyseerr_api_key }}"
         body_format: json
         body:
-          localLogin: true
+          localLogin: false
           mediaServerLogin: true
         status_code: 200
       when: jellyseerr_api_key != '' and jellyseerr_api_key != 'placeholder'
