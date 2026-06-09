@@ -58,7 +58,7 @@
 
     - name: Add Infisical CLI apt repository
       ansible.builtin.shell:
-        cmd: curl -1sLf 'https://packages.infisical.com/setup.deb.sh' | bash
+        cmd: curl -1sLf 'https://artifacts-cli.infisical.com/setup.deb.sh' | bash
         creates: /etc/apt/sources.list.d/infisical.list
       become: true
 
