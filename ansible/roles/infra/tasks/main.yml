@@ -1054,10 +1054,25 @@
       name: "jellyfin-groups"
       scope_name: "groups"
       description: "Include Authentik group names in groups claim for Jellyfin SSO"
-      expression: "return [g.name for g in request.user.ak_groups.all()]"
+      expression: "return [g.name for g in request.user.groups.all()]"
     status_code: 201
   register: _jf_groups_mapping_new
   when: _jf_groups_mapping_result.json.pagination.count == 0
+
+- name: Update Jellyfin groups scope expression to use non-deprecated groups accessor
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/propertymappings/provider/scope/{{ _jf_groups_mapping_result.json.results[0].pk }}/"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      expression: "return [g.name for g in request.user.groups.all()]"
+    status_code: 200
+  when: >
+    _jf_groups_mapping_result.json.pagination.count > 0 and
+    'ak_groups' in (_jf_groups_mapping_result.json.results[0].expression | default(''))
 
 - name: Set Jellyfin groups mapping PK
   ansible.builtin.set_fact:
@@ -1134,6 +1149,9 @@
       access_token_validity: "hours=1"
       refresh_token_validity: "days=30"
       require_pkce: false
+      grant_types_supported:
+        - authorization_code
+        - refresh_token
     status_code: 201
   register: _jf_new_provider
   when: not _jf_provider_exists
@@ -1200,6 +1218,23 @@
   when: >
     _jf_provider_exists and
     (_jf_existing_provider.require_pkce | default(false))
+
+- name: Ensure Jellyfin OIDC provider allows authorization_code grant
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/providers/oauth2/{{ _jf_existing_provider.pk }}/"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      grant_types_supported:
+        - authorization_code
+        - refresh_token
+    status_code: 200
+  when: >
+    _jf_provider_exists and
+    ('authorization_code' not in (_jf_existing_provider.grant_types_supported | default([])))
 
 - name: Write Jellyfin OIDC credentials to NFS for arr-init.yml to consume
   ansible.builtin.copy:
