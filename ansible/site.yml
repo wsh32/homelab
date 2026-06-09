@@ -11,7 +11,6 @@
 #
 # Excludes tailscale.yml — bootstrap-only, run manually with TAILSCALE_AUTH_KEY.
 - import_playbook: network.yml
-- import_playbook: proxmox.yml
 - import_playbook: physical.yml
 - import_playbook: base.yml
 - import_playbook: dns.yml
