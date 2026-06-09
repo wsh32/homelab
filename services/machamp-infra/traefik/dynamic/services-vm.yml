@@ -151,12 +151,10 @@ http:
       rule: "Host(`jellyseerr.home`)"
       entryPoints: [web]
       service: jellyseerr-svc
-      middlewares: [authentik]
     jellyseerr-home-tls:
       rule: "Host(`jellyseerr.home`)"
       entryPoints: [websecure]
       service: jellyseerr-svc
-      middlewares: [authentik]
       tls:
         certResolver: step
 
