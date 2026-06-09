@@ -176,6 +176,15 @@
     # Must run before compose up — qBittorrent writes a default config with auth
     # enabled on first start; this config disables auth for LAN/Docker subnets.
 
+    - name: Create Jellyseerr config directory with correct ownership (UID 1000)
+      ansible.builtin.file:
+        path: /mnt/nas/docker/jellyseerr
+        state: directory
+        owner: "1000"
+        group: "1000"
+        mode: "0755"
+      become: true
+
     - name: Create qBittorrent config directory on NFS
       ansible.builtin.file:
         path: /mnt/nas/docker/qbittorrent/qBittorrent
