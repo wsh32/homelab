@@ -485,6 +485,8 @@
     - name: Check Jellyfin wizard status
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Startup/Configuration"
+        headers:
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
         status_code: [200, 400, 401, 403, 404]
         return_content: true
       register: jellyfin_wizard
