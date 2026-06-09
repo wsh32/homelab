@@ -4,9 +4,10 @@
 # First-run prerequisites (not handled here):
 #   - terraform apply diglett  (diglett-dns VM must exist before dns.yml)
 #   - terraform apply machamp  (machamp VMs must exist before infra.yml)
-#   - INFISICAL_ADMIN_PASSWORD env var required for infra.yml bootstrap
+#   - ansible/secrets.yml must exist with infisical_admin_password set
+#     (copy ansible/secrets.yml.example and fill in REPLACE_ME values)
 #
-# Subsequent runs are fully idempotent with no env vars required.
+# Subsequent runs are fully idempotent.
 #
 # Excludes tailscale.yml — bootstrap-only, run manually with TAILSCALE_AUTH_KEY.
 - import_playbook: network.yml
