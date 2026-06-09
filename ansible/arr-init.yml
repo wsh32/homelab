@@ -633,6 +633,77 @@
       no_log: true
       when: jellyfin_wizard.status == 200 and _jellyfin_api_key_new | default(false)
 
+    # ── Block 3b: Jellyfin API key recovery ──────────────────────────────────
+    # Wizard already completed on a prior partial run but API key was never
+    # saved. Authenticate with the existing admin password and create the key.
+
+    - name: Authenticate as Jellyfin admin (recovery — wizard already done)
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Users/AuthenticateByName"
+        method: POST
+        headers:
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
+        body_format: json
+        body:
+          Username: "{{ jellyfin_admin_username | default('admin') }}"
+          Pw: "{{ jellyfin_admin_password }}"
+        status_code: 200
+        return_content: true
+      register: _jf_recovery_auth
+      no_log: true
+      when:
+        - jellyfin_wizard.status != 200
+        - jellyfin_api_key == ''
+        - jellyfin_admin_password != ''
+
+    - name: Create Jellyfin API key (recovery)
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Auth/Keys?app=ansible-automation"
+        method: POST
+        headers:
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ _jf_recovery_auth.json.AccessToken }}"'
+        status_code: [200, 204]
+      no_log: true
+      when: _jf_recovery_auth is not skipped
+
+    - name: List Jellyfin API keys to retrieve value (recovery)
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Auth/Keys"
+        headers:
+          Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ _jf_recovery_auth.json.AccessToken }}"'
+        status_code: 200
+        return_content: true
+      register: _jf_recovery_keys
+      no_log: true
+      when: _jf_recovery_auth is not skipped
+
+    - name: Store recovered Jellyfin API key
+      ansible.builtin.set_fact:
+        jellyfin_api_key: >-
+          {{ (_jf_recovery_keys.json.Items
+              | selectattr('AppName', 'equalto', 'ansible-automation')
+              | list | last).AccessToken }}
+        _jellyfin_api_key_new: true
+      no_log: true
+      when: _jf_recovery_auth is not skipped and _jf_recovery_keys is not skipped
+
+    - name: Push recovered Jellyfin API key to Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/JELLYFIN_API_KEY"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ jellyfin_api_key }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
+      when: _jf_recovery_auth is not skipped and jellyfin_api_key != ''
+
     # ── Block 3.5: Jellyfin SSO plugin (jellyfin-plugin-sso) ────────────────
     # Installs the SSO plugin and configures Authentik as the OIDC provider.
     # Credentials come from /mnt/nas/docker/jellyfin-oidc.env written by infra.yml.
