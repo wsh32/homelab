@@ -833,7 +833,8 @@
         and (('authentik' not in (_sso_config_current.json.OidConfigs | default({})))
              or (_sso_config_current.json.OidConfigs.authentik.DefaultProvider | default('false')) != 'true'
              or ('admins' not in (_sso_config_current.json.OidConfigs.authentik.AdminRoles | default([])))
-             or (_sso_config_current.json.OidConfigs.authentik.RoleClaim | default('')) != 'groups')
+             or (_sso_config_current.json.OidConfigs.authentik.RoleClaim | default('')) != 'groups'
+             or (_sso_config_current.json.OidConfigs.authentik.OidClientId | default('')) != _jf_oidc_client_id)
 
     # ── Block 4: Volume migration — Radarr ──────────────────────────────────
 
