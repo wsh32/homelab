@@ -1149,7 +1149,7 @@
       access_token_validity: "hours=1"
       refresh_token_validity: "days=30"
       require_pkce: false
-      grant_types_supported:
+      grant_types:
         - authorization_code
         - refresh_token
     status_code: 201
@@ -1228,13 +1228,13 @@
       Content-Type: "application/json"
     body_format: json
     body:
-      grant_types_supported:
+      grant_types:
         - authorization_code
         - refresh_token
     status_code: 200
   when: >
     _jf_provider_exists and
-    ('authorization_code' not in (_jf_existing_provider.grant_types_supported | default([])))
+    ('authorization_code' not in (_jf_existing_provider.grant_types | default([])))
 
 - name: Write Jellyfin OIDC credentials to NFS for arr-init.yml to consume
   ansible.builtin.copy:
