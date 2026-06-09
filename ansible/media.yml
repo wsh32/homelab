@@ -136,12 +136,31 @@
       ansible.builtin.file:
         path: "{{ item }}"
         state: directory
+        mode: "0755"
       loop:
         - /mnt/nas/media/books
         - /mnt/nas/media/movies
         - /mnt/nas/media/tv
         - /mnt/nas/media/downloads/complete
 
+    # ── Docker service config directories ───────────────────────────────────────
+
+    - name: Create service config directories on NFS
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "1000"
+        group: "1000"
+        mode: "0755"
+      become: true
+      loop:
+        - /mnt/nas/docker/prowlarr
+        - /mnt/nas/docker/radarr
+        - /mnt/nas/docker/sonarr
+        - /mnt/nas/docker/jellyfin
+        - /mnt/nas/docker/jellyseerr
+        - /mnt/nas/docker/qbittorrent
+        - /mnt/nas/docker/bazarr
 
     # ── Compose stack ───────────────────────────────────────────────────────────
 
@@ -180,6 +199,10 @@
       ansible.builtin.file:
         path: /mnt/nas/docker/qbittorrent/qBittorrent
         state: directory
+        owner: "1000"
+        group: "1000"
+        mode: "0755"
+      become: true
 
     - name: Pre-seed qBittorrent.conf
       ansible.builtin.copy:

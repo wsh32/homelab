@@ -171,6 +171,10 @@
       ansible.builtin.file:
         path: /mnt/nas/docker/bazarr/config
         state: directory
+        owner: "1000"
+        group: "1000"
+        mode: "0755"
+      become: true
 
     - name: Pre-seed Bazarr config.ini (skips if already exists)
       ansible.builtin.copy:
