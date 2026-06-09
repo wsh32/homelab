@@ -1,7 +1,7 @@
 services:
   # ── Jellyfin ───────────────────────────────────────────────────────────────
   jellyfin:
-    image: jellyfin/jellyfin:latest
+    image: jellyfin/jellyfin:10.11.11
     container_name: jellyfin
     restart: unless-stopped
     runtime: nvidia
@@ -20,7 +20,7 @@ services:
 
   # ── Servarr ────────────────────────────────────────────────────────────────
   prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest
+    image: lscr.io/linuxserver/prowlarr:2.3.5.5327-ls148
     container_name: prowlarr
     restart: unless-stopped
     ports:
@@ -32,7 +32,7 @@ services:
       PGID: "1000"
 
   radarr:
-    image: lscr.io/linuxserver/radarr:latest
+    image: lscr.io/linuxserver/radarr:6.1.1.10360-ls304
     container_name: radarr
     restart: unless-stopped
     ports:
@@ -45,7 +45,7 @@ services:
       PGID: "1000"
 
   sonarr:
-    image: lscr.io/linuxserver/sonarr:latest
+    image: lscr.io/linuxserver/sonarr:4.0.17.2952-ls313
     container_name: sonarr
     restart: unless-stopped
     ports:
@@ -59,7 +59,7 @@ services:
 
   # ── VPN + Torrent ──────────────────────────────────────────────────────────
   gluetun:
-    image: qmcgaw/gluetun:latest
+    image: qmcgaw/gluetun:v3.41.1
     container_name: gluetun
     restart: unless-stopped
     cap_add:
@@ -88,7 +88,7 @@ services:
       - "traefik.http.services.qbittorrent-svc.loadbalancer.server.port=8080"
 
   qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:latest
+    image: lscr.io/linuxserver/qbittorrent:5.2.1_v2.0.12-ls459
     container_name: qbittorrent
     restart: unless-stopped
     network_mode: "service:gluetun"
@@ -107,7 +107,7 @@ services:
 
   # ── Subtitles ──────────────────────────────────────────────────────────────
   bazarr:
-    image: lscr.io/linuxserver/bazarr:latest
+    image: lscr.io/linuxserver/bazarr:v1.5.6-ls350
     container_name: bazarr
     restart: unless-stopped
     volumes:
@@ -127,7 +127,7 @@ services:
 
   # ── Media Requests ─────────────────────────────────────────────────────────
   jellyseerr:
-    image: ghcr.io/seerr-team/seerr:latest
+    image: ghcr.io/seerr-team/seerr:v3.3.0
     container_name: jellyseerr
     init: true
     restart: unless-stopped
@@ -147,7 +147,7 @@ services:
 
   # ── Archive Extraction ─────────────────────────────────────────────────────
   unpackerr:
-    image: golift/unpackerr:latest
+    image: golift/unpackerr:v0.15.2
     container_name: unpackerr
     restart: unless-stopped
     volumes:
