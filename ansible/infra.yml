@@ -453,6 +453,34 @@
         _pia_check.status == 200 and
         (_pia_check.json.secret.secretValue | default('')) != ''
 
+    - name: Push PIA credentials from secrets.yml directly to Infisical
+      ansible.builtin.uri:
+        url: "{{ _infisical_host }}/api/v3/secrets/batch/raw"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _ua_login.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _project_id }}"
+          environment: "{{ _environment }}"
+          secretPath: "/"
+          secrets:
+            - secretKey: PIA_USERNAME
+              secretValue: "{{ pia_username }}"
+            - secretKey: PIA_PASSWORD
+              secretValue: "{{ pia_password }}"
+        status_code: 200
+      no_log: true
+      when: >
+        (pia_username | default('')) not in ['', 'REPLACE_ME'] and
+        (pia_password | default('')) not in ['', 'REPLACE_ME']
+
+    - name: Skip Vaultwarden lookup if PIA credentials already pushed
+      ansible.builtin.meta: end_play
+      when: >
+        (pia_username | default('')) not in ['', 'REPLACE_ME'] and
+        (pia_password | default('')) not in ['', 'REPLACE_ME']
+
     - name: Read Vaultwarden service account credentials from machamp-infra
       ansible.builtin.slurp:
         src: /etc/homelab.env
