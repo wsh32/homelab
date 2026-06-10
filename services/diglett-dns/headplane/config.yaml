@@ -9,6 +9,3 @@ server:
   cookie_secret_path: /var/lib/headplane/cookie.secret
   cookie_secure: false
   data_path: /var/lib/headplane
-
-# oidc: block is injected here by ansible/oidc.yml once Authentik credentials
-# are available. Omitting it entirely keeps headplane functional via API key login.

@@ -68,6 +68,12 @@
       become: true
       when: _hp_api_key_stat.stat.exists
 
+    - name: Remove any existing OIDC blocks from headplane config
+      ansible.builtin.shell: |
+        sed -i '/^# BEGIN OIDC/,/^# END OIDC/d' \
+          /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
+      changed_when: false
+
     - name: Inject OIDC block into headplane config
       ansible.builtin.blockinfile:
         path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
