@@ -18,7 +18,7 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
 - **VM IDs**: Diglett VMs use 200–299, Machamp VMs use 100–199.
 - **IP addresses**: physical nodes use 192.168.0.4–19 (`.7` = alakazam-deploy), diglett-dns VM is special-cased at `.2`, Diglett VMs use 192.168.0.21–29, Machamp VMs use 192.168.0.30–49.
 - **Docker Compose**: persistent data always mounts to `/mnt/nas/<dataset>/<service>` (Alakazam NFS). Never use named volumes for stateful data — it must survive VM recreation.
-- **Traefik routing**: each service gets `.home` routers only (LAN). `.wsh` Tailscale routing is planned but not yet active — see TODOS.md. See DNS Architecture in `docs/plan.md` for the full two-domain design.
+- **Traefik routing**: Traefik runs on `machamp-infra` (192.168.0.32). Services co-located on machamp-infra use Docker Compose labels. Services on other VMs are declared as external backends in `services/machamp-infra/traefik/dynamic/services-vm.yml`. `.wsh` Tailscale routing is planned but not yet active — see TODOS.md. Current label pattern for co-located services:
   ```yaml
   - "traefik.http.routers.<name>-home.rule=Host(`<name>.home`)"
   - "traefik.http.routers.<name>-home.entrypoints=web"
