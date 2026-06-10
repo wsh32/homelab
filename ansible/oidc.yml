@@ -279,11 +279,9 @@
       become: true
 
     - name: Restart Seerr to apply OIDC config
-      community.docker.docker_container:
-        name: seerr
-        state: started
-        restart: true
+      ansible.builtin.command: docker restart seerr
       become: true
+      changed_when: true
       when: _seerr_settings_patch.changed
 
 # Add a play here for each additional host that needs OIDC injection.
