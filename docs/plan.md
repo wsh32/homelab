@@ -67,7 +67,7 @@ Two domains serve different audiences without subnet routing or internet exposur
 
 | Domain | Path | DNS resolution | Protocol | Audience |
 |--------|------|----------------|----------|----------|
-| `*.wsh` | Tailscale | AdGuard CNAME → `machamp-services.ts.home` | HTTPS (step-ca TLS) | Personal devices on Tailscale |
+| `*.wsh` | Tailscale | AdGuard CNAME → `machamp-infra.ts.home` | HTTPS (step-ca TLS) | Personal devices on Tailscale |
 | `*.home` | LAN | AdGuard A → `192.168.0.32` | HTTP | Any LAN device (including guests) |
 
 **How resolution works:**
