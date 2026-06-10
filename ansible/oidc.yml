@@ -71,7 +71,7 @@
     - name: Inject OIDC block into headplane config
       ansible.builtin.blockinfile:
         path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
-        marker: "# {mark} OIDC — managed by ansible/oidc.yml"
+        marker: "# {mark} OIDC — managed by Ansible"
         block: |
           oidc:
             issuer: "{{ authentik_public_url }}/application/o/headplane/"
