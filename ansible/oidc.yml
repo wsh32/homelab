@@ -55,34 +55,6 @@
         _hp_oidc_client_id: "{{ (_hp_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADPLANE_OIDC_CLIENT_ID=(.+)$', '\\1') | first }}"
         _hp_oidc_client_secret: "{{ (_hp_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADPLANE_OIDC_CLIENT_SECRET=(.+)$', '\\1') | first }}"
 
-    - name: Enable OIDC in headplane config
-      ansible.builtin.lineinfile:
-        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
-        regexp: '^\s+enabled:'
-        line: "  enabled: true"
-      notify: Restart headplane
-
-    - name: Inject OIDC issuer into headplane config
-      ansible.builtin.lineinfile:
-        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
-        regexp: '^\s+issuer:'
-        line: "  issuer: \"{{ authentik_public_url }}/application/o/headplane/\""
-      notify: Restart headplane
-
-    - name: Inject OIDC client ID into headplane config
-      ansible.builtin.lineinfile:
-        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
-        regexp: '^\s+client_id:'
-        line: "  client_id: \"{{ _hp_oidc_client_id }}\""
-      notify: Restart headplane
-
-    - name: Inject OIDC client secret into headplane config
-      ansible.builtin.lineinfile:
-        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
-        regexp: '^\s+client_secret:'
-        line: "  client_secret: \"{{ _hp_oidc_client_secret }}\""
-      notify: Restart headplane
-
     - name: Check if headplane API key is provisioned
       ansible.builtin.stat:
         path: /mnt/nas/docker/headplane/api.key
@@ -96,13 +68,18 @@
       become: true
       when: _hp_api_key_stat.stat.exists
 
-    - name: Inject headscale API key into headplane OIDC config
-      ansible.builtin.lineinfile:
+    - name: Inject OIDC block into headplane config
+      ansible.builtin.blockinfile:
         path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
-        regexp: '^\s+headscale_api_key:'
-        line: "  headscale_api_key: \"{{ _hp_api_key_raw.content | b64decode | trim }}\""
+        marker: "# {mark} OIDC — managed by ansible/oidc.yml"
+        block: |
+          oidc:
+            issuer: "{{ authentik_public_url }}/application/o/headplane/"
+            client_id: "{{ _hp_oidc_client_id }}"
+            client_secret: "{{ _hp_oidc_client_secret }}"
+            headscale_api_key: "{{ _hp_api_key_raw.content | b64decode | trim if _hp_api_key_stat.stat.exists else '' }}"
+            disable_api_key_login: false
       notify: Restart headplane
-      when: _hp_api_key_stat.stat.exists
 
   handlers:
     - name: Restart headplane

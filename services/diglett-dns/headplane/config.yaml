@@ -10,10 +10,5 @@ server:
   cookie_secure: false
   data_path: /var/lib/headplane
 
-oidc:
-  enabled: false              # set to true by oidc.yml after credentials are injected
-  issuer: ""                  # filled in by oidc.yml
-  client_id: ""               # filled in by oidc.yml
-  client_secret: ""           # filled in by oidc.yml
-  headscale_api_key: ""       # filled in by oidc.yml
-  disable_api_key_login: false
+# oidc: block is injected here by ansible/oidc.yml once Authentik credentials
+# are available. Omitting it entirely keeps headplane functional via API key login.
