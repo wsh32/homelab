@@ -171,7 +171,7 @@
         - name: Update headscale config with diglett-dns tailscale IP
           ansible.builtin.lineinfile:
             path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headscale/config.yaml
-            regexp: '^\s+- \d+\.\d+\.\d+\.\d+'
+            regexp: '^\s+- 0\.0\.0\.0'
             line: "      - {{ _diglett_ts_ip.stdout | trim }}  # AdGuard Home on diglett-dns"
           register: _nameserver_update
 
