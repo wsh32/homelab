@@ -159,26 +159,11 @@
       async: 120
       poll: 5
 
-    - name: Update headscale DNS nameserver to diglett-dns tailscale IP
-      when: inventory_hostname == 'diglett-dns'
-      block:
-        - name: Get diglett-dns tailscale IP
-          ansible.builtin.command: tailscale ip -4
-          register: _diglett_ts_ip
-          changed_when: false
-          become: true
-
-        - name: Update headscale config with diglett-dns tailscale IP
-          ansible.builtin.lineinfile:
-            path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headscale/config.yaml
-            regexp: '^\s+- 0\.0\.0\.0'
-            line: "      - {{ _diglett_ts_ip.stdout | trim }}  # AdGuard Home on diglett-dns"
-          register: _nameserver_update
-
-        - name: Restart headscale to apply updated nameserver
-          community.docker.docker_container:
-            name: headscale
-            state: started
-            restart: true
-          become: true
-          when: _nameserver_update.changed
+    - name: Assign static Tailscale IP in headscale DB
+      when: tailscale_ip is defined
+      ansible.builtin.command: >-
+        sqlite3 /mnt/nas/docker/headscale/db.sqlite
+        "UPDATE nodes SET ip_addresses = json_replace(ip_addresses, '$[0]', '{{ tailscale_ip }}')
+         WHERE hostname = '{{ inventory_hostname }}'"
+      become: true
+      delegate_to: diglett-dns

@@ -59,6 +59,7 @@ nodes:
     vms:
       diglett-dns:
         ip: 192.168.0.2
+        tailscale_ip: 100.64.0.2
         vm_id: 200
         vm_roles: [services]
         tailscale_exit_node: true
@@ -75,13 +76,16 @@ nodes:
     vms:
       machamp-services:
         ip: 192.168.0.30
+        tailscale_ip: 100.64.1.30
         vm_id: 100
         vm_roles: [services, gpu]
       machamp-dev:
         ip: 192.168.0.31
+        tailscale_ip: 100.64.1.31
         vm_id: 101
         vm_roles: [dev]
       machamp-infra:
         ip: 192.168.0.32
+        tailscale_ip: 100.64.1.32
         vm_id: 102
         vm_roles: [services]
