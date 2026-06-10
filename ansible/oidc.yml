@@ -242,8 +242,7 @@
             with open(path) as f:
                 d = json.load(f)
         except FileNotFoundError:
-            print('settings.json not found — Seerr not yet initialized', file=sys.stderr)
-            sys.exit(1)
+            d = {}
 
         desired = {
             'slug': 'authentik',
