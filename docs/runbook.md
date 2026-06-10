@@ -374,7 +374,7 @@ step-ca is initialized by the `site.yml` Ansible role. Copy the root CA cert to 
 operator laptop and trust it:
 
 ```bash
-scp ubuntu@192.168.0.30:/tmp/homelab-root-ca.crt ~/homelab-root-ca.crt
+scp ubuntu@192.168.0.32:/tmp/homelab-root-ca.crt ~/homelab-root-ca.crt
 
 # macOS
 sudo security add-trusted-cert -d -r trustRoot \
@@ -391,18 +391,18 @@ Repeat on every personal device that will use `*.wsh` services.
 
 From a device on the LAN:
 ```bash
-dig jellyfin.home @192.168.0.2   # should return 192.168.0.30
+dig jellyfin.home @192.168.0.2   # should return 192.168.0.32
 ```
 
 From a device on Tailscale:
 ```bash
-dig jellyfin.wsh                  # should return services VM Tailscale IP
+dig jellyfin.wsh                  # should return infra VM Tailscale IP
 curl -k https://jellyfin.wsh      # should reach Jellyfin
 ```
 
 Check AdGuard DNS rewrites are active at `http://diglett-dns.home` → Filters → DNS rewrites:
-- `*.wsh` → CNAME `machamp-services.ts.home`
-- `*.home` → A `192.168.0.30`
+- `*.wsh` → CNAME `machamp-infra.ts.home`
+- `*.home` → A `192.168.0.32`
 
 ### 15. Add external API keys to Infisical
 
