@@ -1123,7 +1123,7 @@
       delay: 5
       when: seerr_api_key != '' and seerr_api_key != 'placeholder'
 
-    - name: Get Jellyfin root user info for Seerr DB init
+    - name: Get Jellyfin root user info
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Users"
         headers:

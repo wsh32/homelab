@@ -878,7 +878,7 @@
     _hp_app_pk: "{{ _hp_new_app.json.pk }}"
   when: not _hp_provider_exists
 
-- name: Write headplane OIDC credentials to NFS for diglett-dns to consume
+- name: Write headplane OIDC credentials to NFS
   ansible.builtin.copy:
     dest: /mnt/nas/docker/headplane-oidc.env
     content: |
@@ -1230,7 +1230,7 @@
     _jf_provider_exists and
     ('authorization_code' not in (_jf_existing_provider.grant_types | default([])))
 
-- name: Write Jellyfin OIDC credentials to NFS for arr-init.yml to consume
+- name: Write Jellyfin OIDC credentials to NFS
   ansible.builtin.copy:
     dest: /mnt/nas/docker/jellyfin-oidc.env
     content: |
