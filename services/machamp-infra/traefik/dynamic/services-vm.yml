@@ -242,6 +242,28 @@ http:
       tls:
         certResolver: step
 
+    # ── Pelican Panel (machamp-games) ─────────────────────────────────────────
+    gameserver-home:
+      rule: "Host(`gameserver.home`)"
+      entryPoints: [web]
+      service: gameserver-svc
+    gameserver-home-tls:
+      rule: "Host(`gameserver.home`)"
+      entryPoints: [websecure]
+      service: gameserver-svc
+      tls:
+        certResolver: step
+    gameserver-wsh:
+      rule: "Host(`gameserver.wsh`)"
+      entryPoints: [web]
+      service: gameserver-svc
+    gameserver-wsh-tls:
+      rule: "Host(`gameserver.wsh`)"
+      entryPoints: [websecure]
+      service: gameserver-svc
+      tls:
+        certResolver: step
+
     # ── Prometheus ────────────────────────────────────────────────────────────
     prometheus-home:
       rule: "Host(`prometheus.home`)"
@@ -332,6 +354,10 @@ http:
         servers:
           # homepage maps container port 3000 to host port 3001 (grafana owns 3000)
           - url: "http://192.168.0.30:3001"
+    gameserver-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.33:80"
     prometheus-svc:
       loadBalancer:
         servers:

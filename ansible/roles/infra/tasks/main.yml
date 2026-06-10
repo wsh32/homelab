@@ -1393,6 +1393,113 @@
   become: true
   changed_when: false
 
+# ── Pelican OIDC bootstrap ────────────────────────────────────────────────────
+
+- name: Check if Pelican OIDC provider already exists in Authentik
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/providers/oauth2/?name=pelican"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _pelican_existing_result
+
+- name: Set Pelican provider existence facts
+  ansible.builtin.set_fact:
+    _pelican_provider_exists: "{{ _pelican_existing_result.json.pagination.count > 0 }}"
+    _pelican_existing_provider: "{{ _pelican_existing_result.json.results[0] | default({}) }}"
+
+- name: Get built-in OIDC scope property mappings (pelican)
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/propertymappings/provider/scope/?page_size=100"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _pelican_scope_mappings_result
+  when: not _pelican_provider_exists
+
+- name: Extract standard scope mapping PKs for pelican (openid, email, profile)
+  ansible.builtin.set_fact:
+    _pelican_scope_pks: >-
+      {{
+        _pelican_scope_mappings_result.json.results
+        | selectattr('managed', 'in', [
+            'goauthentik.io/providers/oauth2/scope-openid',
+            'goauthentik.io/providers/oauth2/scope-email',
+            'goauthentik.io/providers/oauth2/scope-profile'
+          ])
+        | map(attribute='pk')
+        | list
+      }}
+  when: not _pelican_provider_exists
+
+- name: Create Pelican OAuth2 provider in Authentik
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/providers/oauth2/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "pelican"
+      authorization_flow: "{{ _auth_flow_result.json.results[0].pk }}"
+      invalidation_flow: "{{ _invalidation_flow_result.json.results[0].pk }}"
+      client_type: "confidential"
+      redirect_uris:
+        - matching_mode: "strict"
+          url: "{{ pelican_public_url }}/auth/oauth/callback"
+      sub_mode: "user_email"
+      signing_key: "{{ _signing_key_pk }}"
+      property_mappings: "{{ _pelican_scope_pks }}"
+      include_claims_in_id_token: true
+      access_token_validity: "hours=1"
+      refresh_token_validity: "days=30"
+    status_code: 201
+  register: _pelican_new_provider
+  when: not _pelican_provider_exists
+
+- name: Create Pelican application in Authentik
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/core/applications/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "Pelican"
+      slug: "pelican"
+      provider: "{{ _pelican_new_provider.json.pk }}"
+      meta_launch_url: "{{ pelican_public_url }}"
+    status_code: 201
+  when: not _pelican_provider_exists
+
+- name: Set Pelican OIDC credentials from new provider
+  ansible.builtin.set_fact:
+    _pelican_oidc_client_id: "{{ _pelican_new_provider.json.client_id }}"
+    _pelican_oidc_client_secret: "{{ _pelican_new_provider.json.client_secret }}"
+  when: not _pelican_provider_exists
+
+- name: Set Pelican OIDC credentials from existing provider
+  ansible.builtin.set_fact:
+    _pelican_oidc_client_id: "{{ _pelican_existing_provider.client_id }}"
+    _pelican_oidc_client_secret: "{{ _pelican_existing_provider.client_secret }}"
+  when: _pelican_provider_exists
+
+- name: Write Pelican OIDC credentials to NFS for machamp-games to consume
+  ansible.builtin.copy:
+    dest: /mnt/nas/docker/pelican-oidc.env
+    content: |
+      PELICAN_OIDC_CLIENT_ID={{ _pelican_oidc_client_id }}
+      PELICAN_OIDC_CLIENT_SECRET={{ _pelican_oidc_client_secret }}
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+  changed_when: false
+
 # ── Authentik groups ──────────────────────────────────────────────────────────
 # Groups are declared in ansible/vars/group_config.yml.
 # Parent groups are created first so their PKs are available when creating

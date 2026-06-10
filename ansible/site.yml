@@ -17,6 +17,7 @@
 - import_playbook: infra.yml
 - import_playbook: services.yml
 - import_playbook: gpu.yml
+- import_playbook: games.yml
 - import_playbook: media.yml
 - import_playbook: arr-init.yml
 - import_playbook: oidc.yml

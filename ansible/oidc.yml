@@ -274,5 +274,86 @@
       changed_when: true
       when: _seerr_settings_patch.changed
 
+- name: Inject OIDC credentials into Pelican (machamp-games)
+  hosts: machamp-games
+  gather_facts: false
+
+  vars:
+    network: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
+    nas_ip: "{{ network.nodes.alakazam.ip }}"
+
+  pre_tasks:
+    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      failed_when: false
+
+  tasks:
+    - name: Mount NFS share
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/nfs-mount.yml"
+      vars:
+        nfs_mount_path: /mnt/nas/docker
+        nfs_source_path: "{{ nas_ip }}:/mnt/apps/docker"
+
+    - name: Check if Pelican OIDC credentials are available on NFS
+      ansible.builtin.stat:
+        path: /mnt/nas/docker/pelican-oidc.env
+      register: _pelican_oidc_env_stat
+      become: true
+
+    - name: Fail if Pelican OIDC env not yet written by infra.yml
+      ansible.builtin.fail:
+        msg: >
+          /mnt/nas/docker/pelican-oidc.env not found.
+          Run ansible-playbook ansible/infra.yml first.
+      when: not _pelican_oidc_env_stat.stat.exists
+
+    - name: Read Pelican OIDC credentials from NFS
+      ansible.builtin.slurp:
+        src: /mnt/nas/docker/pelican-oidc.env
+      register: _pelican_oidc_env_raw
+      become: true
+
+    - name: Parse Pelican OIDC credentials
+      ansible.builtin.set_fact:
+        _pelican_oidc_client_id: "{{ (_pelican_oidc_env_raw.content | b64decode) | regex_search('(?m)^PELICAN_OIDC_CLIENT_ID=(.+)$', '\\1') | first }}"
+        _pelican_oidc_client_secret: "{{ (_pelican_oidc_env_raw.content | b64decode) | regex_search('(?m)^PELICAN_OIDC_CLIENT_SECRET=(.+)$', '\\1') | first }}"
+
+    - name: Inject OIDC client ID into Pelican .env
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/machamp-games/.env
+        regexp: '^OAUTH_CLIENT_ID='
+        line: "OAUTH_CLIENT_ID={{ _pelican_oidc_client_id }}"
+        create: true
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0600"
+      notify: Restart pelican-panel
+      become: true
+
+    - name: Inject OIDC client secret into Pelican .env
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/machamp-games/.env
+        regexp: '^OAUTH_CLIENT_SECRET='
+        line: "OAUTH_CLIENT_SECRET={{ _pelican_oidc_client_secret }}"
+      notify: Restart pelican-panel
+      become: true
+
+    - name: Inject OIDC issuer URL into Pelican .env
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/machamp-games/.env
+        regexp: '^OAUTH_BASE_URL='
+        line: "OAUTH_BASE_URL={{ authentik_public_url }}/application/o/pelican/"
+      notify: Restart pelican-panel
+      become: true
+
+  handlers:
+    - name: Restart pelican-panel
+      community.docker.docker_container:
+        name: pelican-panel
+        state: started
+        restart: true
+      become: true
+
 # Add a play here for each additional host that needs OIDC injection.
 # Pattern: read /mnt/nas/docker/<service>-oidc.env, inject into service config.

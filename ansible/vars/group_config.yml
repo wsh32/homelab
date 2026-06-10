@@ -12,8 +12,10 @@
 authentik_groups:
   - name: users
     children:
-      - admins   # admins inherit user-tier app access
+      - admins       # admins inherit user-tier app access
+      - game-admins  # game-admins inherit user-tier app access
   - name: admins
+  - name: game-admins
 
 # slug must match the Authentik application slug.
 # groups is a list — an app can be bound to multiple groups.
@@ -39,6 +41,10 @@ authentik_app_bindings:
     groups: [admins]
   - slug: qbittorrent
     groups: [admins]
+
+  # game server — game-admins and admins
+  - slug: pelican
+    groups: [game-admins, admins]
 
   # user tier — all authenticated users
   - slug: jellyfin
