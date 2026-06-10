@@ -85,6 +85,7 @@
             client_secret: "{{ _hp_oidc_client_secret }}"
             headscale_api_key: "{{ _hp_api_key_raw.content | b64decode | trim if _hp_api_key_stat.stat.exists else '' }}"
             disable_api_key_login: false
+            use_pkce: true
       notify: Restart headplane
 
   handlers:
