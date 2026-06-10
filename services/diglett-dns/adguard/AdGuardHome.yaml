@@ -168,6 +168,9 @@ filtering:
     - domain: '*.wsh'
       answer: 100.64.1.20
       enabled: true
+    - domain: 'games.wsh'
+      answer: machamp-games.ts.home
+      enabled: true
     - domain: '*.home'
       answer: 192.168.0.20
       enabled: true
