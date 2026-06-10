@@ -15,11 +15,11 @@
 - import_playbook: base.yml
 - import_playbook: dns.yml
 - import_playbook: infra.yml
-- import_playbook: oidc.yml
 - import_playbook: services.yml
 - import_playbook: gpu.yml
 - import_playbook: media.yml
 - import_playbook: arr-init.yml
+- import_playbook: oidc.yml
 - import_playbook: deploy-vm.yml
 - import_playbook: dev.yml
 - import_playbook: headscale.yml
