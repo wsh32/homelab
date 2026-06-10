@@ -258,7 +258,7 @@
 
         providers = d.setdefault('oidc', {}).setdefault('providers', [])
         existing = next((p for p in providers if p['slug'] == 'authentik'), None)
-        if existing == desired:
+        if existing == desired and d.get('main', {}).get('oidcLogin') == True:
             print('no-change')
             sys.exit(0)
 
@@ -267,7 +267,7 @@
         else:
             providers.append(desired)
 
-        d['oidcLogin'] = True
+        d.setdefault('main', {})['oidcLogin'] = True
 
         with open(path, 'w') as f:
             json.dump(d, f, indent=2)

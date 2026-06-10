@@ -127,7 +127,7 @@ services:
 
   # ── Media Requests ─────────────────────────────────────────────────────────
   seerr:
-    image: ghcr.io/seerr-team/seerr:preview-OIDC
+    image: ghcr.io/seerr-team/seerr:preview-new-oidc
     container_name: seerr
     init: true
     restart: unless-stopped
