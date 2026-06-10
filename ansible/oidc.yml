@@ -187,5 +187,103 @@
         restart: true
       become: true
 
+- name: Inject OIDC credentials into Seerr (machamp-services)
+  hosts: machamp-services
+  gather_facts: false
+
+  vars:
+    network: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
+    nas_ip: "{{ network.nodes.alakazam.ip }}"
+
+  pre_tasks:
+    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      failed_when: false
+
+  tasks:
+    - name: Mount NFS share
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/nfs-mount.yml"
+      vars:
+        nfs_mount_path: /mnt/nas/docker
+        nfs_source_path: "{{ nas_ip }}:/mnt/apps/docker"
+
+    - name: Check if Seerr OIDC credentials are available on NFS
+      ansible.builtin.stat:
+        path: /mnt/nas/docker/seerr-oidc.env
+      register: _seerr_oidc_env_stat
+      become: true
+
+    - name: Fail if Seerr OIDC env not yet written by infra.yml
+      ansible.builtin.fail:
+        msg: >
+          /mnt/nas/docker/seerr-oidc.env not found.
+          Run ansible-playbook ansible/infra.yml first.
+      when: not _seerr_oidc_env_stat.stat.exists
+
+    - name: Read Seerr OIDC credentials from NFS
+      ansible.builtin.slurp:
+        src: /mnt/nas/docker/seerr-oidc.env
+      register: _seerr_oidc_env_raw
+      become: true
+
+    - name: Parse Seerr OIDC credentials
+      ansible.builtin.set_fact:
+        _seerr_oidc_client_id: "{{ (_seerr_oidc_env_raw.content | b64decode) | regex_search('(?m)^SEERR_OIDC_CLIENT_ID=(.+)$', '\\1') | first }}"
+        _seerr_oidc_client_secret: "{{ (_seerr_oidc_env_raw.content | b64decode) | regex_search('(?m)^SEERR_OIDC_CLIENT_SECRET=(.+)$', '\\1') | first }}"
+
+    - name: Patch Seerr settings.json with OIDC provider config
+      ansible.builtin.shell: |
+        python3 -c "
+        import json, sys
+
+        path = '/mnt/nas/docker/seerr/settings.json'
+        try:
+            with open(path) as f:
+                d = json.load(f)
+        except FileNotFoundError:
+            print('settings.json not found — Seerr not yet initialized', file=sys.stderr)
+            sys.exit(1)
+
+        desired = {
+            'slug': 'authentik',
+            'name': 'Authentik',
+            'issuerUrl': '{{ authentik_public_url }}/application/o/seerr/',
+            'clientId': '{{ _seerr_oidc_client_id }}',
+            'clientSecret': '{{ _seerr_oidc_client_secret }}',
+            'scopes': 'openid profile email',
+            'requiredClaims': '',
+            'newUserLogin': True,
+        }
+
+        providers = d.setdefault('oidc', {}).setdefault('providers', [])
+        existing = next((p for p in providers if p['slug'] == 'authentik'), None)
+        if existing == desired:
+            print('no-change')
+            sys.exit(0)
+
+        if existing:
+            existing.update(desired)
+        else:
+            providers.append(desired)
+
+        d['oidcLogin'] = True
+
+        with open(path, 'w') as f:
+            json.dump(d, f, indent=2)
+        print('patched')
+        "
+      register: _seerr_settings_patch
+      changed_when: _seerr_settings_patch.stdout | trim == 'patched'
+      become: true
+
+    - name: Restart Seerr to apply OIDC config
+      community.docker.docker_container:
+        name: seerr
+        state: started
+        restart: true
+      become: true
+      when: _seerr_settings_patch.changed
+
 # Add a play here for each additional host that needs OIDC injection.
 # Pattern: read /mnt/nas/docker/<service>-oidc.env, inject into service config.

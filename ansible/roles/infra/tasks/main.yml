@@ -911,9 +911,6 @@
       - name: bazarr
         slug: bazarr
         external_host: "https://bazarr.home"
-      - name: jellyseerr
-        slug: jellyseerr
-        external_host: "https://jellyseerr.home"
       - name: qbittorrent
         slug: qbittorrent
         external_host: "https://qbittorrent.home"
@@ -1242,6 +1239,119 @@
     content: |
       JELLYFIN_OIDC_CLIENT_ID={{ _jf_oidc_client_id }}
       JELLYFIN_OIDC_CLIENT_SECRET={{ _jf_oidc_client_secret }}
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+  changed_when: false
+
+# ── Seerr: native OIDC provider ───────────────────────────────────────────────
+
+- name: Check if Seerr OIDC provider already exists in Authentik
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/providers/oauth2/?name=seerr"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _seerr_existing_result
+
+- name: Set Seerr provider existence facts
+  ansible.builtin.set_fact:
+    _seerr_provider_exists: "{{ _seerr_existing_result.json.pagination.count > 0 }}"
+    _seerr_existing_provider: "{{ _seerr_existing_result.json.results[0] | default({}) }}"
+
+- name: Get built-in OIDC scope property mappings (Seerr)
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/propertymappings/provider/scope/?page_size=100"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _seerr_scope_mappings_result
+  when: not _seerr_provider_exists
+
+- name: Extract standard scope mapping PKs for Seerr (openid, email, profile)
+  ansible.builtin.set_fact:
+    _seerr_scope_pks: >-
+      {{
+        _seerr_scope_mappings_result.json.results
+        | selectattr('managed', 'in', [
+            'goauthentik.io/providers/oauth2/scope-openid',
+            'goauthentik.io/providers/oauth2/scope-email',
+            'goauthentik.io/providers/oauth2/scope-profile'
+          ])
+        | map(attribute='pk')
+        | list
+      }}
+  when: not _seerr_provider_exists
+
+- name: Create Seerr OAuth2 provider in Authentik
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/providers/oauth2/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "seerr"
+      authorization_flow: "{{ _auth_flow_result.json.results[0].pk }}"
+      invalidation_flow: "{{ _invalidation_flow_result.json.results[0].pk }}"
+      client_type: "confidential"
+      redirect_uris:
+        - matching_mode: "strict"
+          url: "https://seerr.home/login"
+        - matching_mode: "strict"
+          url: "https://seerr.home/profile/settings/linked-accounts"
+      sub_mode: "user_email"
+      signing_key: "{{ _signing_key_pk }}"
+      property_mappings: "{{ _seerr_scope_pks }}"
+      include_claims_in_id_token: true
+      grant_types:
+        - authorization_code
+        - refresh_token
+      require_pkce: false
+      access_token_validity: "hours=1"
+      refresh_token_validity: "days=30"
+    status_code: 201
+  register: _seerr_new_provider
+  when: not _seerr_provider_exists
+
+- name: Create Seerr application in Authentik
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/core/applications/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "Seerr"
+      slug: "seerr"
+      provider: "{{ _seerr_new_provider.json.pk }}"
+      meta_launch_url: "https://seerr.home"
+    status_code: 201
+  when: not _seerr_provider_exists
+
+- name: Set Seerr OIDC credentials from new provider
+  ansible.builtin.set_fact:
+    _seerr_oidc_client_id: "{{ _seerr_new_provider.json.client_id }}"
+    _seerr_oidc_client_secret: "{{ _seerr_new_provider.json.client_secret }}"
+  when: not _seerr_provider_exists
+
+- name: Set Seerr OIDC credentials from existing provider
+  ansible.builtin.set_fact:
+    _seerr_oidc_client_id: "{{ _seerr_existing_provider.client_id }}"
+    _seerr_oidc_client_secret: "{{ _seerr_existing_provider.client_secret }}"
+  when: _seerr_provider_exists
+
+- name: Write Seerr OIDC credentials to NFS
+  ansible.builtin.copy:
+    dest: /mnt/nas/docker/seerr-oidc.env
+    content: |
+      SEERR_OIDC_CLIENT_ID={{ _seerr_oidc_client_id }}
+      SEERR_OIDC_CLIENT_SECRET={{ _seerr_oidc_client_secret }}
     owner: root
     group: root
     mode: "0600"

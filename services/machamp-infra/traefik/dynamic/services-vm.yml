@@ -147,14 +147,14 @@ http:
       middlewares: [authentik]
       tls:
         certResolver: step
-    jellyseerr-home:
-      rule: "Host(`jellyseerr.home`)"
+    seerr-home:
+      rule: "Host(`seerr.home`)"
       entryPoints: [web]
-      service: jellyseerr-svc
-    jellyseerr-home-tls:
-      rule: "Host(`jellyseerr.home`)"
+      service: seerr-svc
+    seerr-home-tls:
+      rule: "Host(`seerr.home`)"
       entryPoints: [websecure]
-      service: jellyseerr-svc
+      service: seerr-svc
       tls:
         certResolver: step
 
@@ -287,7 +287,7 @@ http:
       loadBalancer:
         servers:
           - url: "http://192.168.0.30:8080"
-    jellyseerr-svc:
+    seerr-svc:
       loadBalancer:
         servers:
           - url: "http://192.168.0.30:5055"
