@@ -232,15 +232,6 @@
         _seerr_oidc_client_id: "{{ (_seerr_oidc_env_raw.content | b64decode) | regex_search('(?m)^SEERR_OIDC_CLIENT_ID=(.+)$', '\\1') | first }}"
         _seerr_oidc_client_secret: "{{ (_seerr_oidc_env_raw.content | b64decode) | regex_search('(?m)^SEERR_OIDC_CLIENT_SECRET=(.+)$', '\\1') | first }}"
 
-    - name: Create Seerr NFS config directory (owned by uid 1000 — seerr container user)
-      ansible.builtin.file:
-        path: /mnt/nas/docker/seerr
-        state: directory
-        owner: "1000"
-        group: "1000"
-        mode: "0755"
-      become: true
-
     - name: Patch Seerr settings.json with OIDC provider config
       ansible.builtin.shell: |
         python3 -c "
