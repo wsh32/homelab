@@ -101,12 +101,7 @@
         bazarr_api_key: "{{ lookup('ansible.builtin.password', '/dev/null', length=32, chars=['0123456789abcdef']) }}"
       when: _bazarr_key_new
 
-<<<<<<< HEAD
-    - name: Generate Seerr API key (placeholder — real key retrieved after init)
-=======
-    - name: Set Seerr API key placeholder
->>>>>>> 3e703e8 (fix task naming and correctness violations per code review)
-      ansible.builtin.set_fact:
+    - name: Set Seerr API key placeholder      ansible.builtin.set_fact:
         seerr_api_key: "placeholder"
       when: _seerr_key_new
 
@@ -1142,12 +1137,7 @@
         and seerr_api_key != '' and seerr_api_key != 'placeholder'
         and not (seerr_public.json.initialized | default(false))
 
-<<<<<<< HEAD
-    - name: Set Jellyfin auth facts for Seerr DB init
-=======
-    - name: Set Jellyfin auth facts
->>>>>>> 3e703e8 (fix task naming and correctness violations per code review)
-      ansible.builtin.set_fact:
+    - name: Set Jellyfin auth facts      ansible.builtin.set_fact:
         _jellyfin_auth_for_seerr:
           json:
             User: "{{ _jellyfin_users.json | selectattr('Name', 'equalto', jellyfin_admin_username | default('admin')) | first }}"
@@ -1160,12 +1150,7 @@
         and not (seerr_public.json.initialized | default(false))
         and _jellyfin_users is not skipped
 
-<<<<<<< HEAD
-    - name: Get Jellyfin server info for Seerr DB init
-=======
-    - name: Get Jellyfin server info
->>>>>>> 3e703e8 (fix task naming and correctness violations per code review)
-      ansible.builtin.uri:
+    - name: Get Jellyfin server info      ansible.builtin.uri:
         url: "{{ jellyfin_url }}/System/Info"
         headers:
           Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ jellyfin_api_key }}"'
@@ -1332,12 +1317,7 @@
         seerr_api_key: "{{ _seerr_key_refreshed.stdout | trim }}"
       when: (_seerr_key_refreshed.stdout | trim) != ''
 
-<<<<<<< HEAD
-    - name: Read Seerr settings.json to check Jellyfin connection
-=======
-    - name: Read Seerr settings.json
->>>>>>> 3e703e8 (fix task naming and correctness violations per code review)
-      ansible.builtin.slurp:
+    - name: Read Seerr settings.json      ansible.builtin.slurp:
         src: /mnt/nas/docker/seerr/settings.json
       register: _seerr_settings_json
       become: true
