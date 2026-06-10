@@ -19,7 +19,7 @@
     nas_ip: "{{ network.nodes.alakazam.ip }}"
 
   pre_tasks:
-    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+    - name: Load secrets.yml if present
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
@@ -114,7 +114,7 @@
     nas_ip: "{{ network.nodes.alakazam.ip }}"
 
   pre_tasks:
-    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+    - name: Load secrets.yml if present
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false

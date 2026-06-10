@@ -751,7 +751,7 @@
     _oidc_client_secret: "{{ _existing_provider.client_secret }}"
   when: _provider_exists
 
-- name: Write OIDC credentials to NFS for diglett-dns to consume
+- name: Write headscale OIDC credentials to NFS
   ansible.builtin.copy:
     dest: /mnt/nas/docker/headscale-oidc.env
     content: |
@@ -761,7 +761,6 @@
     group: root
     mode: "0600"
   become: true
-  changed_when: false
 
 # ── Headplane OIDC bootstrap ──────────────────────────────────────────────────
 
@@ -889,14 +888,13 @@
     group: root
     mode: "0600"
   become: true
-  changed_when: false
 
 # ── arr services: Authentik proxy providers (forwardAuth) ─────────────────────
 # Creates one Proxy Provider per arr service in forward_auth_single mode, then
 # registers them all with the embedded outpost so the Traefik forwardAuth
 # middleware (services-vm.yml) can enforce authentication.
 
-- name: Define arr proxy service definitions
+- name: Define arr proxy services
   ansible.builtin.set_fact:
     _arr_proxy_services:
       - name: prowlarr
@@ -955,7 +953,7 @@
   register: _arr_provider_lookup
   loop: "{{ _arr_proxy_services }}"
 
-- name: Create arr Authentik applications (idempotent)
+- name: Create arr Authentik applications
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/core/applications/"
     method: POST
@@ -992,11 +990,10 @@
     _outpost_provider_pks: >-
       {{
         (_embedded_outpost.json.results[0].providers | default([])) +
-        (_arr_proxy_services
-          | map(attribute='name')
-          | map('extract',
-              _arr_provider_lookup.results[0].json.results
-              | items2dict(key_name='name', value_name='pk'))
+        (_arr_provider_lookup.results
+          | map(attribute='json.results')
+          | flatten
+          | map(attribute='pk')
           | list)
         | unique
       }}
@@ -1243,7 +1240,6 @@
     group: root
     mode: "0600"
   become: true
-  changed_when: false
 
 # ── Seerr: native OIDC provider ───────────────────────────────────────────────
 

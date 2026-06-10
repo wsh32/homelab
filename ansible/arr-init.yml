@@ -101,7 +101,11 @@
         bazarr_api_key: "{{ lookup('ansible.builtin.password', '/dev/null', length=32, chars=['0123456789abcdef']) }}"
       when: _bazarr_key_new
 
+<<<<<<< HEAD
     - name: Generate Seerr API key (placeholder — real key retrieved after init)
+=======
+    - name: Set Seerr API key placeholder
+>>>>>>> 3e703e8 (fix task naming and correctness violations per code review)
       ansible.builtin.set_fact:
         seerr_api_key: "placeholder"
       when: _seerr_key_new
@@ -552,7 +556,7 @@
         status_code: 204
       when: jellyfin_wizard.status == 200
 
-    - name: Authenticate as Jellyfin admin user to get token for API key creation
+    - name: Authenticate as Jellyfin admin user
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Users/AuthenticateByName"
         method: POST
@@ -568,7 +572,7 @@
       no_log: true
       when: jellyfin_wizard.status == 200
 
-    - name: Create persistent Jellyfin API key for automation
+    - name: Create Jellyfin API key
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Auth/Keys?app=ansible-automation"
         method: POST
@@ -580,7 +584,7 @@
       no_log: true
       when: jellyfin_wizard.status == 200 and _jf_root_auth is not skipped
 
-    - name: List Jellyfin API keys to retrieve ansible-automation key value
+    - name: List Jellyfin API keys
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Auth/Keys"
         headers:
@@ -602,10 +606,20 @@
       no_log: true
       when: jellyfin_wizard.status == 200 and _jf_root_auth is not skipped
 
+    - name: Check if JELLYFIN_API_KEY exists in Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/JELLYFIN_API_KEY?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        status_code: [200, 404]
+      register: _jf_key_in_infisical
+      no_log: true
+      when: _jellyfin_api_key_new | default(false)
+
     - name: Push Jellyfin API key to Infisical
       ansible.builtin.uri:
         url: "{{ infisical_host }}/api/v3/secrets/raw/JELLYFIN_API_KEY"
-        method: POST
+        method: "{{ 'PATCH' if _jf_key_in_infisical.status == 200 else 'POST' }}"
         headers:
           Authorization: "Bearer {{ _inf_token.json.accessToken }}"
         body_format: json
@@ -769,6 +783,7 @@
       changed_when: true
       when:
         - _jf_oidc_env_stat.stat.exists
+        - _sso_dll_stat is not skipped
         - not _sso_dll_stat.stat.exists
 
     - name: Wait for Jellyfin after SSO plugin restart
@@ -781,6 +796,7 @@
       delay: 5
       when:
         - _jf_oidc_env_stat.stat.exists
+        - _sso_dll_stat is not skipped
         - not _sso_dll_stat.stat.exists
 
     - name: Read current SSO plugin configuration
@@ -1126,7 +1142,11 @@
         and seerr_api_key != '' and seerr_api_key != 'placeholder'
         and not (seerr_public.json.initialized | default(false))
 
+<<<<<<< HEAD
     - name: Set Jellyfin auth facts for Seerr DB init
+=======
+    - name: Set Jellyfin auth facts
+>>>>>>> 3e703e8 (fix task naming and correctness violations per code review)
       ansible.builtin.set_fact:
         _jellyfin_auth_for_seerr:
           json:
@@ -1140,7 +1160,11 @@
         and not (seerr_public.json.initialized | default(false))
         and _jellyfin_users is not skipped
 
+<<<<<<< HEAD
     - name: Get Jellyfin server info for Seerr DB init
+=======
+    - name: Get Jellyfin server info
+>>>>>>> 3e703e8 (fix task naming and correctness violations per code review)
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/System/Info"
         headers:
@@ -1308,7 +1332,11 @@
         seerr_api_key: "{{ _seerr_key_refreshed.stdout | trim }}"
       when: (_seerr_key_refreshed.stdout | trim) != ''
 
+<<<<<<< HEAD
     - name: Read Seerr settings.json to check Jellyfin connection
+=======
+    - name: Read Seerr settings.json
+>>>>>>> 3e703e8 (fix task naming and correctness violations per code review)
       ansible.builtin.slurp:
         src: /mnt/nas/docker/seerr/settings.json
       register: _seerr_settings_json
@@ -1325,7 +1353,7 @@
         _seerr_media_server_type: "{{ (_seerr_settings_json.content | b64decode | from_json).main.mediaServerType | default(4) }}"
       when: _seerr_settings_json is not skipped and _seerr_settings_json.content is defined
 
-    - name: Fetch Jellyfin server info for settings patch
+    - name: Fetch Jellyfin server info
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/System/Info"
         headers:
@@ -1355,7 +1383,7 @@
         jf = s.setdefault('jellyfin', {})
         if not jf.get('apiKey'):
             jf['apiKey'] = '{{ jellyfin_api_key }}'
-            jf['serverId'] = '{{ _jellyfin_server_info_patch.json.Id | default('') }}'
+            jf['serverId'] = '{{ _jellyfin_server_info_patch.json.Id | default("") }}'
             jf.setdefault('ip', 'jellyfin')
             jf.setdefault('port', 8096)
             changed = True
