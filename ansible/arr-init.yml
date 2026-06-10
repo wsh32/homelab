@@ -19,6 +19,7 @@
     prowlarr_url: "http://localhost:9696"
     radarr_url: "http://localhost:7878"
     sonarr_url: "http://localhost:8989"
+    sabnzbd_url: "http://localhost:8085"
     jellyfin_url: "http://localhost:8096"
     bazarr_url: "http://localhost:6767"
     jellyseerr_url: "http://localhost:5055"
@@ -78,6 +79,10 @@
         bazarr_api_key: "{{ (_env | regex_search('(?m)^BAZARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
         jellyseerr_api_key: "{{ (_env | regex_search('(?m)^JELLYSEERR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
         jellyfin_admin_password: "{{ (_env | regex_search('(?m)^JELLYFIN_ADMIN_PASSWORD=(.+)$', '\\1') or ['']) | first }}"
+        sabnzbd_api_key: "{{ (_env | regex_search('(?m)^SABNZBD_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        newshosting_username: "{{ (_env | regex_search('(?m)^NEWSHOSTING_USERNAME=(.+)$', '\\1') or ['']) | first }}"
+        newshosting_password: "{{ (_env | regex_search('(?m)^NEWSHOSTING_PASSWORD=(.+)$', '\\1') or ['']) | first }}"
+        nzbplanet_api_key: "{{ (_env | regex_search('(?m)^NZBPLANET_API_KEY=(.+)$', '\\1') or ['']) | first }}"
       vars:
         _env: "{{ _homelab_env_raw.content | b64decode }}"
 
@@ -88,6 +93,9 @@
         _jellyfin_password_new: "{{ jellyfin_admin_password == '' }}"
         _bazarr_key_new: "{{ bazarr_api_key == '' }}"
         _jellyseerr_key_new: "{{ jellyseerr_api_key == '' }}"
+        _sabnzbd_key_new: "{{ sabnzbd_api_key == '' }}"
+        _newshosting_new: "{{ newshosting_username == '' }}"
+        _nzbplanet_new: "{{ nzbplanet_api_key == '' }}"
 
     - name: Generate Jellyfin admin password
       ansible.builtin.set_fact:
@@ -138,6 +146,79 @@
       no_log: true
       when: _bazarr_key_new
 
+    - name: Generate SABnzbd API key
+      ansible.builtin.set_fact:
+        sabnzbd_api_key: "{{ lookup('ansible.builtin.password', '/dev/null', length=32, chars=['0123456789abcdef']) }}"
+      when: _sabnzbd_key_new
+
+    - name: Push SABnzbd API key to Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/SABNZBD_API_KEY"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ sabnzbd_api_key }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
+      when: _sabnzbd_key_new
+
+    - name: Push Newshosting username to Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/NEWSHOSTING_USERNAME"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ newshosting_username }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
+      when: _newshosting_new and (newshosting_username | default('')) not in ['', 'REPLACE_ME']
+
+    - name: Push Newshosting password to Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/NEWSHOSTING_PASSWORD"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ newshosting_password }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
+      when: _newshosting_new and (newshosting_password | default('')) not in ['', 'REPLACE_ME']
+
+    - name: Push NZBPlanet API key to Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw/NZBPLANET_API_KEY"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        body_format: json
+        body:
+          workspaceId: "{{ _inf_project_id }}"
+          environment: "{{ _inf_environment }}"
+          secretPath: "/"
+          secretValue: "{{ nzbplanet_api_key }}"
+          type: shared
+        status_code: [200, 201]
+      no_log: true
+      when: _nzbplanet_new and (nzbplanet_api_key | default('')) not in ['', 'REPLACE_ME']
+
     - name: Fetch all secrets from Infisical after generating keys
       ansible.builtin.uri:
         url: "{{ infisical_host }}/api/v3/secrets/raw?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
@@ -146,7 +227,7 @@
         status_code: 200
       register: _infisical_refreshed
       no_log: true
-      when: _jellyfin_password_new or _bazarr_key_new
+      when: _jellyfin_password_new or _bazarr_key_new or _sabnzbd_key_new or _newshosting_new or _nzbplanet_new
 
     - name: Write refreshed /etc/homelab.env after generating keys
       ansible.builtin.copy:
@@ -160,7 +241,7 @@
           {% endfor %}
       become: true
       no_log: true
-      when: _jellyfin_password_new or _bazarr_key_new
+      when: _jellyfin_password_new or _bazarr_key_new or _sabnzbd_key_new or _newshosting_new or _nzbplanet_new
 
   tasks:
 
@@ -216,6 +297,73 @@
           use_radarr = True
           path_mappings = []
           path_mappings_movie = []
+
+    - name: Create SABnzbd config directory on NFS
+      ansible.builtin.file:
+        path: /mnt/nas/docker/sabnzbd/config
+        state: directory
+
+    - name: Pre-seed SABnzbd sabnzbd.ini (skips if already exists)
+      ansible.builtin.copy:
+        dest: /mnt/nas/docker/sabnzbd/config/sabnzbd.ini
+        force: false
+        content: |
+          [misc]
+          host = 0.0.0.0
+          port = 8085
+          api_key = {{ sabnzbd_api_key }}
+          nzb_key = {{ sabnzbd_api_key }}
+          download_dir = /data/downloads/incomplete
+          complete_dir = /data/downloads/complete
+          dirscan_dir =
+          script_dir =
+          nzb_backup_dir =
+          log_dir = /config/logs
+          admin_dir = /config/admin
+          bandwidth_perc = 100
+          pre_check = 0
+          enable_https = 0
+          username =
+          password =
+
+          [servers]
+          [[newshosting]]
+          name = newshosting
+          displayname = Newshosting
+          host = news.newshosting.com
+          port = 563
+          ssl = 1
+          ssl_verify = 2
+          username = {{ newshosting_username }}
+          password = {{ newshosting_password }}
+          connections = 30
+          enable = 1
+          required = 0
+          optional = 0
+          retention = 0
+          priority = 0
+          expire_date =
+          quota =
+          usage_at_start =
+
+          [categories]
+          [[tv]]
+          name = tv
+          order = 0
+          pp = 3
+          script = Default
+          dir = tv
+          newzbin =
+          priority = 0
+
+          [[movies]]
+          name = movies
+          order = 1
+          pp = 3
+          script = Default
+          dir = movies
+          newzbin =
+          priority = 0
 
     - name: Create local qBittorrent incomplete downloads directory
       ansible.builtin.file:
@@ -318,6 +466,15 @@
         status_code: [200, 401]
       register: sonarr_status
       until: sonarr_status.status in [200, 401]
+      retries: 40
+      delay: 10
+
+    - name: Wait for SABnzbd
+      ansible.builtin.uri:
+        url: "{{ sabnzbd_url }}/api?mode=version&apikey={{ sabnzbd_api_key }}"
+        status_code: [200, 401]
+      register: sabnzbd_status
+      until: sabnzbd_status.status in [200, 401]
       retries: 40
       delay: 10
 
@@ -646,6 +803,46 @@
         status_code: 201
       when: prowlarr_apps.json | selectattr('name', 'equalto', 'Sonarr') | list | length == 0
 
+    # ── Block 6b: Prowlarr — add NZBPlanet indexer ──────────────────────────
+
+    - name: Get existing Prowlarr indexers
+      ansible.builtin.uri:
+        url: "{{ prowlarr_url }}/api/v1/indexer"
+        headers:
+          X-Api-Key: "{{ prowlarr_api_key }}"
+        return_content: true
+      register: prowlarr_indexers
+
+    - name: Add NZBPlanet to Prowlarr
+      ansible.builtin.uri:
+        url: "{{ prowlarr_url }}/api/v1/indexer"
+        method: POST
+        headers:
+          X-Api-Key: "{{ prowlarr_api_key }}"
+        body_format: json
+        body:
+          name: NZBPlanet
+          enable: true
+          supportsRss: true
+          supportsSearch: true
+          implementationName: Newznab
+          implementation: Newznab
+          configContract: NewznabSettings
+          privacy: private
+          fields:
+            - name: baseUrl
+              value: "https://api.nzbplanet.net"
+            - name: apiPath
+              value: /api
+            - name: apiKey
+              value: "{{ nzbplanet_api_key }}"
+            - name: categories
+              value: [2000, 2010, 2020, 2030, 2040, 2045, 2050, 5000, 5010, 5020, 5030, 5040, 5045, 5050, 5060, 5070, 5080, 5090]
+        status_code: 201
+      when: >
+        (nzbplanet_api_key | default('')) not in ['', 'REPLACE_ME']
+        and prowlarr_indexers.json | selectattr('name', 'equalto', 'NZBPlanet') | list | length == 0
+
     # ── Block 7: Radarr — add qBittorrent download client ───────────────────
 
     - name: Get existing Radarr download clients
@@ -686,6 +883,36 @@
         status_code: 201
       when: radarr_dlclients_check.json | selectattr('name', 'equalto', 'qBittorrent') | list | length == 0
 
+    - name: Add SABnzbd to Radarr
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/downloadclient"
+        method: POST
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        body_format: json
+        body:
+          name: SABnzbd
+          enable: true
+          protocol: usenet
+          priority: 1
+          implementation: Sabnzbd
+          configContract: SabnzbdSettings
+          fields:
+            - name: host
+              value: sabnzbd
+            - name: port
+              value: 8085
+            - name: apiKey
+              value: "{{ sabnzbd_api_key }}"
+            - name: movieCategory
+              value: movies
+            - name: recentMoviePriority
+              value: -100
+            - name: olderMoviePriority
+              value: -100
+        status_code: 201
+      when: radarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list | length == 0
+
     # ── Block 8: Sonarr — add qBittorrent download client ───────────────────
 
     - name: Get existing Sonarr download clients
@@ -725,6 +952,36 @@
               value: 0
         status_code: 201
       when: sonarr_dlclients_check.json | selectattr('name', 'equalto', 'qBittorrent') | list | length == 0
+
+    - name: Add SABnzbd to Sonarr
+      ansible.builtin.uri:
+        url: "{{ sonarr_url }}/api/v3/downloadclient"
+        method: POST
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        body_format: json
+        body:
+          name: SABnzbd
+          enable: true
+          protocol: usenet
+          priority: 1
+          implementation: Sabnzbd
+          configContract: SabnzbdSettings
+          fields:
+            - name: host
+              value: sabnzbd
+            - name: port
+              value: 8085
+            - name: apiKey
+              value: "{{ sabnzbd_api_key }}"
+            - name: tvCategory
+              value: tv
+            - name: recentTvPriority
+              value: -100
+            - name: olderTvPriority
+              value: -100
+        status_code: 201
+      when: sonarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list | length == 0
 
     # ── Block 9: Jellyseerr initialization and configuration ─────────────────
     # Jellyseerr's POST /api/v1/auth/jellyfin calls GET /Users without a token.

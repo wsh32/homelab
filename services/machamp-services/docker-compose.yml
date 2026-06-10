@@ -141,6 +141,29 @@ services:
       - "traefik.http.routers.jellyseerr-home.entrypoints=web"
       - "traefik.http.services.jellyseerr-svc.loadbalancer.server.port=5055"
 
+  # ── Usenet ────────────────────────────────────────────────────────────────
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:latest
+    container_name: sabnzbd
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    volumes:
+      - /mnt/nas/docker/sabnzbd:/config
+      - /mnt/nas/media:/data
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sabnzbd-home.rule=Host(`sabnzbd.home`)"
+      - "traefik.http.routers.sabnzbd-home.entrypoints=web"
+      - "traefik.http.routers.sabnzbd-home-tls.rule=Host(`sabnzbd.home`)"
+      - "traefik.http.routers.sabnzbd-home-tls.entrypoints=websecure"
+      - "traefik.http.routers.sabnzbd-home-tls.tls=true"
+      - "traefik.http.routers.sabnzbd-home-tls.tls.certresolver=step"
+      - "traefik.http.services.sabnzbd-svc.loadbalancer.server.port=8085"
+
   # ── Archive Extraction ─────────────────────────────────────────────────────
   unpackerr:
     image: golift/unpackerr:latest
@@ -155,5 +178,8 @@ services:
       UN_RADARR_0_URL: http://radarr:7878
       UN_RADARR_0_API_KEY: ${RADARR_API_KEY}
       UN_RADARR_0_PATHS: /data/downloads/complete
+      UN_SABNZBD_0_URL: http://sabnzbd:8085
+      UN_SABNZBD_0_API_KEY: ${SABNZBD_API_KEY}
+      UN_SABNZBD_0_PATHS: /data/downloads/complete
     # No ports or labels — background daemon with no UI
 
