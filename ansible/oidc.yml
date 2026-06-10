@@ -55,6 +55,13 @@
         _hp_oidc_client_id: "{{ (_hp_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADPLANE_OIDC_CLIENT_ID=(.+)$', '\\1') | first }}"
         _hp_oidc_client_secret: "{{ (_hp_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADPLANE_OIDC_CLIENT_SECRET=(.+)$', '\\1') | first }}"
 
+    - name: Enable OIDC in headplane config
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
+        regexp: '^\s+enabled:'
+        line: "  enabled: true"
+      notify: Restart headplane
+
     - name: Inject OIDC issuer into headplane config
       ansible.builtin.lineinfile:
         path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
