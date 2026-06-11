@@ -22,7 +22,7 @@ services:
 
   # ── step-ca (local CA for TLS certs) ──────────────────────────────────────
   step-ca:
-    image: smallstep/step-ca:latest
+    image: smallstep/step-ca:0.30.2
     container_name: step-ca
     restart: unless-stopped
     dns:
@@ -75,7 +75,7 @@ services:
 
   # ── Infisical ─────────────────────────────────────────────────────────────
   infisical:
-    image: infisical/infisical:latest
+    image: infisical/infisical:v0.159.25
     container_name: infisical
     restart: unless-stopped
     depends_on:
@@ -103,7 +103,7 @@ services:
 
   # ── Vaultwarden ────────────────────────────────────────────────────────────
   vaultwarden:
-    image: vaultwarden/server:latest
+    image: vaultwarden/server:1.36.0
     container_name: vaultwarden
     restart: unless-stopped
     volumes:
@@ -136,7 +136,7 @@ services:
 
   # ── Authentik ──────────────────────────────────────────────────────────────
   authentik-server:
-    image: ghcr.io/goauthentik/server:2025.6.4
+    image: ghcr.io/goauthentik/server:2026.5.2
     container_name: authentik-server
     restart: unless-stopped
     command: server
@@ -179,7 +179,7 @@ services:
       - "traefik.http.services.auth-svc.loadbalancer.server.port=9000"
 
   authentik-worker:
-    image: ghcr.io/goauthentik/server:2025.6.4
+    image: ghcr.io/goauthentik/server:2026.5.2
     container_name: authentik-worker
     restart: unless-stopped
     command: worker
@@ -209,7 +209,7 @@ services:
 
   # ── CA certificate install page ───────────────────────────────────────────
   ca-page:
-    image: nginx:alpine
+    image: nginx:1.28.0-alpine
     container_name: ca-page
     restart: unless-stopped
     volumes:
@@ -226,7 +226,7 @@ services:
   # Exposes only /application/o/ (Authentik OIDC) publicly via Cloudflare Tunnel.
   # Token written to /etc/cloudflare-tunnel.env by Ansible (ansible/roles/infra/tasks/main.yml).
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.5.0
     container_name: cloudflared
     restart: unless-stopped
     command: tunnel --no-autoupdate run

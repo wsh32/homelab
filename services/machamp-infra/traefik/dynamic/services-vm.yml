@@ -2,6 +2,33 @@
 # Infra services (Infisical, Vaultwarden, Authentik) are handled by Docker labels.
 # All services are LAN (.home) only until Tailscale is wired up — see TODOS.md.
 http:
+  middlewares:
+    # Redirect Jellyfin web UI to Authentik SSO via jellyfin-plugin-sso.
+    jellyfin-sso:
+      redirectRegex:
+        regex: "^https://jellyfin\\.home(/web.*|/?)$"
+        replacement: "https://jellyfin.home/SSO/OID/start/authentik"
+        permanent: false
+
+    # Authentik forward auth — all arr/media services require authentication.
+    # Authentik proxy providers (forward_auth_single) are bootstrapped by ansible/roles/infra/tasks/main.yml.
+    authentik:
+      forwardAuth:
+        address: "http://authentik-server:9000/outpost.goauthentik.io/auth/traefik"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-authentik-username
+          - X-authentik-groups
+          - X-authentik-email
+          - X-authentik-name
+          - X-authentik-uid
+          - X-authentik-jwt
+          - X-authentik-meta-jwks
+          - X-authentik-meta-outpost
+          - X-authentik-meta-provider
+          - X-authentik-meta-app
+          - X-authentik-meta-version
+
   routers:
     # ── Traefik Dashboard ─────────────────────────────────────────────────────
     traefik-home:
@@ -38,6 +65,16 @@ http:
         certResolver: step
 
     # ── Jellyfin ──────────────────────────────────────────────────────────────
+    # SSO redirect: web UI paths go to Authentik via jellyfin-plugin-sso.
+    # API/app paths (not matching /web or /) pass through directly.
+    # Local admin bypass: /web/index.html#!/login.html?mode=0
+    jellyfin-sso-redirect:
+      rule: "Host(`jellyfin.home`) && Path(`/`)"
+      entryPoints: [websecure]
+      middlewares: [jellyfin-sso]
+      service: jellyfin-svc
+      tls:
+        certResolver: step
     jellyfin-home:
       rule: "Host(`jellyfin.home`)"
       entryPoints: [web]
@@ -54,30 +91,70 @@ http:
       rule: "Host(`prowlarr.home`)"
       entryPoints: [web]
       service: prowlarr-svc
+      middlewares: [authentik]
     prowlarr-home-tls:
       rule: "Host(`prowlarr.home`)"
       entryPoints: [websecure]
       service: prowlarr-svc
+      middlewares: [authentik]
       tls:
         certResolver: step
     radarr-home:
       rule: "Host(`radarr.home`)"
       entryPoints: [web]
       service: radarr-svc
+      middlewares: [authentik]
     radarr-home-tls:
       rule: "Host(`radarr.home`)"
       entryPoints: [websecure]
       service: radarr-svc
+      middlewares: [authentik]
       tls:
         certResolver: step
     sonarr-home:
       rule: "Host(`sonarr.home`)"
       entryPoints: [web]
       service: sonarr-svc
+      middlewares: [authentik]
     sonarr-home-tls:
       rule: "Host(`sonarr.home`)"
       entryPoints: [websecure]
       service: sonarr-svc
+      middlewares: [authentik]
+      tls:
+        certResolver: step
+    bazarr-home:
+      rule: "Host(`bazarr.home`)"
+      entryPoints: [web]
+      service: bazarr-svc
+      middlewares: [authentik]
+    bazarr-home-tls:
+      rule: "Host(`bazarr.home`)"
+      entryPoints: [websecure]
+      service: bazarr-svc
+      middlewares: [authentik]
+      tls:
+        certResolver: step
+    qbittorrent-home:
+      rule: "Host(`qbittorrent.home`)"
+      entryPoints: [web]
+      service: qbittorrent-svc
+      middlewares: [authentik]
+    qbittorrent-home-tls:
+      rule: "Host(`qbittorrent.home`)"
+      entryPoints: [websecure]
+      service: qbittorrent-svc
+      middlewares: [authentik]
+      tls:
+        certResolver: step
+    seerr-home:
+      rule: "Host(`seerr.home`)"
+      entryPoints: [web]
+      service: seerr-svc
+    seerr-home-tls:
+      rule: "Host(`seerr.home`)"
+      entryPoints: [websecure]
+      service: seerr-svc
       tls:
         certResolver: step
 
@@ -202,6 +279,18 @@ http:
       loadBalancer:
         servers:
           - url: "http://192.168.0.30:8989"
+    bazarr-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.30:6767"
+    qbittorrent-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.30:8080"
+    seerr-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.30:5055"
     photos-svc:
       loadBalancer:
         servers:

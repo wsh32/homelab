@@ -4,7 +4,7 @@ networks:
 
 services:
   adguardhome:
-    image: adguard/adguardhome:latest
+    image: adguard/adguardhome:v0.107.77
     container_name: adguardhome
     restart: unless-stopped
     network_mode: host  # needs port 53 on host IP
@@ -15,7 +15,7 @@ services:
     # Admin password (bcrypt) and DNS rewrites are committed in AdGuardHome.yaml.
 
   headscale:
-    image: headscale/headscale:latest
+    image: headscale/headscale:v0.28.0
     container_name: headscale
     restart: unless-stopped
     networks:
@@ -29,7 +29,7 @@ services:
     command: serve
 
   headplane:
-    image: ghcr.io/tale/headplane:latest
+    image: ghcr.io/tale/headplane:0.6.3
     container_name: headplane
     restart: unless-stopped
     networks:
@@ -42,7 +42,7 @@ services:
       - /mnt/nas/docker/headplane:/var/lib/headplane
 
   cloudflare-ddns:
-    image: favonia/cloudflare-ddns:latest
+    image: favonia/cloudflare-ddns:1.16.2
     container_name: cloudflare-ddns
     restart: unless-stopped
     network_mode: host  # needs host networking to detect the real public IP
