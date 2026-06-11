@@ -82,6 +82,32 @@
         enabled: true
       become: true
 
+    - name: Recover headscale SQLite database if malformed
+      ansible.builtin.shell: |
+        set -e
+        DB=/mnt/nas/docker/headscale/db.sqlite
+        sqlite3 "$DB" "PRAGMA integrity_check;" 2>&1 | grep -q '^ok$' && exit 0
+        sqlite3 "$DB" ".recover" | sqlite3 "${DB}.recovered"
+        mv "$DB" "${DB}.bak"
+        mv "${DB}.recovered" "$DB"
+      args:
+        executable: /bin/bash
+      register: _db_recover
+      changed_when: "'ok' not in _db_recover.stdout"
+      become: true
+      run_once: true
+      delegate_to: diglett-dns
+
+    - name: Restart headscale after database recovery
+      community.docker.docker_container:
+        name: headscale
+        state: started
+        restart: true
+      become: true
+      run_once: true
+      delegate_to: diglett-dns
+      when: _db_recover.changed
+
     - name: Look up existing headscale node by hostname
       community.docker.docker_container_exec:
         container: headscale
@@ -103,6 +129,22 @@
       become: true
       delegate_to: diglett-dns
 
+    - name: Resolve headscale hostname from deploy host
+      ansible.builtin.command: >-
+        getent hosts {{ headscale_server_url | urlsplit('hostname') }}
+      register: _headscale_resolved
+      delegate_to: localhost
+      run_once: true
+      changed_when: false
+
+    - name: Pin headscale hostname in /etc/hosts
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: "{{ headscale_server_url | urlsplit('hostname') }}"
+        line: "{{ _headscale_resolved.stdout.split()[0] }}  {{ headscale_server_url | urlsplit('hostname') }}"
+        state: present
+      become: true
+
     - name: Join tailscale network
       ansible.builtin.command: >-
         tailscale up
@@ -114,27 +156,33 @@
         --force-reauth
         --reset
       become: true
+      async: 120
+      poll: 5
 
-    - name: Update headscale DNS nameserver to diglett-dns tailscale IP
-      when: inventory_hostname == 'diglett-dns'
-      block:
-        - name: Get diglett-dns tailscale IP
-          ansible.builtin.command: tailscale ip -4
-          register: _diglett_ts_ip
-          changed_when: false
-          become: true
+    - name: Assign static Tailscale IP in headscale DB
+      when: tailscale_ip is defined
+      ansible.builtin.command: >-
+        sqlite3 /mnt/nas/docker/headscale/db.sqlite
+        "UPDATE nodes
+         SET ipv4 = '{{ tailscale_ip }}'
+         WHERE hostname = '{{ inventory_hostname }}'
+           AND ipv4 != '{{ tailscale_ip }}'"
+      become: true
+      delegate_to: diglett-dns
+      register: _ip_assigned
 
-        - name: Update headscale config with diglett-dns tailscale IP
-          ansible.builtin.lineinfile:
-            path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headscale/config.yaml
-            regexp: '^\s+- \d+\.\d+\.\d+\.\d+'
-            line: "      - {{ _diglett_ts_ip.stdout | trim }}  # AdGuard Home on diglett-dns"
-          register: _nameserver_update
+    - name: Restart headscale to apply updated IP
+      community.docker.docker_container:
+        name: headscale
+        state: started
+        restart: true
+      become: true
+      delegate_to: diglett-dns
+      when: _ip_assigned.changed
 
-        - name: Restart headscale to apply updated nameserver
-          community.docker.docker_container:
-            name: headscale
-            state: started
-            restart: true
-          become: true
-          when: _nameserver_update.changed
+    - name: Restart tailscaled to pick up corrected Tailscale IP
+      ansible.builtin.systemd:
+        name: tailscaled
+        state: restarted
+      become: true
+      when: _ip_assigned.changed

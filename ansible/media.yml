@@ -58,7 +58,7 @@
 
     - name: Add Infisical CLI apt repository
       ansible.builtin.shell:
-        cmd: curl -1sLf 'https://packages.infisical.com/setup.deb.sh' | bash
+        cmd: curl -1sLf 'https://artifacts-cli.infisical.com/setup.deb.sh' | bash
         creates: /etc/apt/sources.list.d/infisical.list
       become: true
 
@@ -176,10 +176,20 @@
     # Must run before compose up — qBittorrent writes a default config with auth
     # enabled on first start; this config disables auth for LAN/Docker subnets.
 
+    - name: Create Seerr config directory with correct ownership (UID 1000)
+      ansible.builtin.file:
+        path: /mnt/nas/docker/seerr
+        state: directory
+        owner: "1000"
+        group: "1000"
+        mode: "0755"
+      become: true
+
     - name: Create qBittorrent config directory on NFS
       ansible.builtin.file:
         path: /mnt/nas/docker/qbittorrent/qBittorrent
         state: directory
+      become: true
 
     - name: Pre-seed qBittorrent.conf
       ansible.builtin.copy:
@@ -198,6 +208,7 @@
           Downloads\TempPath=/incomplete
           Downloads\TempPathEnabled=true
           Downloads\PreAllocation=false
+      become: true
 
     - name: Start machamp-services compose stack
       community.docker.docker_compose_v2:

@@ -28,8 +28,22 @@ authentik_app_bindings:
   - slug: n8n
     groups: [admins]
 
+  # arr/media services — admins only (web-facing management UIs)
+  - slug: prowlarr
+    groups: [admins]
+  - slug: radarr
+    groups: [admins]
+  - slug: sonarr
+    groups: [admins]
+  - slug: bazarr
+    groups: [admins]
+  - slug: qbittorrent
+    groups: [admins]
+
   # user tier — all authenticated users
   - slug: jellyfin
+    groups: [users]
+  - slug: seerr
     groups: [users]
   - slug: photoprism
     groups: [users]
