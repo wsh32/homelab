@@ -1,5 +1,29 @@
 # TODOs
 
+## Internal Bridge Network Isolation (vmbr1)
+
+**What:** Create a Proxmox internal bridge (`vmbr1`) on machamp and attach machamp-infra and machamp-services to it, so Traefik can reach service backends without those ports being exposed on the LAN.
+
+**Why:** Service ports (Jellyfin :8096, Radarr :7878, Sonarr :8989, etc.) currently bind on all interfaces (`0.0.0.0`), meaning any LAN device can hit them directly and bypass Traefik forwardAuth / Authentik. The internal bridge physically isolates that traffic to VM-to-VM only.
+
+**Work:**
+1. **Proxmox host** — add `vmbr1` internal bridge (no `bridge-ports`) to `/etc/network/interfaces` on machamp via `blockinfile` in `ansible/roles/proxmox/tasks/main.yml`. Gate on `internal_bridge` being defined for the node in `network.yml`.
+2. **`network.yml`** — add `internal_bridge: vmbr1` to the machamp node; add `internal_ip` fields: machamp-infra `10.0.0.1`, machamp-services `10.0.0.2`.
+3. **Terraform module** (`terraform/modules/proxmox-vm/`) — add optional `internal_ip` variable; when set, add a second `network_device { bridge = "vmbr1" }` and a second `ip_config` block in `initialization` (no gateway — host-only network).
+4. **`terraform/machamp/main.tf`** — pass `internal_ip` from `network.yml` to the infra and services modules.
+5. **`services/machamp-services/docker-compose.yml`** — change all port bindings from `PORT:PORT` to `10.0.0.2:PORT:PORT`.
+6. **`services/machamp-infra/traefik/dynamic/services-vm.yml`** — update all backend URLs from `192.168.0.30` to `10.0.0.2`.
+
+**Notes:**
+- Cloud-init (`bpg/proxmox`) supports multiple `ip_config` blocks — second block maps to second NIC. No separate Ansible netplan task needed.
+- machamp-services keeps its LAN IP (`192.168.0.30`) on `eth0` for SSH and NFS; only service ports move to `eth1` (`10.0.0.2`).
+- Traefik on machamp-infra gets `10.0.0.1` on `eth1`; it already forwards traffic to the internal IPs.
+- This is a **VM-recreation event** for machamp-infra and machamp-services (new NIC requires `terraform apply`).
+
+**Depends on:** All services deployed and working on current topology (avoids debugging routing + services simultaneously).
+
+---
+
 ## OIDC Client Configuration for Authentik
 
 **What:** Wire up OIDC clients in Authentik for Headscale, Headplane, Grafana, and n8n. Authentik itself is already deployed on `machamp-infra`.
