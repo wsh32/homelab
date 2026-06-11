@@ -12,6 +12,10 @@
 #   .21–.29  Diglett VMs (VM IDs 200–299)
 #   .30–.49  Machamp VMs (VM IDs 100–199)
 #   .100+    DHCP (Eero managed)
+#
+# Tailscale IP layout (100.64.0.0/10):
+#   100.64.0.x   personal devices (dynamic, assigned by headscale)
+#   100.64.1.x   homelab devices (static, last octet matches LAN IP)
 
 gateway: 192.168.0.1
 subnet_prefix: 24
@@ -47,11 +51,13 @@ nodes:
 
   alakazam-deploy:
     ip: 192.168.0.7
+    tailscale_ip: 100.64.1.7
     type: other
     ansible_user: ubuntu
 
   diglett:
     ip: 192.168.0.6
+    tailscale_ip: 100.64.1.6
     type: proxmox
     ansible_user: root
     bridge_port: nic0
@@ -59,7 +65,7 @@ nodes:
     vms:
       diglett-dns:
         ip: 192.168.0.2
-        tailscale_ip: 100.64.0.2
+        tailscale_ip: 100.64.1.2
         vm_id: 200
         vm_roles: [services]
         tailscale_exit_node: true
@@ -70,6 +76,7 @@ nodes:
 
   machamp:
     ip: 192.168.0.5
+    tailscale_ip: 100.64.1.5
     type: proxmox
     ansible_user: root
     bridge_port: nic1

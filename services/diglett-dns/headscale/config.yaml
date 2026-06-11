@@ -49,7 +49,7 @@ dns:
   base_domain: ts.home
   nameservers:
     global:
-      - 100.64.0.2  # diglett-dns static Tailscale IP
+      - 100.64.1.2  # diglett-dns static Tailscale IP
       - 8.8.8.8
 
 oidc:
