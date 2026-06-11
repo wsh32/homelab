@@ -720,6 +720,9 @@
       include_claims_in_id_token: true
       access_token_validity: "hours=1"
       refresh_token_validity: "days=30"
+      grant_types:
+        - authorization_code
+        - refresh_token
     status_code: 201
   register: _new_provider
   when: not _provider_exists
@@ -749,6 +752,21 @@
   ansible.builtin.set_fact:
     _oidc_client_id: "{{ _existing_provider.client_id }}"
     _oidc_client_secret: "{{ _existing_provider.client_secret }}"
+  when: _provider_exists
+
+- name: Ensure Headscale OAuth2 provider allows authorization_code grant
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/providers/oauth2/{{ _existing_provider.pk }}/"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      grant_types:
+        - authorization_code
+        - refresh_token
+    status_code: 200
   when: _provider_exists
 
 - name: Write headscale OIDC credentials to NFS
@@ -825,6 +843,9 @@
       include_claims_in_id_token: true
       access_token_validity: "hours=1"
       refresh_token_validity: "days=30"
+      grant_types:
+        - authorization_code
+        - refresh_token
     status_code: 201
   register: _hp_new_provider
   when: not _hp_provider_exists
@@ -856,6 +877,21 @@
   ansible.builtin.set_fact:
     _hp_oidc_client_id: "{{ _hp_existing_provider.client_id }}"
     _hp_oidc_client_secret: "{{ _hp_existing_provider.client_secret }}"
+  when: _hp_provider_exists
+
+- name: Ensure headplane OAuth2 provider allows authorization_code grant
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/providers/oauth2/{{ _hp_existing_provider.pk }}/"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      grant_types:
+        - authorization_code
+        - refresh_token
+    status_code: 200
   when: _hp_provider_exists
 
 - name: Look up headplane application PK (provider already existed)
