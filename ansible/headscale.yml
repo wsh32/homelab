@@ -152,6 +152,7 @@
         --auth-key={{ headscale_preauth_key }}
         --accept-routes
         {{ '--advertise-exit-node' if tailscale_exit_node | default(false) else '' }}
+        {{ '--advertise-routes=192.168.0.0/24' if tailscale_exit_node | default(false) else '' }}
         --hostname={{ inventory_hostname }}
         --force-reauth
         --reset
