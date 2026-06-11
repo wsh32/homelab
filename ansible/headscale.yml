@@ -180,17 +180,9 @@
       delegate_to: diglett-dns
       when: _ip_assigned.changed
 
-    - name: Re-authenticate to receive corrected Tailscale IP
-      ansible.builtin.command: >-
-        tailscale up
-        --login-server={{ headscale_server_url }}
-        --auth-key={{ headscale_preauth_key }}
-        --accept-routes
-        {{ '--advertise-exit-node' if tailscale_exit_node | default(false) else '' }}
-        --hostname={{ inventory_hostname }}
-        --force-reauth
-        --reset
+    - name: Restart tailscaled to pick up corrected Tailscale IP
+      ansible.builtin.systemd:
+        name: tailscaled
+        state: restarted
       become: true
-      async: 120
-      poll: 5
       when: _ip_assigned.changed
