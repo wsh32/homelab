@@ -51,7 +51,6 @@
   become: true
   changed_when: false
   when: _netplan_bin.stat.exists
-  notify: Restart avahi-daemon
 
 - name: Disable password authentication in SSH
   ansible.builtin.lineinfile:
