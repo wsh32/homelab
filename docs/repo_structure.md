@@ -108,7 +108,7 @@ Docker Compose stack for the `machamp-services` VM. This is the main services st
 - **Gluetun** — VPN gateway sidecar
 - **qBittorrent** — torrent client; routed through Gluetun
 - **Bazarr** — subtitle management
-- **Jellyseerr** — media request frontend
+- **Seerr** — media request frontend (formerly Jellyseerr)
 - **Unpackerr** — post-download archive extraction
 
 **`config/radarr.xml`, `sonarr.xml`, `prowlarr.xml`** — Pre-seeded config files mounted read-only into each container. API keys use `${RADARR_API_KEY}` etc., sourced from Infisical at boot via `.env`.

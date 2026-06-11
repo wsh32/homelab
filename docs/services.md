@@ -61,7 +61,7 @@ TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/boo
 | qBittorrent | Torrent client; routes through Gluetun VPN |
 | Gluetun | VPN gateway sidecar for qBittorrent |
 | Bazarr | Subtitle management |
-| Jellyseerr | Media request and discovery frontend |
+| Seerr | Media request and discovery frontend (formerly Jellyseerr) |
 | Unpackerr | Post-download archive extraction for Servarr |
 
 ### machamp-dev (`192.168.0.31`)

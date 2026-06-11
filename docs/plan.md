@@ -181,7 +181,7 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 11. **`terraform apply`** — provisions all remaining VMs. Cloud-init handles Docker
     install and NFS mounts. VMs do not yet have Infisical credentials.
 12. **`INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`** — deploys the
-    machamp-infra stack (Infisical, Vaultwarden, Authentik, PostgreSQL x2, Redis x2, Litestream) and bootstraps
+    machamp-infra stack (Infisical, Vaultwarden, Authentik, shared PostgreSQL, shared Redis, Litestream) and bootstraps
     Infisical on first run (admin user `admin@team.rocket`, org, workspace). Outputs
     `workspace_id`, `client_id`, `client_secret` — add these to `terraform.tfvars`. Idempotent
     on re-run (bootstrap skipped after first successful run).
@@ -301,7 +301,7 @@ Authentik provides OIDC SSO for internal services; configure OIDC clients post-d
 | Servarr stack | Radarr, Sonarr, Prowlarr |
 | qBittorrent | Torrent client; routes through Gluetun VPN |
 | Bazarr | Subtitle management |
-| Jellyseerr | Media request and discovery frontend |
+| Seerr | Media request and discovery frontend (formerly Jellyseerr) |
 | Unpackerr | Post-download archive extraction |
 
 **machamp-dev** (`192.168.0.31`):
@@ -534,7 +534,7 @@ corruption from soft-mount interruptions. Backups go to Alakazam NFS.
 | Service | DB | Backup method | Frequency |
 |---------|----|---------------|-----------|
 | Vaultwarden | SQLite | Litestream — continuous WAL streaming to NFS | Continuous |
-| Infisical | PostgreSQL | `pg_dump` cron → NFS | Every 6 hours |
+| Infisical + Authentik | PostgreSQL | `pg_dumpall` cron → NFS | Daily |
 
 Proxmox vzdump of the Infisical VM provides full disaster recovery (daily).
 
@@ -652,7 +652,7 @@ NUT clients: Machamp, Diglett, Alakazam (shut down gracefully on power loss)
 | Terraform code drift | Acknowledged — code update deferred, plan is source of truth |
 | HAOS provisioning | Terraform provisions VM via qcow2 image download; config restored from Proxmox vzdump backup |
 | Reverse proxy for Diglett services | Single Traefik on Machamp; Diglett services as external backends by local IP |
-| Vaultwarden/Infisical DB location | Local VM disk; Vaultwarden via Litestream (continuous), Infisical via pg_dump every 6h |
+| Vaultwarden/Infisical DB location | Local VM disk; Vaultwarden via Litestream (continuous), shared PostgreSQL (Infisical + Authentik) via pg_dumpall daily |
 | Infisical bootstrap | `ansible/infra.yml` deploys machamp-infra stack and bootstraps Infisical (admin, org, workspace) on first run. Run as: `INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`. Idempotent on re-run. |
 | Infisical role | Single source of truth for all machine-consumed secrets. VMs fetch via `infisical export` at boot using credentials in `/etc/infisical.env`. Service secrets seeded by each service's Ansible role at bring-up time; external API keys added manually. |
 | Vaultwarden role | Human-consumed secrets only (web UI admin passwords). Populated by each service's Ansible role after the service is configured. |
