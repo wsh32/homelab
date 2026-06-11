@@ -56,6 +56,8 @@ def build_inventory():
             hvars['static_ip'] = f"{attrs['ip']}/{subnet_prefix}"
         if 'ansible_user' in attrs:
             hvars['ansible_user'] = attrs['ansible_user']
+        if 'tailscale_ip' in attrs:
+            hvars['tailscale_ip'] = attrs['tailscale_ip']
         hostvars[hostname] = hvars
 
         # Place in physical type group
@@ -85,6 +87,8 @@ def build_inventory():
                     groups[role]['hosts'].append(vmname)
             if vmattrs.get('tailscale_exit_node'):
                 hostvars[vmname]['tailscale_exit_node'] = True
+            if 'tailscale_ip' in vmattrs:
+                hostvars[vmname]['tailscale_ip'] = vmattrs['tailscale_ip']
 
     return {**groups, '_meta': {'hostvars': hostvars}}
 
