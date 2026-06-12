@@ -1942,7 +1942,6 @@
         command: sync
         detach: false
         cleanup: true
-        auto_remove: true
       register: recyclarr_result
       ignore_errors: true
 
