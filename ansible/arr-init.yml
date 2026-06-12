@@ -1028,7 +1028,7 @@
         return_content: true
       register: _prowlarr_existing_indexers
 
-    - name: Add indexers to Prowlarr
+    - name: Add Newznab (usenet) indexers to Prowlarr
       ansible.builtin.uri:
         url: "{{ prowlarr_url }}/api/v1/indexer"
         method: POST
@@ -1040,23 +1040,65 @@
           enable: true
           appProfileId: 1
           priority: 25
+          redirect: true
           supportsRss: true
           supportsSearch: true
-          implementationName: "{{ item.implementation | default('Newznab') }}"
-          implementation: "{{ item.implementation | default('Newznab') }}"
-          configContract: "{{ item.config_contract | default('NewznabSettings') }}"
+          implementationName: Newznab
+          implementation: Newznab
+          configContract: NewznabSettings
           privacy: "{{ item.privacy | default('private') }}"
-          fields: >-
-            {{ [{'name': 'baseUrl', 'value': item.url}]
-               + (item.protocol == 'usenet') | ternary(
-                   [{'name': 'apiPath', 'value': '/api'},
-                    {'name': 'apiKey',  'value': lookup('vars', item.api_key_var | lower, default='')}],
-                   [])
-               + [{'name': 'categories', 'value': item.categories}] }}
+          fields:
+            - name: baseUrl
+              value: "{{ item.url }}"
+            - name: apiPath
+              value: /api
+            - name: apiKey
+              value: "{{ lookup('vars', item.api_key_var | lower, default='') }}"
+            - name: categories
+              value: "{{ item.categories }}"
         status_code: 201
-      loop: "{{ prowlarr_indexers }}"
+      loop: "{{ prowlarr_indexers | selectattr('protocol', 'equalto', 'usenet') | list }}"
       when: >
-        (item.protocol != 'usenet' or (lookup('vars', item.api_key_var | lower, default='')) not in ['', 'REPLACE_ME'])
+        (lookup('vars', item.api_key_var | lower, default='')) not in ['', 'REPLACE_ME']
+        and _prowlarr_existing_indexers.json | selectattr('name', 'equalto', item.name) | list | length == 0
+
+    - name: Fetch Prowlarr indexer schema for native torrent indexers
+      ansible.builtin.uri:
+        url: "{{ prowlarr_url }}/api/v1/indexer/schema"
+        headers:
+          X-Api-Key: "{{ prowlarr_api_key }}"
+        return_content: true
+      register: _prowlarr_schema
+      when: prowlarr_indexers | selectattr('protocol', 'equalto', 'torrent') | list | length > 0
+
+    - name: Add native torrent indexers to Prowlarr
+      ansible.builtin.uri:
+        url: "{{ prowlarr_url }}/api/v1/indexer"
+        method: POST
+        headers:
+          X-Api-Key: "{{ prowlarr_api_key }}"
+        body_format: json
+        body: >-
+          {{ _schema_entry | combine({
+               'name': item.name,
+               'enable': true,
+               'appProfileId': 1,
+               'priority': 25,
+               'privacy': item.privacy | default('public'),
+               'fields': _schema_entry.fields
+                         | rejectattr('name', 'equalto', 'baseUrl') | list
+                         + [{'name': 'baseUrl', 'value': item.url}]
+             }) }}
+        status_code: 201
+      vars:
+        _schema_entry: >-
+          {{ _prowlarr_schema.json
+             | selectattr('implementation', 'equalto', item.implementation)
+             | list | first }}
+      loop: "{{ prowlarr_indexers | selectattr('protocol', 'equalto', 'torrent') | list }}"
+      when: >
+        _prowlarr_schema is not skipped
+        and (_prowlarr_schema.json | selectattr('implementation', 'equalto', item.implementation) | list | length > 0)
         and _prowlarr_existing_indexers.json | selectattr('name', 'equalto', item.name) | list | length == 0
 
     # ── Block 7: Radarr — add qBittorrent download client ───────────────────
