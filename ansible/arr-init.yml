@@ -1038,6 +1038,8 @@
         body:
           name: "{{ item.name }}"
           enable: true
+          appProfileId: 1
+          priority: 25
           supportsRss: true
           supportsSearch: true
           implementationName: "{{ item.implementation | default('Newznab') }}"
