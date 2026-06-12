@@ -157,15 +157,6 @@ services:
     environment:
       PUID: "1000"
       PGID: "1000"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.sabnzbd-home.rule=Host(`sabnzbd.home`)"
-      - "traefik.http.routers.sabnzbd-home.entrypoints=web"
-      - "traefik.http.routers.sabnzbd-home-tls.rule=Host(`sabnzbd.home`)"
-      - "traefik.http.routers.sabnzbd-home-tls.entrypoints=websecure"
-      - "traefik.http.routers.sabnzbd-home-tls.tls=true"
-      - "traefik.http.routers.sabnzbd-home-tls.tls.certresolver=step"
-      - "traefik.http.services.sabnzbd-svc.loadbalancer.server.port=8080"
 
   # ── Archive Extraction ─────────────────────────────────────────────────────
   unpackerr:

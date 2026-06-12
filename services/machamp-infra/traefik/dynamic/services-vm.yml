@@ -123,6 +123,18 @@ http:
       middlewares: [authentik]
       tls:
         certResolver: step
+    sabnzbd-home:
+      rule: "Host(`sabnzbd.home`)"
+      entryPoints: [web]
+      service: sabnzbd-svc
+      middlewares: [authentik]
+    sabnzbd-home-tls:
+      rule: "Host(`sabnzbd.home`)"
+      entryPoints: [websecure]
+      service: sabnzbd-svc
+      middlewares: [authentik]
+      tls:
+        certResolver: step
     bazarr-home:
       rule: "Host(`bazarr.home`)"
       entryPoints: [web]
@@ -279,6 +291,10 @@ http:
       loadBalancer:
         servers:
           - url: "http://192.168.0.30:8989"
+    sabnzbd-svc:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.30:8085"
     bazarr-svc:
       loadBalancer:
         servers:
