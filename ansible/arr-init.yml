@@ -972,6 +972,68 @@
              or (_sso_config_current.json.OidConfigs.authentik.RoleClaim | default('')) != 'groups'
              or (_sso_config_current.json.OidConfigs.authentik.OidClientId | default('')) != _jf_oidc_client_id)
 
+    # ── Block 3c: Jellyfin media libraries ──────────────────────────────────
+
+    - name: Get existing Jellyfin libraries
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Library/VirtualFolders"
+        headers:
+          Authorization: 'MediaBrowser Token="{{ jellyfin_api_key }}"'
+        status_code: 200
+      register: _jf_libraries
+      when: jellyfin_api_key != ''
+
+    - name: Create Jellyfin Movies library
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Library/VirtualFolders?collectionType=movies&name=Movies&refreshLibrary=true"
+        method: POST
+        headers:
+          Authorization: 'MediaBrowser Token="{{ jellyfin_api_key }}"'
+        body_format: json
+        body:
+          LibraryOptions:
+            EnableRealtimeMonitor: true
+            PathInfos:
+              - Path: /data/movies
+        status_code: [200, 204]
+      when:
+        - jellyfin_api_key != ''
+        - _jf_libraries.json | selectattr('Name', 'equalto', 'Movies') | list | length == 0
+
+    - name: Create Jellyfin TV Shows library
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Library/VirtualFolders?collectionType=tvshows&name=TV+Shows&refreshLibrary=true"
+        method: POST
+        headers:
+          Authorization: 'MediaBrowser Token="{{ jellyfin_api_key }}"'
+        body_format: json
+        body:
+          LibraryOptions:
+            EnableRealtimeMonitor: true
+            PathInfos:
+              - Path: /data/tv
+        status_code: [200, 204]
+      when:
+        - jellyfin_api_key != ''
+        - _jf_libraries.json | selectattr('Name', 'equalto', 'TV Shows') | list | length == 0
+
+    - name: Create Jellyfin Books library
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Library/VirtualFolders?collectionType=books&name=Books&refreshLibrary=true"
+        method: POST
+        headers:
+          Authorization: 'MediaBrowser Token="{{ jellyfin_api_key }}"'
+        body_format: json
+        body:
+          LibraryOptions:
+            EnableRealtimeMonitor: true
+            PathInfos:
+              - Path: /data/books
+        status_code: [200, 204]
+      when:
+        - jellyfin_api_key != ''
+        - _jf_libraries.json | selectattr('Name', 'equalto', 'Books') | list | length == 0
+
     # ── Block 4: Volume migration — Radarr ──────────────────────────────────
 
     - name: Get Radarr root folders
