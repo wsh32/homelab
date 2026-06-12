@@ -350,10 +350,10 @@
 
     - name: Wait for SABnzbd
       ansible.builtin.uri:
-        url: "{{ sabnzbd_url }}/api?mode=version&apikey={{ sabnzbd_api_key }}"
-        status_code: [200, 401]
+        url: "{{ sabnzbd_url }}"
+        status_code: [200, 301, 302, 401, 403]
       register: sabnzbd_status
-      until: sabnzbd_status.status in [200, 401]
+      until: sabnzbd_status.status in [200, 301, 302, 401, 403]
       retries: 40
       delay: 10
 
