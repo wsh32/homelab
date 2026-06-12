@@ -39,6 +39,10 @@
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/vars/prowlarr_indexers.yml"
 
+    - name: Load Jellyfin library definitions
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/vars/jellyfin_libraries.yml"
+
     - name: Load SABnzbd server definitions
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/vars/sabnzbd_servers.yml"
@@ -983,9 +987,9 @@
       register: _jf_libraries
       when: jellyfin_api_key != ''
 
-    - name: Create Jellyfin Movies library
+    - name: Create Jellyfin libraries
       ansible.builtin.uri:
-        url: "{{ jellyfin_url }}/Library/VirtualFolders?collectionType=movies&name=Movies&refreshLibrary=true"
+        url: "{{ jellyfin_url }}/Library/VirtualFolders?collectionType={{ item.collection_type }}&name={{ item.name | urlencode }}&refreshLibrary=true"
         method: POST
         headers:
           Authorization: 'MediaBrowser Token="{{ jellyfin_api_key }}"'
@@ -994,45 +998,12 @@
           LibraryOptions:
             EnableRealtimeMonitor: true
             PathInfos:
-              - Path: /data/movies
+              - Path: "{{ item.path }}"
         status_code: [200, 204]
+      loop: "{{ jellyfin_libraries }}"
       when:
         - jellyfin_api_key != ''
-        - _jf_libraries.json | selectattr('Name', 'equalto', 'Movies') | list | length == 0
-
-    - name: Create Jellyfin TV Shows library
-      ansible.builtin.uri:
-        url: "{{ jellyfin_url }}/Library/VirtualFolders?collectionType=tvshows&name=TV+Shows&refreshLibrary=true"
-        method: POST
-        headers:
-          Authorization: 'MediaBrowser Token="{{ jellyfin_api_key }}"'
-        body_format: json
-        body:
-          LibraryOptions:
-            EnableRealtimeMonitor: true
-            PathInfos:
-              - Path: /data/tv
-        status_code: [200, 204]
-      when:
-        - jellyfin_api_key != ''
-        - _jf_libraries.json | selectattr('Name', 'equalto', 'TV Shows') | list | length == 0
-
-    - name: Create Jellyfin Books library
-      ansible.builtin.uri:
-        url: "{{ jellyfin_url }}/Library/VirtualFolders?collectionType=books&name=Books&refreshLibrary=true"
-        method: POST
-        headers:
-          Authorization: 'MediaBrowser Token="{{ jellyfin_api_key }}"'
-        body_format: json
-        body:
-          LibraryOptions:
-            EnableRealtimeMonitor: true
-            PathInfos:
-              - Path: /data/books
-        status_code: [200, 204]
-      when:
-        - jellyfin_api_key != ''
-        - _jf_libraries.json | selectattr('Name', 'equalto', 'Books') | list | length == 0
+        - _jf_libraries.json | selectattr('Name', 'equalto', item.name) | list | length == 0
 
     # ── Block 4: Volume migration — Radarr ──────────────────────────────────
 
