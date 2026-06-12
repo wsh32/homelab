@@ -617,6 +617,32 @@
       no_log: true
       when: _radarr_key_new or _sonarr_key_new or _prowlarr_key_new
 
+    # ── Block 2.5: Jellyfin encoding config ─────────────────────────────────
+
+    - name: Create Jellyfin config directory on NFS
+      ansible.builtin.file:
+        path: /mnt/nas/docker/jellyfin/config
+        state: directory
+      become: true
+
+    - name: Deploy Jellyfin encoding.xml
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../services/machamp-services/config/jellyfin-encoding.xml"
+        dest: /mnt/nas/docker/jellyfin/config/encoding.xml
+        owner: root
+        group: root
+        mode: "0644"
+      become: true
+      register: _jellyfin_encoding_xml
+
+    - name: Restart Jellyfin if encoding.xml changed
+      community.docker.docker_container:
+        name: jellyfin
+        state: started
+        restart: true
+      when: _jellyfin_encoding_xml.changed
+      become: true
+
     # ── Block 3: Jellyfin startup wizard ────────────────────────────────────
     # In Jellyfin 10.11+, POST /Startup/User was removed. The wizard auto-
     # creates a "root" admin user with no password. After completing the wizard
