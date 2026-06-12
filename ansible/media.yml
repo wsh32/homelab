@@ -172,6 +172,103 @@
         force: true
       become: true
 
+    # ── SABnzbd config pre-seed ─────────────────────────────────────────────────
+    # Must run before compose up — SABnzbd's default port is 8080; without a
+    # pre-seeded ini it boots on the wrong port and the API key won't match.
+
+    - name: Create SABnzbd config directory on NFS
+      ansible.builtin.file:
+        path: /mnt/nas/docker/sabnzbd/config
+        state: directory
+      become: true
+
+    - name: Set SABnzbd API key fact from homelab.env
+      ansible.builtin.set_fact:
+        _sabnzbd_api_key: >-
+          {{ (_infisical_secrets.json.secrets
+              | selectattr('secretKey', 'equalto', 'SABNZBD_API_KEY')
+              | map(attribute='secretValue') | list | first) | default('') }}
+      when: _infisical_secrets is not skipped
+
+    - name: Set SABnzbd server credential facts from homelab.env
+      ansible.builtin.set_fact:
+        _sabnzbd_server_facts: >-
+          {{ _sabnzbd_server_facts | default({}) | combine({item.secretKey: item.secretValue}) }}
+      loop: "{{ _infisical_secrets.json.secrets }}"
+      loop_control:
+        label: "{{ item.secretKey }}"
+      no_log: true
+      when: _infisical_secrets is not skipped
+
+    - name: Load SABnzbd server definitions
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/vars/sabnzbd_servers.yml"
+
+    - name: Pre-seed SABnzbd sabnzbd.ini (skips if already exists)
+      ansible.builtin.copy:
+        dest: /mnt/nas/docker/sabnzbd/config/sabnzbd.ini
+        force: false
+        content: |
+          [misc]
+          host = 0.0.0.0
+          port = 8085
+          api_key = {{ _sabnzbd_api_key | default('') }}
+          nzb_key = {{ _sabnzbd_api_key | default('') }}
+          download_dir = /data/downloads/incomplete
+          complete_dir = /data/downloads/complete
+          dirscan_dir =
+          script_dir =
+          nzb_backup_dir =
+          log_dir = /config/logs
+          admin_dir = /config/admin
+          bandwidth_perc = 100
+          pre_check = 0
+          enable_https = 0
+          username =
+          password =
+
+          [servers]
+          {% for server in sabnzbd_servers %}
+          [[{{ server.name }}]]
+          name = {{ server.name }}
+          host = {{ server.host }}
+          port = {{ server.port }}
+          ssl = {{ server.ssl }}
+          ssl_verify = 2
+          username = {{ (_sabnzbd_server_facts | default({}))[server.username_var] | default('') }}
+          password = {{ (_sabnzbd_server_facts | default({}))[server.password_var] | default('') }}
+          connections = {{ server.connections }}
+          enable = 1
+          required = 0
+          optional = 0
+          retention = 0
+          priority = {{ server.priority }}
+          expire_date =
+          quota =
+          usage_at_start =
+          {% endfor %}
+
+          [categories]
+          [[tv]]
+          name = tv
+          order = 0
+          pp = 3
+          script = Default
+          dir = tv
+          newzbin =
+          priority = 0
+
+          [[movies]]
+          name = movies
+          order = 1
+          pp = 3
+          script = Default
+          dir = movies
+          newzbin =
+          priority = 0
+      become: true
+      when: _sabnzbd_api_key | default('') != ''
+
     # ── qBittorrent config pre-seed ─────────────────────────────────────────────
     # Must run before compose up — qBittorrent writes a default config with auth
     # enabled on first start; this config disables auth for LAN/Docker subnets.
