@@ -948,6 +948,9 @@
       - name: qbittorrent
         slug: qbittorrent
         external_host: "https://qbittorrent.home"
+      - name: sabnzbd
+        slug: sabnzbd
+        external_host: "https://sabnzbd.home"
 
 - name: Check which arr proxy providers already exist
   ansible.builtin.uri:

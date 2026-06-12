@@ -20,6 +20,7 @@
     prowlarr_url: "http://localhost:9696"
     radarr_url: "http://localhost:7878"
     sonarr_url: "http://localhost:8989"
+    sabnzbd_url: "http://localhost:8085"   # host port; SABnzbd listens on 8080 internally, mapped to 8085
     jellyfin_url: "http://localhost:8096"
     bazarr_url: "http://localhost:6767"
     seerr_url: "http://localhost:5055"
@@ -33,6 +34,22 @@
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
+
+    - name: Load Prowlarr indexer definitions
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/vars/prowlarr_indexers.yml"
+
+    - name: Load Bazarr provider definitions
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/vars/bazarr_providers.yml"
+
+    - name: Load Jellyfin library definitions
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/vars/jellyfin_libraries.yml"
+
+    - name: Load SABnzbd server definitions
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/vars/sabnzbd_servers.yml"
 
     # ── Load Infisical push credentials from the target ──────────────────────
 
@@ -80,6 +97,7 @@
         seerr_api_key: "{{ (_env | regex_search('(?m)^SEERR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
         jellyfin_admin_password: "{{ (_env | regex_search('(?m)^JELLYFIN_ADMIN_PASSWORD=(.+)$', '\\1') or ['']) | first }}"
         jellyfin_api_key: "{{ (_env | regex_search('(?m)^JELLYFIN_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        sabnzbd_api_key: "{{ (_env | regex_search('(?m)^SABNZBD_API_KEY=(.+)$', '\\1') or ['']) | first }}"
       vars:
         _env: "{{ _homelab_env_raw.content | b64decode }}"
 
@@ -90,6 +108,7 @@
         _jellyfin_password_new: "{{ jellyfin_admin_password == '' }}"
         _bazarr_key_new: "{{ bazarr_api_key == '' }}"
         _seerr_key_new: "{{ seerr_api_key == '' }}"
+        _sabnzbd_key_new: "{{ sabnzbd_api_key == '' }}"
 
     - name: Generate Jellyfin admin password
       ansible.builtin.set_fact:
@@ -106,39 +125,51 @@
         seerr_api_key: "placeholder"
       when: _seerr_key_new
 
-    - name: Push Jellyfin admin password to Infisical
-      ansible.builtin.uri:
-        url: "{{ infisical_host }}/api/v3/secrets/raw/JELLYFIN_ADMIN_PASSWORD"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
-        body_format: json
-        body:
-          workspaceId: "{{ _inf_project_id }}"
-          environment: "{{ _inf_environment }}"
-          secretPath: "/"
-          secretValue: "{{ jellyfin_admin_password }}"
-          type: shared
-        status_code: [200, 201]
-      no_log: true
+    - name: Upsert JELLYFIN_ADMIN_PASSWORD in Infisical
+      ansible.builtin.include_tasks: tasks/infisical-upsert.yml
+      vars:
+        _inf_upsert_name: JELLYFIN_ADMIN_PASSWORD
+        _inf_upsert_value: "{{ jellyfin_admin_password }}"
       when: _jellyfin_password_new
 
-    - name: Push Bazarr API key to Infisical
-      ansible.builtin.uri:
-        url: "{{ infisical_host }}/api/v3/secrets/raw/BAZARR_API_KEY"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
-        body_format: json
-        body:
-          workspaceId: "{{ _inf_project_id }}"
-          environment: "{{ _inf_environment }}"
-          secretPath: "/"
-          secretValue: "{{ bazarr_api_key }}"
-          type: shared
-        status_code: [200, 201]
-      no_log: true
+    - name: Upsert BAZARR_API_KEY in Infisical
+      ansible.builtin.include_tasks: tasks/infisical-upsert.yml
+      vars:
+        _inf_upsert_name: BAZARR_API_KEY
+        _inf_upsert_value: "{{ bazarr_api_key }}"
       when: _bazarr_key_new
+
+    - name: Generate SABnzbd API key
+      ansible.builtin.set_fact:
+        sabnzbd_api_key: "{{ lookup('ansible.builtin.password', '/dev/null', length=32, chars=['0123456789abcdef']) }}"
+      when: _sabnzbd_key_new
+
+    - name: Upsert SABNZBD_API_KEY in Infisical
+      ansible.builtin.include_tasks: tasks/infisical-upsert.yml
+      vars:
+        _inf_upsert_name: SABNZBD_API_KEY
+        _inf_upsert_value: "{{ sabnzbd_api_key }}"
+      when: _sabnzbd_key_new
+
+    - name: Upsert news server credentials in Infisical
+      ansible.builtin.include_tasks: tasks/infisical-upsert.yml
+      vars:
+        _inf_upsert_name: "{{ cred_item }}"
+        _inf_upsert_value: "{{ lookup('vars', cred_item | lower, default='') }}"
+      loop: "{{ sabnzbd_servers | map(attribute='username_var') | list + sabnzbd_servers | map(attribute='password_var') | list }}"
+      loop_control:
+        loop_var: cred_item
+      when: (lookup('vars', cred_item | lower, default='')) not in ['', 'REPLACE_ME']
+
+    - name: Upsert indexer API keys in Infisical
+      ansible.builtin.include_tasks: tasks/infisical-upsert.yml
+      vars:
+        _inf_upsert_name: "{{ idx_item.api_key_var }}"
+        _inf_upsert_value: "{{ lookup('vars', idx_item.api_key_var | lower, default='') }}"
+      loop: "{{ prowlarr_indexers | selectattr('api_key_var', 'defined') | list }}"
+      loop_control:
+        loop_var: idx_item
+      when: (lookup('vars', idx_item.api_key_var | lower, default='')) not in ['', 'REPLACE_ME']
 
     - name: Fetch all secrets from Infisical after generating keys
       ansible.builtin.uri:
@@ -148,7 +179,7 @@
         status_code: 200
       register: _infisical_refreshed
       no_log: true
-      when: _jellyfin_password_new or _bazarr_key_new
+      when: _jellyfin_password_new or _bazarr_key_new or _sabnzbd_key_new
 
     - name: Write refreshed /etc/homelab.env after generating keys
       ansible.builtin.copy:
@@ -162,7 +193,7 @@
           {% endfor %}
       become: true
       no_log: true
-      when: _jellyfin_password_new or _bazarr_key_new
+      when: _jellyfin_password_new or _bazarr_key_new or _sabnzbd_key_new
 
   tasks:
 
@@ -325,6 +356,115 @@
       retries: 40
       delay: 10
 
+    - name: Wait for SABnzbd
+      ansible.builtin.uri:
+        url: "{{ sabnzbd_url }}"
+        status_code: [200, 301, 302, 401, 403]
+      register: sabnzbd_status
+      until: sabnzbd_status.status in [200, 301, 302, 401, 403]
+      retries: 40
+      delay: 10
+
+    # ── Ensure SABnzbd host_whitelist is applied ─────────────────────────────
+    # If SABnzbd started before media.yml wrote the pre-seed config it may
+    # have a config without host_whitelist, causing 403s from Radarr/Sonarr.
+
+    - name: Check SABnzbd host_whitelist config
+      ansible.builtin.shell: grep -c "^url_base = /" /mnt/nas/docker/sabnzbd/sabnzbd.ini || true
+      register: _sabnzbd_whitelist_check
+      changed_when: false
+      become: true
+
+    - name: Stop SABnzbd to apply host_whitelist config
+      ansible.builtin.command: docker stop sabnzbd
+      become: true
+      changed_when: true
+      when: _sabnzbd_whitelist_check.stdout | int == 0
+
+    - name: Force-write SABnzbd ini with host_whitelist
+      ansible.builtin.copy:
+        dest: /mnt/nas/docker/sabnzbd/sabnzbd.ini
+        force: true
+        content: |
+          [misc]
+          host = 0.0.0.0
+          port = 8080
+          api_key = {{ sabnzbd_api_key }}
+          nzb_key = {{ sabnzbd_api_key }}
+          download_dir = /data/downloads/incomplete
+          complete_dir = /data/downloads/complete
+          dirscan_dir =
+          script_dir =
+          nzb_backup_dir =
+          log_dir = /config/logs
+          admin_dir = /config/admin
+          bandwidth_perc = 100
+          pre_check = 0
+          enable_https = 0
+          username =
+          password =
+          url_base = /
+          host_whitelist = sabnzbd,sabnzbd:8080,sabnzbd.home,localhost,127.0.0.1
+          local_ranges = 172.16.0.0/12,192.168.0.0/16
+
+          [servers]
+          {% for server in sabnzbd_servers %}
+          [[{{ server.name }}]]
+          name = {{ server.name }}
+          host = {{ server.host }}
+          port = {{ server.port }}
+          ssl = {{ server.ssl }}
+          ssl_verify = 2
+          username = {{ lookup('vars', server.username_var | lower, default='') }}
+          password = {{ lookup('vars', server.password_var | lower, default='') }}
+          connections = {{ server.connections }}
+          enable = 1
+          required = 0
+          optional = 0
+          retention = 0
+          priority = {{ server.priority }}
+          expire_date =
+          quota =
+          usage_at_start =
+          {% endfor %}
+
+          [categories]
+          [[tv]]
+          name = tv
+          order = 0
+          pp = 3
+          script = Default
+          dir = tv
+          newzbin =
+          priority = 0
+
+          [[movies]]
+          name = movies
+          order = 1
+          pp = 3
+          script = Default
+          dir = movies
+          newzbin =
+          priority = 0
+      become: true
+      when: _sabnzbd_whitelist_check.stdout | int == 0
+
+    - name: Start SABnzbd after config update
+      ansible.builtin.command: docker start sabnzbd
+      become: true
+      changed_when: true
+      when: _sabnzbd_whitelist_check.stdout | int == 0
+
+    - name: Wait for SABnzbd after restart
+      ansible.builtin.uri:
+        url: "{{ sabnzbd_url }}"
+        status_code: [200, 301, 302, 401, 403]
+      register: sabnzbd_restart_status
+      until: sabnzbd_restart_status.status in [200, 301, 302, 401, 403]
+      retries: 30
+      delay: 5
+      when: _sabnzbd_whitelist_check.stdout | int == 0
+
     - name: Wait for Jellyfin
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/health"
@@ -476,6 +616,32 @@
       become: true
       no_log: true
       when: _radarr_key_new or _sonarr_key_new or _prowlarr_key_new
+
+    # ── Block 2.5: Jellyfin encoding config ─────────────────────────────────
+
+    - name: Create Jellyfin config directory on NFS
+      ansible.builtin.file:
+        path: /mnt/nas/docker/jellyfin/config
+        state: directory
+      become: true
+
+    - name: Deploy Jellyfin encoding.xml
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../services/machamp-services/config/jellyfin-encoding.xml"
+        dest: /mnt/nas/docker/jellyfin/config/encoding.xml
+        owner: root
+        group: root
+        mode: "0644"
+      become: true
+      register: _jellyfin_encoding_xml
+
+    - name: Restart Jellyfin if encoding.xml changed
+      community.docker.docker_container:
+        name: jellyfin
+        state: started
+        restart: true
+      when: _jellyfin_encoding_xml.changed
+      become: true
 
     # ── Block 3: Jellyfin startup wizard ────────────────────────────────────
     # In Jellyfin 10.11+, POST /Startup/User was removed. The wizard auto-
@@ -697,21 +863,11 @@
       no_log: true
       when: _jf_recovery_auth is not skipped and _jf_recovery_keys is not skipped
 
-    - name: Push recovered Jellyfin API key to Infisical
-      ansible.builtin.uri:
-        url: "{{ infisical_host }}/api/v3/secrets/raw/JELLYFIN_API_KEY"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
-        body_format: json
-        body:
-          workspaceId: "{{ _inf_project_id }}"
-          environment: "{{ _inf_environment }}"
-          secretPath: "/"
-          secretValue: "{{ jellyfin_api_key }}"
-          type: shared
-        status_code: [200, 201]
-      no_log: true
+    - name: Upsert recovered JELLYFIN_API_KEY in Infisical
+      ansible.builtin.include_tasks: tasks/infisical-upsert.yml
+      vars:
+        _inf_upsert_name: JELLYFIN_API_KEY
+        _inf_upsert_value: "{{ jellyfin_api_key }}"
       when: _jf_recovery_auth is not skipped and jellyfin_api_key != ''
 
     # ── Block 3.5: Jellyfin SSO plugin (jellyfin-plugin-sso) ────────────────
@@ -849,6 +1005,228 @@
              or ('admins' not in (_sso_config_current.json.OidConfigs.authentik.Roles | default([])))
              or (_sso_config_current.json.OidConfigs.authentik.RoleClaim | default('')) != 'groups'
              or (_sso_config_current.json.OidConfigs.authentik.OidClientId | default('')) != _jf_oidc_client_id)
+
+    # ── Block 3b.5: Jellyfin encoding settings ───────────────────────────────
+
+    - name: Get Jellyfin encoding configuration
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/System/Configuration/Encoding"
+        headers:
+          Authorization: 'MediaBrowser Token="{{ jellyfin_api_key }}"'
+        return_content: true
+      register: _jf_encoding_config
+      when: jellyfin_api_key != ''
+
+    - name: Enable tonemapping in Jellyfin
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/System/Configuration/Encoding"
+        method: POST
+        headers:
+          Authorization: 'MediaBrowser Token="{{ jellyfin_api_key }}"'
+        body_format: json
+        body: "{{ _jf_encoding_config.json | combine({'EnableTonemapping': true}) }}"
+        status_code: [200, 204]
+      register: _jf_tonemapping_set
+      when:
+        - jellyfin_api_key != ''
+        - _jf_encoding_config is not skipped
+        - not _jf_encoding_config.json.EnableTonemapping
+
+    - name: Restart Jellyfin to persist tonemapping setting
+      community.docker.docker_container:
+        name: jellyfin
+        state: started
+        restart: true
+      become: true
+      when: _jf_tonemapping_set is not skipped and _jf_tonemapping_set is changed
+
+    # ── Block 3c: Jellyfin media libraries ──────────────────────────────────
+
+    - name: Get existing Jellyfin libraries
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Library/VirtualFolders"
+        headers:
+          Authorization: 'MediaBrowser Token="{{ jellyfin_api_key }}"'
+        status_code: 200
+      register: _jf_libraries
+      when: jellyfin_api_key != ''
+
+    - name: Create Jellyfin libraries
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/Library/VirtualFolders?collectionType={{ item.collection_type }}&name={{ item.name | urlencode }}&refreshLibrary=true"
+        method: POST
+        headers:
+          Authorization: 'MediaBrowser Token="{{ jellyfin_api_key }}"'
+        body_format: json
+        body:
+          LibraryOptions:
+            EnableRealtimeMonitor: true
+            PathInfos:
+              - Path: "{{ item.path }}"
+        status_code: [200, 204]
+      loop: "{{ jellyfin_libraries }}"
+      when:
+        - jellyfin_api_key != ''
+        - _jf_libraries.json | selectattr('Name', 'equalto', item.name) | list | length == 0
+
+    # ── Block 3d: Bazarr — sync API key and enable subtitle providers ────────
+
+    - name: Read Bazarr API key from config.yaml
+      ansible.builtin.shell: >-
+        python3 -c "import yaml; d=yaml.safe_load(open('/mnt/nas/docker/bazarr/config/config.yaml')); print(d.get('auth',{}).get('apikey',''))"
+      register: _bazarr_key_file
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Sync Bazarr API key from config.yaml into fact
+      ansible.builtin.set_fact:
+        bazarr_api_key: "{{ _bazarr_key_file.stdout | trim }}"
+      when: (_bazarr_key_file.stdout | trim) != ''
+
+    - name: Upsert BAZARR_API_KEY in Infisical
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/infisical-upsert.yml"
+      vars:
+        _inf_upsert_name: BAZARR_API_KEY
+        _inf_upsert_value: "{{ bazarr_api_key }}"
+      when: bazarr_api_key != ''
+
+    - name: Update BAZARR_API_KEY in /etc/homelab.env
+      ansible.builtin.lineinfile:
+        path: /etc/homelab.env
+        regexp: '^BAZARR_API_KEY='
+        line: "BAZARR_API_KEY={{ bazarr_api_key }}"
+      become: true
+      when:
+        - bazarr_api_key != ''
+        - bazarr_api_key != ((_env | regex_search('(?m)^BAZARR_API_KEY=(.+)$', '\\1') or ['']) | first)
+
+    - name: Get current Bazarr enabled providers
+      ansible.builtin.uri:
+        url: "{{ bazarr_url }}/api/system/settings"
+        headers:
+          X-Api-Key: "{{ bazarr_api_key }}"
+        status_code: 200
+      register: _bazarr_settings
+      when: bazarr_api_key != ''
+
+    - name: Patch Bazarr config.yaml with current API keys and providers
+      ansible.builtin.shell: |
+        python3 << 'EOF'
+        import yaml
+
+        with open('/mnt/nas/docker/bazarr/config/config.yaml') as f:
+            cfg = yaml.safe_load(f)
+
+        changed = False
+
+        desired_providers = {{ bazarr_providers | to_json }}
+        if sorted(cfg.get('general', {}).get('enabled_providers', [])) != sorted(desired_providers):
+            cfg.setdefault('general', {})['enabled_providers'] = desired_providers
+            changed = True
+
+        if cfg.get('sonarr', {}).get('apikey') != '{{ sonarr_api_key }}':
+            cfg.setdefault('sonarr', {})['apikey'] = '{{ sonarr_api_key }}'
+            changed = True
+
+        if cfg.get('radarr', {}).get('apikey') != '{{ radarr_api_key }}':
+            cfg.setdefault('radarr', {})['apikey'] = '{{ radarr_api_key }}'
+            changed = True
+
+        if changed:
+            with open('/mnt/nas/docker/bazarr/config/config.yaml', 'w') as f:
+                yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
+            print('changed')
+        else:
+            print('ok')
+        EOF
+      register: _bazarr_config_patch
+      changed_when: _bazarr_config_patch.stdout | trim == 'changed'
+      become: true
+      when:
+        - bazarr_api_key != ''
+        - sonarr_api_key != ''
+        - radarr_api_key != ''
+
+    - name: Get Bazarr language profiles
+      ansible.builtin.uri:
+        url: "{{ bazarr_url }}/api/system/languages/profiles"
+        headers:
+          X-Api-Key: "{{ bazarr_api_key }}"
+        return_content: true
+      register: _bazarr_lang_profiles
+      when: bazarr_api_key != ''
+
+    - name: Create Bazarr language profile — English
+      ansible.builtin.uri:
+        url: "{{ bazarr_url }}/api/system/settings"
+        method: POST
+        headers:
+          X-Api-Key: "{{ bazarr_api_key }}"
+          Content-Type: "application/x-www-form-urlencoded"
+        body: "languages-profiles={{ [{'profileId': 1, 'name': 'English', 'cutoff': 1, 'items': [{'id': 1, 'language': 'en', 'hi': 'False', 'forced': 'False', 'audio_exclude': 'False', 'audio_only_include': 'False'}], 'mustContain': '[]', 'mustNotContain': '[]', 'originalFormat': none, 'tag': none}] | to_json | urlencode }}"
+        status_code: [200, 204]
+      register: _bazarr_profile_create
+      when:
+        - bazarr_api_key != ''
+        - _bazarr_lang_profiles is not skipped
+        - (_bazarr_lang_profiles.content | from_json) | selectattr('name', 'equalto', 'English') | list | length == 0
+
+    - name: Get Bazarr language profiles (after possible creation)
+      ansible.builtin.uri:
+        url: "{{ bazarr_url }}/api/system/languages/profiles"
+        headers:
+          X-Api-Key: "{{ bazarr_api_key }}"
+        return_content: true
+      register: _bazarr_lang_profiles_current
+      when: bazarr_api_key != ''
+
+    - name: Patch Bazarr config.yaml — set default language profile
+      ansible.builtin.shell: |
+        python3 << 'EOF'
+        import yaml, json
+
+        with open('/mnt/nas/docker/bazarr/config/config.yaml') as f:
+            cfg = yaml.safe_load(f)
+
+        profiles = json.loads({{ _bazarr_lang_profiles_current.content | to_json }})
+        profile = next((p for p in profiles if p['name'] == 'English'), None)
+        if not profile:
+            print('ok')
+            exit(0)
+
+        profile_id = str(profile['profileId'])
+        changed = False
+
+        for key in ('serie_default_profile', 'movie_default_profile'):
+            if str(cfg.get('general', {}).get(key, '')) != profile_id:
+                cfg.setdefault('general', {})[key] = profile_id
+                changed = True
+
+        for key in ('serie_default_enabled', 'movie_default_enabled'):
+            if not cfg.get('general', {}).get(key):
+                cfg.setdefault('general', {})[key] = True
+                changed = True
+
+        if changed:
+            with open('/mnt/nas/docker/bazarr/config/config.yaml', 'w') as f:
+                yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
+            print('changed')
+        else:
+            print('ok')
+        EOF
+      register: _bazarr_profile_patch
+      changed_when: _bazarr_profile_patch.stdout | trim == 'changed'
+      become: true
+      when:
+        - bazarr_api_key != ''
+        - _bazarr_lang_profiles_current is not skipped
+
+    - name: Restart Bazarr to apply config changes
+      ansible.builtin.command: docker restart bazarr
+      become: true
+      changed_when: true
+      when: _bazarr_config_patch is changed or _bazarr_profile_patch is changed
 
     # ── Block 4: Volume migration — Radarr ──────────────────────────────────
 
@@ -996,6 +1374,89 @@
         status_code: 201
       when: prowlarr_apps.json | selectattr('name', 'equalto', 'Sonarr') | list | length == 0
 
+    # ── Block 6b: Prowlarr — add indexers from vars/prowlarr_indexers.yml ──────
+
+    - name: Get existing Prowlarr indexers
+      ansible.builtin.uri:
+        url: "{{ prowlarr_url }}/api/v1/indexer"
+        headers:
+          X-Api-Key: "{{ prowlarr_api_key }}"
+        return_content: true
+      register: _prowlarr_existing_indexers
+
+    - name: Add Newznab (usenet) indexers to Prowlarr
+      ansible.builtin.uri:
+        url: "{{ prowlarr_url }}/api/v1/indexer"
+        method: POST
+        headers:
+          X-Api-Key: "{{ prowlarr_api_key }}"
+        body_format: json
+        body:
+          name: "{{ item.name }}"
+          enable: true
+          appProfileId: 1
+          priority: 25
+          redirect: true
+          supportsRss: true
+          supportsSearch: true
+          implementationName: Newznab
+          implementation: Newznab
+          configContract: NewznabSettings
+          privacy: "{{ item.privacy | default('private') }}"
+          fields:
+            - name: baseUrl
+              value: "{{ item.url }}"
+            - name: apiPath
+              value: /api
+            - name: apiKey
+              value: "{{ lookup('vars', item.api_key_var | lower, default='') }}"
+            - name: categories
+              value: "{{ item.categories }}"
+        status_code: 201
+      loop: "{{ prowlarr_indexers | selectattr('protocol', 'equalto', 'usenet') | list }}"
+      when: >
+        (lookup('vars', item.api_key_var | lower, default='')) not in ['', 'REPLACE_ME']
+        and _prowlarr_existing_indexers.json | selectattr('name', 'equalto', item.name) | list | length == 0
+
+    - name: Fetch Prowlarr indexer schema for native torrent indexers
+      ansible.builtin.uri:
+        url: "{{ prowlarr_url }}/api/v1/indexer/schema"
+        headers:
+          X-Api-Key: "{{ prowlarr_api_key }}"
+        return_content: true
+      register: _prowlarr_schema
+      when: prowlarr_indexers | selectattr('protocol', 'equalto', 'torrent') | list | length > 0
+
+    - name: Add native torrent indexers to Prowlarr
+      ansible.builtin.uri:
+        url: "{{ prowlarr_url }}/api/v1/indexer"
+        method: POST
+        headers:
+          X-Api-Key: "{{ prowlarr_api_key }}"
+        body_format: json
+        body: >-
+          {{ _schema_entry | combine({
+               'name': item.name,
+               'enable': true,
+               'appProfileId': 1,
+               'priority': 25,
+               'privacy': item.privacy | default('public'),
+               'fields': _schema_entry.fields
+                         | rejectattr('name', 'equalto', 'baseUrl') | list
+                         + [{'name': 'baseUrl', 'value': item.url}]
+             }) }}
+        status_code: 201
+      vars:
+        _schema_entry: >-
+          {{ _prowlarr_schema.json
+             | selectattr('name', 'equalto', item.name)
+             | list | first }}
+      loop: "{{ prowlarr_indexers | selectattr('protocol', 'equalto', 'torrent') | list }}"
+      when: >
+        _prowlarr_schema is not skipped
+        and (_prowlarr_schema.json | selectattr('name', 'equalto', item.name) | list | length > 0)
+        and _prowlarr_existing_indexers.json | selectattr('name', 'equalto', item.name) | list | length == 0
+
     # ── Block 7: Radarr — add qBittorrent download client ───────────────────
 
     - name: Get existing Radarr download clients
@@ -1036,6 +1497,36 @@
         status_code: 201
       when: radarr_dlclients_check.json | selectattr('name', 'equalto', 'qBittorrent') | list | length == 0
 
+    - name: Add SABnzbd to Radarr
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/downloadclient"
+        method: POST
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        body_format: json
+        body:
+          name: SABnzbd
+          enable: true
+          protocol: usenet
+          priority: 1
+          implementation: Sabnzbd
+          configContract: SabnzbdSettings
+          fields:
+            - name: host
+              value: sabnzbd
+            - name: port
+              value: 8080
+            - name: apiKey
+              value: "{{ sabnzbd_api_key }}"
+            - name: movieCategory
+              value: movies
+            - name: recentMoviePriority
+              value: -100
+            - name: olderMoviePriority
+              value: -100
+        status_code: 201
+      when: radarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list | length == 0
+
     # ── Block 8: Sonarr — add qBittorrent download client ───────────────────
 
     - name: Get existing Sonarr download clients
@@ -1075,6 +1566,36 @@
               value: 0
         status_code: 201
       when: sonarr_dlclients_check.json | selectattr('name', 'equalto', 'qBittorrent') | list | length == 0
+
+    - name: Add SABnzbd to Sonarr
+      ansible.builtin.uri:
+        url: "{{ sonarr_url }}/api/v3/downloadclient"
+        method: POST
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        body_format: json
+        body:
+          name: SABnzbd
+          enable: true
+          protocol: usenet
+          priority: 1
+          implementation: Sabnzbd
+          configContract: SabnzbdSettings
+          fields:
+            - name: host
+              value: sabnzbd
+            - name: port
+              value: 8080
+            - name: apiKey
+              value: "{{ sabnzbd_api_key }}"
+            - name: tvCategory
+              value: tv
+            - name: recentTvPriority
+              value: -100
+            - name: olderTvPriority
+              value: -100
+        status_code: 201
+      when: sonarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list | length == 0
 
     # ── Block 9: Seerr initialization and configuration ─────────────────
     # Seerr's POST /api/v1/auth/jellyfin calls GET /Users without a token.
@@ -1432,8 +1953,8 @@
           apiKey: "{{ radarr_api_key }}"
           useSsl: false
           baseUrl: ""
-          activeProfileId: 1
-          activeProfileName: "Any"
+          activeProfileId: "{{ radarr_4k_profile_id | default(1) }}"
+          activeProfileName: "{{ radarr_4k_profile_name | default('Any') }}"
           activeDirectory: /data/movies
           minimumAvailability: released
           is4k: false
@@ -1468,8 +1989,8 @@
           apiKey: "{{ sonarr_api_key }}"
           useSsl: false
           baseUrl: ""
-          activeProfileId: 1
-          activeProfileName: "Any"
+          activeProfileId: "{{ sonarr_web1080p_profile_id | default(1) }}"
+          activeProfileName: "{{ sonarr_web1080p_profile_name | default('Any') }}"
           activeDirectory: /data/tv
           minimumAvailability: released
           enableSeasonFolders: true
@@ -1557,6 +2078,8 @@
       community.docker.docker_container:
         name: recyclarr-init
         image: ghcr.io/recyclarr/recyclarr:7
+        networks:
+          - name: machamp-services_default
         volumes:
           - /tmp/recyclarr-config:/config
         env:
@@ -1565,7 +2088,6 @@
         command: sync
         detach: false
         cleanup: true
-        auto_remove: true
       register: recyclarr_result
       ignore_errors: true
 
@@ -1573,3 +2095,85 @@
       ansible.builtin.debug:
         var: recyclarr_result.container.Output
       when: recyclarr_result is defined
+
+    # ── Block 11: Set default quality profile in Seerr Radarr config ─────────
+
+    - name: Get Radarr quality profiles
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/qualityprofile"
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        return_content: true
+      register: radarr_quality_profiles
+
+    - name: Set Radarr 4K WEB Movies profile facts
+      ansible.builtin.set_fact:
+        radarr_4k_profile_id: "{{ radarr_quality_profiles.json | selectattr('name', 'equalto', '4K WEB Movies') | map(attribute='id') | list | first | default(1) }}"
+        radarr_4k_profile_name: "{{ radarr_quality_profiles.json | selectattr('name', 'equalto', '4K WEB Movies') | map(attribute='name') | list | first | default('Any') }}"
+
+    - name: Get existing Radarr instances in Seerr (for profile update)
+      ansible.builtin.uri:
+        url: "{{ seerr_url }}/api/v1/settings/radarr"
+        headers:
+          X-Api-Key: "{{ seerr_api_key }}"
+        return_content: true
+      register: seerr_radarr_for_update
+      when: seerr_api_key != '' and seerr_api_key != 'placeholder'
+
+    - name: Update Seerr Radarr instance to use 4K WEB Movies profile
+      vars:
+        _instance: "{{ seerr_radarr_for_update.json | selectattr('name', 'equalto', 'Radarr') | list | first | default({}) }}"
+        _body: "{{ _instance | combine({'activeProfileId': radarr_4k_profile_id | int, 'activeProfileName': radarr_4k_profile_name}) | dict2items | rejectattr('key', 'equalto', 'id') | items2dict }}"
+      ansible.builtin.uri:
+        url: "{{ seerr_url }}/api/v1/settings/radarr/{{ _instance.id }}"
+        method: PUT
+        headers:
+          X-Api-Key: "{{ seerr_api_key }}"
+        body_format: json
+        body: "{{ _body }}"
+        status_code: 200
+      when: >
+        seerr_api_key != '' and seerr_api_key != 'placeholder'
+        and seerr_radarr_for_update is not skipped
+        and _instance.id is defined
+        and _instance.activeProfileId | int != radarr_4k_profile_id | int
+
+    - name: Get Sonarr quality profiles
+      ansible.builtin.uri:
+        url: "{{ sonarr_url }}/api/v3/qualityprofile"
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        return_content: true
+      register: sonarr_quality_profiles
+
+    - name: Set Sonarr WEB-1080p profile facts
+      ansible.builtin.set_fact:
+        sonarr_web1080p_profile_id: "{{ sonarr_quality_profiles.json | selectattr('name', 'equalto', 'WEB-1080p') | map(attribute='id') | list | first | default(1) }}"
+        sonarr_web1080p_profile_name: "{{ sonarr_quality_profiles.json | selectattr('name', 'equalto', 'WEB-1080p') | map(attribute='name') | list | first | default('Any') }}"
+
+    - name: Get existing Sonarr instances in Seerr (for profile update)
+      ansible.builtin.uri:
+        url: "{{ seerr_url }}/api/v1/settings/sonarr"
+        headers:
+          X-Api-Key: "{{ seerr_api_key }}"
+        return_content: true
+      register: seerr_sonarr_for_update
+      when: seerr_api_key != '' and seerr_api_key != 'placeholder'
+
+    - name: Update Seerr Sonarr instance to use WEB-1080p profile
+      vars:
+        _instance: "{{ seerr_sonarr_for_update.json | selectattr('name', 'equalto', 'Sonarr') | list | first | default({}) }}"
+        _body: "{{ _instance | combine({'activeProfileId': sonarr_web1080p_profile_id | int, 'activeProfileName': sonarr_web1080p_profile_name}) | dict2items | rejectattr('key', 'equalto', 'id') | items2dict }}"
+      ansible.builtin.uri:
+        url: "{{ seerr_url }}/api/v1/settings/sonarr/{{ _instance.id }}"
+        method: PUT
+        headers:
+          X-Api-Key: "{{ seerr_api_key }}"
+        body_format: json
+        body: "{{ _body }}"
+        status_code: 200
+      when: >
+        seerr_api_key != '' and seerr_api_key != 'placeholder'
+        and seerr_sonarr_for_update is not skipped
+        and _instance.id is defined
+        and _instance.activeProfileId | int != sonarr_web1080p_profile_id | int

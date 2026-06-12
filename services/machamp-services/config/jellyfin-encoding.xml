@@ -24,6 +24,7 @@
   <DeinterlaceMethod>yadif</DeinterlaceMethod>
   <EnableDeinterlacing>false</EnableDeinterlacing>
   <EnableMpegtsM2TsMode>false</EnableMpegtsM2TsMode>
+  <EnableTonemapping>true</EnableTonemapping>
   <TonemappingAlgorithm>bt2390</TonemappingAlgorithm>
   <TonemappingMode>auto</TonemappingMode>
   <TonemappingRange>auto</TonemappingRange>

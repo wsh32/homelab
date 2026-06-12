@@ -1,0 +1,21 @@
+# Bazarr subtitle providers to enable.
+# To add a provider: append the slug and re-run arr-init.yml.
+#
+# No-account providers (no credentials required):
+#   embeddedsubtitles — reads subtitles already embedded in the media file
+#   podnapisi         — podnapisi.net, good general coverage
+#   tvsubtitles       — tvsubtitles.net, good for TV shows
+#   yifysubtitles     — yifysubtitles.ch, good for movies
+#   subf2m            — subf2m.co, good general coverage
+#   subsource         — subsource.net, good general coverage
+#
+# Account-required providers (add credentials to secrets.yml + Infisical):
+#   opensubtitlescom  — best overall coverage, free account at opensubtitles.com
+
+bazarr_providers:
+  - embeddedsubtitles
+  - podnapisi
+  - tvsubtitles
+  - yifysubtitles
+  - subf2m
+  - subsource

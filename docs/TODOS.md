@@ -194,7 +194,26 @@ this.
 
 ---
 
-## Break-glass Procedure
+## Radarr/Sonarr Quality Profiles
+
+**What:** Configure quality profiles via the arr API in `arr-init.yml` instead of manually through the UI.
+
+**Desired settings:**
+- **Movies (Radarr):** cutoff WEB-2160p, allow up to 4K WEB/Bluray, exclude Remux, max size ~50 GB for 4K / ~15 GB for 1080p
+- **TV (Sonarr):** cutoff WEB-1080p, allow up to 1080p WEB/Bluray, exclude Remux, max size ~4 GB per episode
+
+**Work:**
+1. Fetch the default quality profile from Radarr/Sonarr to get quality IDs (`GET /api/v3/qualityprofile/1`)
+2. Add a `PUT /api/v3/qualityprofile/{{ id }}` task in `arr-init.yml` with the desired `items` (allowed/disallowed) and `cutoff`
+3. Drive size limits via `minSize`/`maxSize` on each quality item
+
+**Notes:**
+- Quality IDs are stable per Radarr version but should be fetched dynamically to be safe
+- Remux IDs to disable: Remux-1080p (id varies), Remux-2160p
+
+---
+
+
 
 **What:** Document and maintain an offline copy of critical credentials
 outside the homelab.
