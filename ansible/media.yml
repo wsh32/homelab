@@ -178,7 +178,7 @@
 
     - name: Create SABnzbd config directory on NFS
       ansible.builtin.file:
-        path: /mnt/nas/docker/sabnzbd/config
+        path: /mnt/nas/docker/sabnzbd
         state: directory
       become: true
 
@@ -206,7 +206,7 @@
 
     - name: Pre-seed SABnzbd sabnzbd.ini (skips if already exists)
       ansible.builtin.copy:
-        dest: /mnt/nas/docker/sabnzbd/config/sabnzbd.ini
+        dest: /mnt/nas/docker/sabnzbd/sabnzbd.ini
         force: false
         content: |
           [misc]
