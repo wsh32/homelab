@@ -1951,3 +1951,34 @@
       ansible.builtin.debug:
         var: recyclarr_result.container.Output
       when: recyclarr_result is defined
+
+    # ── Block 11: Set default quality profiles ────────────────────────────────
+
+    - name: Get Radarr quality profiles
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/qualityprofile"
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        return_content: true
+      register: radarr_quality_profiles
+
+    - name: Get Radarr UI config
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/config/ui"
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        return_content: true
+      register: radarr_ui_config
+
+    - name: Set Radarr default quality profile to 4K WEB Movies
+      vars:
+        _profile_id: "{{ radarr_quality_profiles.json | selectattr('name', 'equalto', '4K WEB Movies') | map(attribute='id') | list | first | default('') }}"
+      ansible.builtin.uri:
+        url: "{{ radarr_url }}/api/v3/config/ui"
+        method: PUT
+        headers:
+          X-Api-Key: "{{ radarr_api_key }}"
+        body_format: json
+        body: "{{ radarr_ui_config.json | combine({'defaultQualityProfileId': _profile_id | int}) }}"
+        status_code: 202
+      when: _profile_id != ''
