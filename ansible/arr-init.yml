@@ -1050,7 +1050,7 @@
         body:
           general:
             enabled_providers: "{{ bazarr_providers }}"
-        status_code: 200
+        status_code: [200, 204]
       when:
         - bazarr_api_key != ''
         - _bazarr_settings is not skipped
