@@ -56,6 +56,7 @@ module "dev" {
   cores        = 6
   memory_mb    = 16384
   disk_size_gb = 60
+  swap_size_gb = 2
 
   ip_address         = "${local.vms["machamp-dev"].ip}/24"
   gateway            = local.net.gateway
@@ -72,7 +73,7 @@ module "services" {
   node_name     = local.node
   vm_id         = local.vms["machamp-services"].vm_id
   name          = "machamp-services"
-  description   = "Services VM — Traefik, Jellyfin, Servarr, Monitoring, etc. (Quadro P2200 passthrough)"
+  description   = "Services VM — Jellyfin, Servarr stack, qBittorrent (Quadro P2200 passthrough)"
   tags          = ["machamp", "gpu", "services"]
   image_file_id = proxmox_download_file.ubuntu_2404.id
 

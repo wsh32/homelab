@@ -60,9 +60,9 @@ Root module for Machamp. VM ID range 100–199, IP range `192.168.0.30–49`.
 
 **`main.tf`** — Defines:
 - `proxmox_virtual_environment_download_file.ubuntu_2404` — downloads the Ubuntu 24.04 cloud image once.
-- `module.services` — `machamp-services` VM (VM 100, `192.168.0.30`, 8 cores, 32GB): all Docker Compose services, Traefik reverse proxy, Quadro P2200 for Jellyfin transcoding. hostpci block pending.
+- `module.services` — `machamp-services` VM (VM 100, `192.168.0.30`, 8 cores, 32GB): media services stack (Jellyfin, Servarr, qBittorrent). Quadro P2200 passthrough for Jellyfin transcoding.
 - `module.dev` — `machamp-dev` VM (VM 101, `192.168.0.31`, 6 cores, 16GB): personal development workstation.
-- `module.infra` — `machamp-infra` VM (VM 102, `192.168.0.32`, 4 cores, 12GB): Infisical + Vaultwarden + Authentik + Litestream.
+- `module.infra` — `machamp-infra` VM (VM 102, `192.168.0.32`, 4 cores, 12GB): Traefik, step-ca, Infisical, Vaultwarden, Authentik, Litestream.
 
 ---
 
@@ -72,7 +72,7 @@ Docker Compose stack for the `diglett-dns` VM.
 
 **`docker-compose.yml`** — AdGuard Home, `network_mode: host` (needs port 53 on host IP).
 
-**`adguard/AdGuardHome.yaml`** — Pre-seeded config. AdGuard detects a valid config on startup and skips the setup wizard entirely. Contains: bcrypt admin password hash (plaintext in Vaultwarden), upstream DNS (8.8.8.8 / 8.8.4.4), DNS rewrites (`*.wsh` CNAME → `machamp-services.ts.home`, `*.home` A → `192.168.0.30`), and default blocklists.
+**`adguard/AdGuardHome.yaml`** — Pre-seeded config. AdGuard detects a valid config on startup and skips the setup wizard entirely. Contains: bcrypt admin password hash (plaintext in Vaultwarden), upstream DNS (8.8.8.8 / 8.8.4.4), DNS rewrites (`*.wsh` CNAME → `machamp-infra.ts.home`, `*.home` A → `192.168.0.32`), and default blocklists.
 
 ---
 
@@ -80,7 +80,11 @@ Docker Compose stack for the `diglett-dns` VM.
 
 Docker Compose stack for the `machamp-infra` VM.
 
-**`docker-compose.yml`** — Infisical (+ MongoDB + Redis), Vaultwarden, Authentik (+ PostgreSQL + Redis), and a Litestream sidecar that continuously streams the Vaultwarden SQLite WAL to Alakazam NFS. Infisical's MongoDB and Authentik's PostgreSQL run on local VM disk (not NFS) to avoid soft-mount corruption; both are backed up every 6 hours to Alakazam NFS.
+**`docker-compose.yml`** — Traefik (reverse proxy; ports 80/443), step-ca (local CA for `*.wsh` TLS), Infisical (+ shared PostgreSQL + shared Redis), Vaultwarden, Authentik (+ shared PostgreSQL + shared Redis), and a Litestream sidecar that continuously streams the Vaultwarden SQLite WAL to Alakazam NFS. PostgreSQL runs a single instance with separate databases for Infisical and Authentik; same for Redis (separate logical DBs). Both run on local VM disk (not NFS) to avoid soft-mount corruption; PostgreSQL is backed up daily to Alakazam NFS via `pg_dumpall`.
+
+**`traefik/traefik.yml`** — Static Traefik config: entrypoints (`web` 80, `websecure` 443), Docker provider, file provider pointing at `dynamic/`, and `step` ACME cert resolver pointing at step-ca.
+
+**`traefik/dynamic/services-vm.yml`** — File-provider routes for services running on other VMs. Defines external backends by LAN IP:port for all services not co-located with Traefik (Jellyfin, Servarr, Diglett services, etc.).
 
 **`litestream.yml`** — Litestream replica config: streams `/var/lib/vaultwarden/db.sqlite3` to `/mnt/nas/docker/vaultwarden-backup/`.
 
@@ -98,32 +102,18 @@ Not yet created.
 
 Docker Compose stack for the `machamp-services` VM. This is the main services stack.
 
-**`docker-compose.yml`** — All services:
-- **Traefik** — reverse proxy; two entrypoints: `web` (80, `*.home`) and `websecure` (443, `*.wsh`)
-- **step-ca** — local CA; Traefik uses it as the ACME endpoint for `*.wsh` TLS certs
-- **Jellyfin** — media server; `/dev/dri` passthrough for Quadro P2200 transcoding
+**`docker-compose.yml`** — Media services stack:
+- **Jellyfin** — media server; Quadro P2200 NVIDIA runtime for hardware transcoding
 - **Prowlarr, Radarr, Sonarr** — Servarr stack
-- **PhotoPrism** — photo archive
-- **Calibre-Web** — ebook server
-- **n8n** — automation workflows
-- **CouchDB + couchdb-init** — Obsidian LiveSync backend; init container runs `couchdb-init.sh`
-- **Quartz** — read-only Obsidian vault web publishing
-- **Homepage** — service dashboard
-- **Prometheus, Grafana, Loki, Promtail** — metrics and log aggregation
-
-**`traefik/traefik.yml`** — Static Traefik config: entrypoints, Docker provider, file provider pointing at `dynamic/`, and `step` ACME cert resolver.
-
-**`traefik/dynamic/infra-services.yml`** — Static Traefik routes for `machamp-infra` services (Infisical, Vaultwarden, Authentik). Since those containers run on `machamp-infra` (not in Docker on `machamp-services`), they're external backends pointing at `192.168.0.32`.
+- **Gluetun** — VPN gateway sidecar
+- **qBittorrent** — torrent client; routed through Gluetun
+- **Bazarr** — subtitle management
+- **Seerr** — media request frontend (formerly Jellyseerr)
+- **Unpackerr** — post-download archive extraction
 
 **`config/radarr.xml`, `sonarr.xml`, `prowlarr.xml`** — Pre-seeded config files mounted read-only into each container. API keys use `${RADARR_API_KEY}` etc., sourced from Infisical at boot via `.env`.
 
-**`couchdb-init.sh`** — Runs as a one-shot init container: waits for CouchDB, runs `/_cluster_setup`, creates the `obsidian` database, and sets CORS headers for Obsidian LiveSync clients.
-
-**`prometheus/prometheus.yml`** — Prometheus scrape config; lists all VMs as node_exporter targets.
-
-**`loki/loki.yml`** — Loki local storage config.
-
-**`loki/promtail.yml`** — Promtail config; scrapes Docker container logs via the Docker socket.
+**`config/jellyfin-encoding.xml`** — Pre-seeded Jellyfin encoding config enabling NVENC/NVDEC hardware transcoding.
 
 **`.env.example`** — Documents all env vars this stack expects from Infisical.
 

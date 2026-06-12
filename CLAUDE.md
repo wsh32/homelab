@@ -18,7 +18,7 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
 - **VM IDs**: Diglett VMs use 200–299, Machamp VMs use 100–199.
 - **IP addresses**: physical nodes use 192.168.0.4–19 (`.7` = alakazam-deploy), diglett-dns VM is special-cased at `.2`, Diglett VMs use 192.168.0.21–29, Machamp VMs use 192.168.0.30–49.
 - **Docker Compose**: persistent data always mounts to `/mnt/nas/<dataset>/<service>` (Alakazam NFS). Never use named volumes for stateful data — it must survive VM recreation.
-- **Traefik routing**: each service gets `.home` routers only (LAN). `.wsh` Tailscale routing is planned but not yet active — see TODOS.md. See DNS Architecture in `docs/plan.md` for the full two-domain design.
+- **Traefik routing**: Traefik runs on `machamp-infra` (192.168.0.32). Services co-located on machamp-infra use Docker Compose labels. Services on other VMs are declared as external backends in `services/machamp-infra/traefik/dynamic/services-vm.yml`. `.wsh` Tailscale routing is planned but not yet active — see TODOS.md. Current label pattern for co-located services:
   ```yaml
   - "traefik.http.routers.<name>-home.rule=Host(`<name>.home`)"
   - "traefik.http.routers.<name>-home.entrypoints=web"
@@ -68,7 +68,7 @@ Before suggesting or implementing any step that requires manual web UI interacti
 
 - **Pre-seeded config files**: write config files to the NFS volume before the container starts (e.g. `qBittorrent.conf`, `config.ini`, `encoding.xml`)
 - **REST API / `uri` module**: most services expose an API — use it from Ansible with idempotent check-then-write patterns
-- **Direct database writes**: if an app's setup API endpoint is broken or incompatible (e.g. Jellyseerr's `POST /api/v1/auth/jellyfin` requiring unauthenticated Jellyfin access), write directly to the service's SQLite or config files, then restart the container
+- **Direct database writes**: if an app's setup API endpoint is broken or incompatible (e.g. Seerr's `POST /api/v1/auth/jellyfin` requiring unauthenticated Jellyfin access), write directly to the service's SQLite or config files, then restart the container
 - **Environment variables**: many services accept first-boot config via env vars; prefer these over post-start API calls where available
 - **Init containers / one-shot tasks**: use `community.docker.docker_container` with `detach: false` and `cleanup: true` for one-shot setup commands (e.g. Recyclarr)
 

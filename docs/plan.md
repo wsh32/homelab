@@ -67,19 +67,19 @@ Two domains serve different audiences without subnet routing or internet exposur
 
 | Domain | Path | DNS resolution | Protocol | Audience |
 |--------|------|----------------|----------|----------|
-| `*.wsh` | Tailscale | AdGuard CNAME → `machamp-services.ts.home` | HTTPS (step-ca TLS) | Personal devices on Tailscale |
-| `*.home` | LAN | AdGuard A → `192.168.0.30` | HTTP | Any LAN device (including guests) |
+| `*.wsh` | Tailscale | AdGuard CNAME → `machamp-infra.ts.home` | HTTPS (step-ca TLS) | Personal devices on Tailscale |
+| `*.home` | LAN | AdGuard A → `192.168.0.32` | HTTP | Any LAN device (including guests) |
 
 **How resolution works:**
 
 - Headscale pushes AdGuard's Tailscale IP as the authoritative resolver for both `.wsh` and
   `.home` to all tailnet members via `dns_config` → `nameservers`.
 - On-tailnet devices query AdGuard over Tailscale. `*.wsh` resolves to
-  `machamp-services.ts.home` (Tailscale MagicDNS), which each node resolves locally from its
-  peer map to the services VM's Tailscale IP. Traefik answers on port 443 with a valid
+  `machamp-infra.ts.home` (Tailscale MagicDNS), which each node resolves locally from its
+  peer map to the infra VM's Tailscale IP. Traefik answers on port 443 with a valid
   step-ca TLS cert.
 - LAN-only devices (guests, IoT) use AdGuard via the LAN IP `192.168.0.2`. `*.home` resolves
-  to `192.168.0.30` directly. Traefik answers on port 80, plain HTTP.
+  to `192.168.0.32` directly. Traefik answers on port 80, plain HTTP.
 - A device on the LAN with Tailscale uses the `*.wsh` path (Tailscale is preferred);
   `*.home` is the fallback for non-Tailscale LAN clients.
 
@@ -181,7 +181,7 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 11. **`terraform apply`** — provisions all remaining VMs. Cloud-init handles Docker
     install and NFS mounts. VMs do not yet have Infisical credentials.
 12. **`INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`** — deploys the
-    machamp-infra stack (Infisical, Vaultwarden, Authentik, PostgreSQL x2, Redis x2, Litestream) and bootstraps
+    machamp-infra stack (Infisical, Vaultwarden, Authentik, shared PostgreSQL, shared Redis, Litestream) and bootstraps
     Infisical on first run (admin user `admin@team.rocket`, org, workspace). Outputs
     `workspace_id`, `client_id`, `client_secret` — add these to `terraform.tfvars`. Idempotent
     on re-run (bootstrap skipped after first successful run).
@@ -281,6 +281,8 @@ On rebuild, restore from the latest vzdump backup via the HAOS UI or `ha` CLI.
 
 | Service | Notes |
 |---------|-------|
+| Traefik | Reverse proxy; two entrypoints: `web` (80, `*.home`) and `websecure` (443, `*.wsh`). Routes cross-VM backends via file provider |
+| step-ca | Local CA; issues wildcard `*.wsh` cert; Traefik ACME uses local step-ca endpoint |
 | Infisical | Machine-consumed secrets: service API keys, inter-service tokens, developer API keys |
 | Vaultwarden | Human-consumed secrets: web UI admin passwords, personal credentials |
 | Authentik | OIDC identity provider; SSO for Grafana, n8n, Headplane, Headscale |
@@ -295,18 +297,13 @@ Authentik provides OIDC SSO for internal services; configure OIDC clients post-d
 
 | Service | Notes |
 |---------|-------|
-| Traefik | Reverse proxy; two entrypoints: `web` (80, `*.home`) and `websecure` (443, `*.wsh`) |
-| step-ca | Local CA; issues wildcard `*.wsh` cert; Traefik ACME uses local step-ca endpoint |
-| Authentik | OIDC identity provider; SSO for headplane and future services |
 | Jellyfin | Media server; GPU transcoding |
 | Servarr stack | Radarr, Sonarr, Prowlarr |
-| PhotoPrism | Photo archive and browsing |
-| Calibre-Web | Ebook server |
-| n8n | Automation workflows |
-| Obsidian LiveSync | CouchDB sync; data on Alakazam NFS |
-| Quartz | Read-only Obsidian vault web publishing; reads vault from Alakazam NFS |
-| Homepage | Service dashboard |
-| Prometheus + Grafana + Loki | Metrics, logs, dashboards |
+| qBittorrent | Torrent client; routes through Gluetun VPN |
+| SABnzbd | Usenet downloader; routes through Gluetun VPN |
+| Bazarr | Subtitle management |
+| Seerr | Media request and discovery frontend (formerly Jellyseerr) |
+| Unpackerr | Post-download archive extraction |
 
 **machamp-dev** (`192.168.0.31`):
 
@@ -321,8 +318,6 @@ persistent data lives on Alakazam NFS, so services redeploy by retargeting Terra
 
 | Service | Notes |
 |---------|-------|
-| Traefik | Reverse proxy; `web` (80, `*.home`) and `websecure` (443, `*.wsh`) |
-| step-ca | Local CA; issues wildcard `*.wsh` cert (migrates with services VM) |
 | Jellyfin | GPU transcoding via P2200 (migrates with services VM) |
 | Servarr stack | Radarr, Sonarr, Prowlarr |
 | PhotoPrism | Photo archive and browsing |
@@ -350,8 +345,8 @@ a valid config on startup and skips the wizard entirely.
 - Admin password stored as bcrypt hash in the config file; plaintext in Vaultwarden
 - Upstream DNS: `8.8.8.8`, `8.8.4.4`
 - DNS rewrites (committed in `AdGuardHome.yaml`):
-  - `*.wsh` → CNAME `machamp-services.ts.home` (Tailscale MagicDNS hostname for the services VM)
-  - `*.home` → A record `192.168.0.30` (services VM LAN IP)
+  - `*.wsh` → CNAME `machamp-infra.ts.home` (Tailscale MagicDNS hostname for the infra VM)
+  - `*.home` → A record `192.168.0.32` (infra VM LAN IP)
 - Headscale pushes the AdGuard VM's Tailscale IP as the DNS resolver for `.wsh` and `.home`
   to all tailnet members via `dns_config` → `nameservers`
 
@@ -437,10 +432,10 @@ All workspaces use a local file backend on an NFS mount from Alakazam.
 
 ## Reverse Proxy
 
-Single Traefik instance on Machamp (services VM at `192.168.0.30`) serves all services across
-all nodes. Diglett-hosted services (Infisical, Vaultwarden) are configured as external backends
-pointing at their local IPs (e.g. `192.168.0.32`). All nodes are on the same LAN so Traefik
-on Machamp reaches them directly.
+Single Traefik instance on `machamp-infra` (`192.168.0.32`) serves all services across
+all nodes. Services on other VMs (e.g. Jellyfin on `machamp-services` at `192.168.0.30`) are
+configured as external backends in the file provider (`services/machamp-infra/traefik/dynamic/services-vm.yml`).
+All nodes are on the same LAN so Traefik on machamp-infra reaches them directly.
 
 Traefik listens on two entrypoints:
 
@@ -449,7 +444,7 @@ Traefik listens on two entrypoints:
 | `web` | 80 | HTTP | `*.home` | LAN devices (including guests without Tailscale) |
 | `websecure` | 443 | HTTPS | `*.wsh` | Tailscale-connected devices; TLS via step-ca local CA |
 
-Each service gets two Docker Compose router labels:
+**Services co-located with Traefik** (on machamp-infra) use Docker Compose labels:
 
 ```yaml
 # Tailscale path — HTTPS, personal devices
@@ -463,9 +458,12 @@ Each service gets two Docker Compose router labels:
 - "traefik.http.services.<name>-svc.loadbalancer.server.port=<port>"
 ```
 
+**Services on other VMs** (e.g. machamp-services) are configured as external backends in
+`services/machamp-infra/traefik/dynamic/services-vm.yml` using the file provider. Routers
+and services point at the VM's LAN IP and port directly.
+
 To restrict a service to Tailscale-only, omit the `-home` router. To restrict to LAN-only,
-omit the `-wsh` router. Both routers share the same backend service, so the same container
-serves both domains.
+omit the `-wsh` router. Both routers share the same backend service.
 
 TLS: Traefik uses a local ACME endpoint (`step` cert resolver) pointing at step-ca.
 step-ca issues a wildcard cert for `*.wsh`. No Let's Encrypt — Let's Encrypt does not issue
@@ -537,7 +535,7 @@ corruption from soft-mount interruptions. Backups go to Alakazam NFS.
 | Service | DB | Backup method | Frequency |
 |---------|----|---------------|-----------|
 | Vaultwarden | SQLite | Litestream — continuous WAL streaming to NFS | Continuous |
-| Infisical | PostgreSQL | `pg_dump` cron → NFS | Every 6 hours |
+| Infisical + Authentik | PostgreSQL | `pg_dumpall` cron → NFS | Daily |
 
 Proxmox vzdump of the Infisical VM provides full disaster recovery (daily).
 
@@ -655,7 +653,7 @@ NUT clients: Machamp, Diglett, Alakazam (shut down gracefully on power loss)
 | Terraform code drift | Acknowledged — code update deferred, plan is source of truth |
 | HAOS provisioning | Terraform provisions VM via qcow2 image download; config restored from Proxmox vzdump backup |
 | Reverse proxy for Diglett services | Single Traefik on Machamp; Diglett services as external backends by local IP |
-| Vaultwarden/Infisical DB location | Local VM disk; Vaultwarden via Litestream (continuous), Infisical via pg_dump every 6h |
+| Vaultwarden/Infisical DB location | Local VM disk; Vaultwarden via Litestream (continuous), shared PostgreSQL (Infisical + Authentik) via pg_dumpall daily |
 | Infisical bootstrap | `ansible/infra.yml` deploys machamp-infra stack and bootstraps Infisical (admin, org, workspace) on first run. Run as: `INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`. Idempotent on re-run. |
 | Infisical role | Single source of truth for all machine-consumed secrets. VMs fetch via `infisical export` at boot using credentials in `/etc/infisical.env`. Service secrets seeded by each service's Ansible role at bring-up time; external API keys added manually. |
 | Vaultwarden role | Human-consumed secrets only (web UI admin passwords). Populated by each service's Ansible role after the service is configured. |
@@ -676,5 +674,5 @@ NUT clients: Machamp, Diglett, Alakazam (shut down gracefully on power loss)
 | Deployment automation | Manual. Operator SSHes to alakazam-deploy and runs `./scripts/deploy.sh`. No webhook, no CI. Simpler and sufficient for a personal homelab. |
 | DNS domain strategy | Two domains: `*.wsh` (Tailscale/HTTPS, personal devices) and `*.home` (LAN/HTTP, guests). Avoids subnet routing; guests can reach services without Tailscale. Single Traefik instance handles both. |
 | TLS for private TLDs | Let's Encrypt does not issue certs for `.wsh` or `.home`. `*.wsh` uses step-ca (local CA, wildcard cert, Traefik ACME). `*.home` is plain HTTP (LAN only, acceptable). |
-| AdGuard DNS rewrites | `*.wsh` CNAME → `machamp-services.ts.home` (MagicDNS). `*.home` A → `192.168.0.30` (LAN IP). Headscale `dns_config` pushes AdGuard's Tailscale IP as resolver for both TLDs to all tailnet members. |
+| AdGuard DNS rewrites | `*.wsh` CNAME → `machamp-infra.ts.home` (MagicDNS). `*.home` A → `192.168.0.32` (LAN IP). Headscale `dns_config` pushes AdGuard's Tailscale IP as resolver for both TLDs to all tailnet members. |
 | Per-service network exposure | Each service defines which domains it exposes via presence/absence of `-wsh` and `-home` Traefik router labels. Default is both. |
