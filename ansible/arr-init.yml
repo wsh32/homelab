@@ -1140,47 +1140,31 @@
 
     - name: Get Bazarr language profiles
       ansible.builtin.uri:
-        url: "{{ bazarr_url }}/api/languageprofiles"
+        url: "{{ bazarr_url }}/api/system/languages/profiles"
         headers:
           X-Api-Key: "{{ bazarr_api_key }}"
         return_content: true
       register: _bazarr_lang_profiles
       when: bazarr_api_key != ''
 
-    - name: Create Bazarr language profile — English + Original
+    - name: Create Bazarr language profile — English
       ansible.builtin.uri:
-        url: "{{ bazarr_url }}/api/languageprofiles"
+        url: "{{ bazarr_url }}/api/system/settings"
         method: POST
         headers:
           X-Api-Key: "{{ bazarr_api_key }}"
-        body_format: json
-        body:
-          name: "English + Original"
-          cutoff: 1
-          items:
-            - id: 1
-              language: en
-              forced: "False"
-              hi: "False"
-              audio_exclude: "False"
-            - id: 2
-              language: original
-              forced: "False"
-              hi: "False"
-              audio_exclude: "False"
-          mustContain: []
-          mustNotContain: []
-          originalFormat: false
-        status_code: 200
+          Content-Type: "application/x-www-form-urlencoded"
+        body: "languages-profiles={{ [{'profileId': 1, 'name': 'English', 'cutoff': 1, 'items': [{'id': 1, 'language': 'en', 'hi': 'False', 'forced': 'False', 'audio_exclude': 'False', 'audio_only_include': 'False'}], 'mustContain': '[]', 'mustNotContain': '[]', 'originalFormat': none, 'tag': none}] | to_json | urlencode }}"
+        status_code: [200, 204]
       register: _bazarr_profile_create
       when:
         - bazarr_api_key != ''
         - _bazarr_lang_profiles is not skipped
-        - (_bazarr_lang_profiles.content | from_json).data | selectattr('name', 'equalto', 'English + Original') | list | length == 0
+        - (_bazarr_lang_profiles.content | from_json) | selectattr('name', 'equalto', 'English') | list | length == 0
 
     - name: Get Bazarr language profiles (after possible creation)
       ansible.builtin.uri:
-        url: "{{ bazarr_url }}/api/languageprofiles"
+        url: "{{ bazarr_url }}/api/system/languages/profiles"
         headers:
           X-Api-Key: "{{ bazarr_api_key }}"
         return_content: true
@@ -1190,13 +1174,13 @@
     - name: Patch Bazarr config.yaml — set default language profile
       ansible.builtin.shell: |
         python3 << 'EOF'
-        import yaml
+        import yaml, json
 
         with open('/mnt/nas/docker/bazarr/config/config.yaml') as f:
             cfg = yaml.safe_load(f)
 
-        profiles = {{ (_bazarr_lang_profiles_current.content | from_json).data | to_json }}
-        profile = next((p for p in profiles if p['name'] == 'English + Original'), None)
+        profiles = json.loads({{ _bazarr_lang_profiles_current.content | to_json }})
+        profile = next((p for p in profiles if p['name'] == 'English'), None)
         if not profile:
             print('ok')
             exit(0)
@@ -1204,21 +1188,15 @@
         profile_id = str(profile['profileId'])
         changed = False
 
-        if str(cfg.get('general', {}).get('serie_default_profile', '')) != profile_id:
-            cfg.setdefault('general', {})['serie_default_profile'] = profile_id
-            changed = True
+        for key in ('serie_default_profile', 'movie_default_profile'):
+            if str(cfg.get('general', {}).get(key, '')) != profile_id:
+                cfg.setdefault('general', {})[key] = profile_id
+                changed = True
 
-        if not cfg.get('general', {}).get('serie_default_enabled'):
-            cfg.setdefault('general', {})['serie_default_enabled'] = True
-            changed = True
-
-        if str(cfg.get('general', {}).get('movie_default_profile', '')) != profile_id:
-            cfg.setdefault('general', {})['movie_default_profile'] = profile_id
-            changed = True
-
-        if not cfg.get('general', {}).get('movie_default_enabled'):
-            cfg.setdefault('general', {})['movie_default_enabled'] = True
-            changed = True
+        for key in ('serie_default_enabled', 'movie_default_enabled'):
+            if not cfg.get('general', {}).get(key):
+                cfg.setdefault('general', {})[key] = True
+                changed = True
 
         if changed:
             with open('/mnt/nas/docker/bazarr/config/config.yaml', 'w') as f:
