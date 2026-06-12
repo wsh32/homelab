@@ -39,6 +39,10 @@
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/vars/prowlarr_indexers.yml"
 
+    - name: Load Bazarr provider definitions
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/vars/bazarr_providers.yml"
+
     - name: Load Jellyfin library definitions
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/vars/jellyfin_libraries.yml"
@@ -1004,6 +1008,53 @@
       when:
         - jellyfin_api_key != ''
         - _jf_libraries.json | selectattr('Name', 'equalto', item.name) | list | length == 0
+
+    # ── Block 3d: Bazarr — sync API key and enable subtitle providers ────────
+
+    - name: Read Bazarr API key from config.yaml
+      ansible.builtin.shell: >-
+        python3 -c "import yaml; d=yaml.safe_load(open('/mnt/nas/docker/bazarr/config/config.yaml')); print(d.get('auth',{}).get('apikey',''))"
+      register: _bazarr_key_file
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Sync Bazarr API key from config.yaml into fact
+      ansible.builtin.set_fact:
+        bazarr_api_key: "{{ _bazarr_key_file.stdout | trim }}"
+      when: (_bazarr_key_file.stdout | trim) != ''
+
+    - name: Upsert BAZARR_API_KEY in Infisical
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/infisical-upsert.yml"
+      vars:
+        _inf_upsert_name: BAZARR_API_KEY
+        _inf_upsert_value: "{{ bazarr_api_key }}"
+      when: bazarr_api_key != ''
+
+    - name: Get current Bazarr enabled providers
+      ansible.builtin.uri:
+        url: "{{ bazarr_url }}/api/system/settings"
+        headers:
+          X-Api-Key: "{{ bazarr_api_key }}"
+        status_code: 200
+      register: _bazarr_settings
+      when: bazarr_api_key != ''
+
+    - name: Enable Bazarr subtitle providers
+      ansible.builtin.uri:
+        url: "{{ bazarr_url }}/api/system/settings"
+        method: POST
+        headers:
+          X-Api-Key: "{{ bazarr_api_key }}"
+        body_format: json
+        body:
+          general:
+            enabled_providers: "{{ bazarr_providers }}"
+        status_code: 200
+      when:
+        - bazarr_api_key != ''
+        - _bazarr_settings is not skipped
+        - (_bazarr_settings.json.general.enabled_providers | default([])) | sort != bazarr_providers | sort
 
     # ── Block 4: Volume migration — Radarr ──────────────────────────────────
 
