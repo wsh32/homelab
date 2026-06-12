@@ -1979,13 +1979,14 @@
     - name: Update Seerr Radarr instance to use 4K WEB Movies profile
       vars:
         _instance: "{{ seerr_radarr_for_update.json | selectattr('name', 'equalto', 'Radarr') | list | first | default({}) }}"
+        _body: "{{ _instance | combine({'activeProfileId': radarr_4k_profile_id | int, 'activeProfileName': radarr_4k_profile_name}) | dict2items | rejectattr('key', 'equalto', 'id') | items2dict }}"
       ansible.builtin.uri:
         url: "{{ seerr_url }}/api/v1/settings/radarr/{{ _instance.id }}"
         method: PUT
         headers:
           X-Api-Key: "{{ seerr_api_key }}"
         body_format: json
-        body: "{{ _instance | combine({'activeProfileId': radarr_4k_profile_id | int, 'activeProfileName': radarr_4k_profile_name}) }}"
+        body: "{{ _body }}"
         status_code: 200
       when: >
         seerr_api_key != '' and seerr_api_key != 'placeholder'
