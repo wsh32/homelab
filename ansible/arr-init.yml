@@ -1934,6 +1934,8 @@
       community.docker.docker_container:
         name: recyclarr-init
         image: ghcr.io/recyclarr/recyclarr:7
+        networks:
+          - name: machamp-services_default
         volumes:
           - /tmp/recyclarr-config:/config
         env:
