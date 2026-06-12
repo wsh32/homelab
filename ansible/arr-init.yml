@@ -1040,7 +1040,7 @@
       register: _bazarr_settings
       when: bazarr_api_key != ''
 
-    - name: Enable Bazarr subtitle providers
+    - name: Sync Sonarr/Radarr API keys and enable providers in Bazarr
       ansible.builtin.uri:
         url: "{{ bazarr_url }}/api/system/settings"
         method: POST
@@ -1050,11 +1050,16 @@
         body:
           general:
             enabled_providers: "{{ bazarr_providers }}"
+          sonarr:
+            apikey: "{{ sonarr_api_key }}"
+          radarr:
+            apikey: "{{ radarr_api_key }}"
         status_code: [200, 204]
       when:
         - bazarr_api_key != ''
+        - sonarr_api_key != ''
+        - radarr_api_key != ''
         - _bazarr_settings is not skipped
-        - (_bazarr_settings.json.general.enabled_providers | default([])) | sort != bazarr_providers | sort
 
     # ── Block 4: Volume migration — Radarr ──────────────────────────────────
 
