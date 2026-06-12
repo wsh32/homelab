@@ -300,6 +300,7 @@ Authentik provides OIDC SSO for internal services; configure OIDC clients post-d
 | Jellyfin | Media server; GPU transcoding |
 | Servarr stack | Radarr, Sonarr, Prowlarr |
 | qBittorrent | Torrent client; routes through Gluetun VPN |
+| SABnzbd | Usenet downloader; routes through Gluetun VPN |
 | Bazarr | Subtitle management |
 | Seerr | Media request and discovery frontend (formerly Jellyseerr) |
 | Unpackerr | Post-download archive extraction |

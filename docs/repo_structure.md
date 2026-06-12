@@ -80,7 +80,7 @@ Docker Compose stack for the `diglett-dns` VM.
 
 Docker Compose stack for the `machamp-infra` VM.
 
-**`docker-compose.yml`** — Traefik (reverse proxy; ports 80/443), step-ca (local CA for `*.wsh` TLS), Infisical (+ MongoDB + Redis), Vaultwarden, Authentik (+ PostgreSQL + Redis), and a Litestream sidecar that continuously streams the Vaultwarden SQLite WAL to Alakazam NFS. Infisical's MongoDB and Authentik's PostgreSQL run on local VM disk (not NFS) to avoid soft-mount corruption; both are backed up every 6 hours to Alakazam NFS.
+**`docker-compose.yml`** — Traefik (reverse proxy; ports 80/443), step-ca (local CA for `*.wsh` TLS), Infisical (+ shared PostgreSQL + shared Redis), Vaultwarden, Authentik (+ shared PostgreSQL + shared Redis), and a Litestream sidecar that continuously streams the Vaultwarden SQLite WAL to Alakazam NFS. PostgreSQL runs a single instance with separate databases for Infisical and Authentik; same for Redis (separate logical DBs). Both run on local VM disk (not NFS) to avoid soft-mount corruption; PostgreSQL is backed up daily to Alakazam NFS via `pg_dumpall`.
 
 **`traefik/traefik.yml`** — Static Traefik config: entrypoints (`web` 80, `websecure` 443), Docker provider, file provider pointing at `dynamic/`, and `step` ACME cert resolver pointing at step-ca.
 

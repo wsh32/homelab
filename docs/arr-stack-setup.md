@@ -290,7 +290,7 @@ with the current credentials from Infisical.
 
 ### Requesting content (normal flow)
 
-The recommended way to add content is via **Jellyseerr** at `http://jellyseerr.home`:
+The recommended way to add content is via **Seerr** at `http://seerr.home`:
 
 1. Search for a movie or TV show
 2. Click **Request** — Radarr or Sonarr picks it up automatically

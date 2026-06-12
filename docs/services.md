@@ -59,7 +59,8 @@ TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/boo
 | Sonarr | TV library management |
 | Prowlarr | Indexer manager; linked to Radarr and Sonarr |
 | qBittorrent | Torrent client; routes through Gluetun VPN |
-| Gluetun | VPN gateway sidecar for qBittorrent |
+| SABnzbd | Usenet downloader; routes through Gluetun VPN |
+| Gluetun | VPN gateway sidecar for qBittorrent and SABnzbd |
 | Bazarr | Subtitle management |
 | Seerr | Media request and discovery frontend (formerly Jellyseerr) |
 | Unpackerr | Post-download archive extraction for Servarr |
