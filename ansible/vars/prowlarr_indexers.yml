@@ -6,8 +6,7 @@
 #   name          — display name in Prowlarr
 #   protocol      — "usenet" (Newznab) or "torrent" (native implementation)
 #   url           — base URL of the indexer
-#   implementation      — Prowlarr implementation name (torrent only)
-#   config_contract     — Prowlarr configContract name (torrent only)
+#   (torrent indexers are looked up by name in Prowlarr's schema endpoint)
 #   api_key_var   — Infisical/secrets.yml key name (omit for public indexers)
 #   privacy       — "public", "semiPublic", or "private" (default: private)
 #   categories    — Newznab category IDs to enable
@@ -23,7 +22,5 @@ prowlarr_indexers:
   - name: The Pirate Bay
     protocol: torrent
     url: https://thepiratebay.org
-    implementation: ThePirateBay
-    config_contract: ThePirateBaySettings
     privacy: public
     categories: [2000, 2010, 2020, 2030, 2040, 2045, 2050, 5000, 5010, 5020, 5030, 5040, 5045, 5050, 5060, 5070, 5080, 5090]

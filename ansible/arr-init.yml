@@ -1192,12 +1192,12 @@
       vars:
         _schema_entry: >-
           {{ _prowlarr_schema.json
-             | selectattr('implementation', 'equalto', item.implementation)
+             | selectattr('name', 'equalto', item.name)
              | list | first }}
       loop: "{{ prowlarr_indexers | selectattr('protocol', 'equalto', 'torrent') | list }}"
       when: >
         _prowlarr_schema is not skipped
-        and (_prowlarr_schema.json | selectattr('implementation', 'equalto', item.implementation) | list | length > 0)
+        and (_prowlarr_schema.json | selectattr('name', 'equalto', item.name) | list | length > 0)
         and _prowlarr_existing_indexers.json | selectattr('name', 'equalto', item.name) | list | length == 0
 
     # ── Block 7: Radarr — add qBittorrent download client ───────────────────
