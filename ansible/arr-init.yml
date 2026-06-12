@@ -1809,8 +1809,8 @@
           apiKey: "{{ radarr_api_key }}"
           useSsl: false
           baseUrl: ""
-          activeProfileId: 1
-          activeProfileName: "Any"
+          activeProfileId: "{{ radarr_4k_profile_id | default(1) }}"
+          activeProfileName: "{{ radarr_4k_profile_name | default('Any') }}"
           activeDirectory: /data/movies
           minimumAvailability: released
           is4k: false
@@ -1952,7 +1952,7 @@
         var: recyclarr_result.container.Output
       when: recyclarr_result is defined
 
-    # ── Block 11: Set default quality profiles on root folders ───────────────
+    # ── Block 11: Set default quality profile in Seerr Radarr config ─────────
 
     - name: Get Radarr quality profiles
       ansible.builtin.uri:
@@ -1962,24 +1962,33 @@
         return_content: true
       register: radarr_quality_profiles
 
-    - name: Get Radarr root folders (for default profile update)
-      ansible.builtin.uri:
-        url: "{{ radarr_url }}/api/v3/rootfolder"
-        headers:
-          X-Api-Key: "{{ radarr_api_key }}"
-        return_content: true
-      register: radarr_rootfolders_current
+    - name: Set Radarr 4K WEB Movies profile facts
+      ansible.builtin.set_fact:
+        radarr_4k_profile_id: "{{ radarr_quality_profiles.json | selectattr('name', 'equalto', '4K WEB Movies') | map(attribute='id') | list | first | default(1) }}"
+        radarr_4k_profile_name: "{{ radarr_quality_profiles.json | selectattr('name', 'equalto', '4K WEB Movies') | map(attribute='name') | list | first | default('Any') }}"
 
-    - name: Set default quality profile to 4K WEB Movies on Radarr root folder
-      vars:
-        _profile_id: "{{ radarr_quality_profiles.json | selectattr('name', 'equalto', '4K WEB Movies') | map(attribute='id') | list | first | default('') }}"
-        _folder: "{{ radarr_rootfolders_current.json | selectattr('path', 'equalto', '/data/movies') | list | first | default({}) }}"
+    - name: Get existing Radarr instances in Seerr (for profile update)
       ansible.builtin.uri:
-        url: "{{ radarr_url }}/api/v3/rootfolder/{{ _folder.id }}"
+        url: "{{ seerr_url }}/api/v1/settings/radarr"
+        headers:
+          X-Api-Key: "{{ seerr_api_key }}"
+        return_content: true
+      register: seerr_radarr_for_update
+      when: seerr_api_key != '' and seerr_api_key != 'placeholder'
+
+    - name: Update Seerr Radarr instance to use 4K WEB Movies profile
+      vars:
+        _instance: "{{ seerr_radarr_for_update.json | selectattr('name', 'equalto', 'Radarr') | list | first | default({}) }}"
+      ansible.builtin.uri:
+        url: "{{ seerr_url }}/api/v1/settings/radarr/{{ _instance.id }}"
         method: PUT
         headers:
-          X-Api-Key: "{{ radarr_api_key }}"
+          X-Api-Key: "{{ seerr_api_key }}"
         body_format: json
-        body: "{{ _folder | combine({'qualityProfileId': _profile_id | int}) }}"
-        status_code: 202
-      when: _profile_id != '' and _folder.id is defined
+        body: "{{ _instance | combine({'activeProfileId': radarr_4k_profile_id | int, 'activeProfileName': radarr_4k_profile_name}) }}"
+        status_code: 200
+      when: >
+        seerr_api_key != '' and seerr_api_key != 'placeholder'
+        and seerr_radarr_for_update is not skipped
+        and _instance.id is defined
+        and _instance.activeProfileId | int != radarr_4k_profile_id | int
