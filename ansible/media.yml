@@ -211,7 +211,7 @@
         content: |
           [misc]
           host = 0.0.0.0
-          port = 8085
+          port = 8080
           api_key = {{ _sabnzbd_api_key | default('') }}
           nzb_key = {{ _sabnzbd_api_key | default('') }}
           download_dir = /data/downloads/incomplete

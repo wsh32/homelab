@@ -20,7 +20,7 @@
     prowlarr_url: "http://localhost:9696"
     radarr_url: "http://localhost:7878"
     sonarr_url: "http://localhost:8989"
-    sabnzbd_url: "http://localhost:8085"
+    sabnzbd_url: "http://localhost:8085"   # host port; SABnzbd listens on 8080 internally, mapped to 8085
     jellyfin_url: "http://localhost:8096"
     bazarr_url: "http://localhost:6767"
     seerr_url: "http://localhost:5055"
@@ -1115,7 +1115,7 @@
             - name: host
               value: sabnzbd
             - name: port
-              value: 8085
+              value: 8080
             - name: apiKey
               value: "{{ sabnzbd_api_key }}"
             - name: movieCategory
@@ -1185,7 +1185,7 @@
             - name: host
               value: sabnzbd
             - name: port
-              value: 8085
+              value: 8080
             - name: apiKey
               value: "{{ sabnzbd_api_key }}"
             - name: tvCategory

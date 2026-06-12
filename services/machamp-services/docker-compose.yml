@@ -150,7 +150,7 @@ services:
     container_name: sabnzbd
     restart: unless-stopped
     ports:
-      - "8085:8085"
+      - "8085:8080"
     volumes:
       - /mnt/nas/docker/sabnzbd:/config
       - /mnt/nas/media:/data
@@ -165,7 +165,7 @@ services:
       - "traefik.http.routers.sabnzbd-home-tls.entrypoints=websecure"
       - "traefik.http.routers.sabnzbd-home-tls.tls=true"
       - "traefik.http.routers.sabnzbd-home-tls.tls.certresolver=step"
-      - "traefik.http.services.sabnzbd-svc.loadbalancer.server.port=8085"
+      - "traefik.http.services.sabnzbd-svc.loadbalancer.server.port=8080"
 
   # ── Archive Extraction ─────────────────────────────────────────────────────
   unpackerr:
@@ -181,7 +181,7 @@ services:
       UN_RADARR_0_URL: http://radarr:7878
       UN_RADARR_0_API_KEY: ${RADARR_API_KEY}
       UN_RADARR_0_PATHS: /data/downloads/complete
-      UN_SABNZBD_0_URL: http://sabnzbd:8085
+      UN_SABNZBD_0_URL: http://sabnzbd:8080
       UN_SABNZBD_0_API_KEY: ${SABNZBD_API_KEY}
       UN_SABNZBD_0_PATHS: /data/downloads/complete
     # No ports or labels — background daemon with no UI
