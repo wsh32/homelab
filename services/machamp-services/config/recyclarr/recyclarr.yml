@@ -1,7 +1,6 @@
 # Recyclarr configuration — syncs TRaSH Guide quality profiles to Radarr and Sonarr.
 # API keys are read from environment variables (injected by Infisical at runtime).
-# Run via: docker compose run --rm recyclarr sync
-# Quality profiles are referenced by name; Recyclarr creates them if absent.
+# Profile: Option B — 4K WEB movies, 1080p WEB TV, no Remux.
 
 radarr:
   main:
@@ -10,16 +9,36 @@ radarr:
     quality_definition:
       type: movie
     quality_profiles:
-      - name: HD Bluray + WEB
+      - name: 4K WEB Movies
         upgrade:
           allowed: true
-          until_quality: Remux-1080p
+          until_quality: WEBDL-2160p
           until_score: 10000
         min_format_score: 0
         score_set: default
+        qualities:
+          - name: WEBDL-2160p
+            enabled: true
+          - name: WEBRip-2160p
+            enabled: true
+          - name: Bluray-2160p
+            enabled: true
+          - name: WEBDL-1080p
+            enabled: true
+          - name: WEBRip-1080p
+            enabled: true
+          - name: Bluray-1080p
+            enabled: true
+          - name: WEBDL-720p
+            enabled: true
+          # Remux explicitly excluded
+          - name: Remux-2160p
+            enabled: false
+          - name: Remux-1080p
+            enabled: false
     custom_formats:
       - trash_ids:
-          # Audio formats
+          # Audio — prefer lossless/object-based
           - 496f355514737f7d83bf7aa4d24f8169  # TrueHD Atmos
           - 2f22d89048b01681dde8afe203bf2e95  # DTS X
           - 417804f7f2c4308c1f4c83d6a29f48d4  # Atmos (undefined)
@@ -34,8 +53,18 @@ radarr:
           - 1c1a4c5e823891c75bc50380a6866f73  # DTS
           - 240770601cc226190c367ef59aba7463  # AAC
           - c2998bd0d90ed5621d8df281e839436e  # DD
+          # HDR formats — preferred for 4K TV
+          - e23edd2482476e595fb990b12e7c609c  # HDR
+          - 58d6a88f13e2db7f5059c41047876f00  # HDR (undefined)
+          - 55d53828b9d81cbe20b02efd00aa0efd  # HDR10
+          - a3d82cbef5039cde1e943e85f6c1ca3d  # HDR10+
+          - 17e889ce13117940092308f48b48b45b  # HLG
+          - 2a7e3be05d3861d6df7171ec74cad727  # DV HDR10
+          - 08d6d8834ad9ec87b1dc7ec8148e7a1f  # DV
+          # Unwanted
+          - b8cd450cbfa689c0259a01d9e29ba3d6  # 3D
         quality_profiles:
-          - name: HD Bluray + WEB
+          - name: 4K WEB Movies
 
 sonarr:
   main:
@@ -51,9 +80,23 @@ sonarr:
           until_score: 10000
         min_format_score: 0
         score_set: default
+        qualities:
+          - name: WEB 1080p
+            enabled: true
+          - name: WEB 720p
+            enabled: true
+          - name: WEB 480p
+            enabled: true
+          # Remux and 4K explicitly excluded for TV
+          - name: Remux-1080p
+            enabled: false
+          - name: WEBDL-2160p
+            enabled: false
+          - name: WEBRip-2160p
+            enabled: false
     custom_formats:
       - trash_ids:
-          # Audio formats
+          # Audio
           - 496f355514737f7d83bf7aa4d24f8169  # TrueHD Atmos
           - 2f22d89048b01681dde8afe203bf2e95  # DTS X
           - 1af239278386be2919e1bcee0bde047e  # DD+ Atmos
@@ -65,5 +108,7 @@ sonarr:
           - 1c1a4c5e823891c75bc50380a6866f73  # DTS
           - 240770601cc226190c367ef59aba7463  # AAC
           - c2998bd0d90ed5621d8df281e839436e  # DD
+          # Unwanted
+          - b8cd450cbfa689c0259a01d9e29ba3d6  # 3D
         quality_profiles:
           - name: WEB-1080p
