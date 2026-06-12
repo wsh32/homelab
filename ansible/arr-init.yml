@@ -35,6 +35,10 @@
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
 
+    - name: Load Prowlarr indexer definitions
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/vars/prowlarr_indexers.yml"
+
     # ── Load Infisical push credentials from the target ──────────────────────
 
     - name: Load /etc/infisical.env (push credentials)
@@ -84,7 +88,7 @@
         sabnzbd_api_key: "{{ (_env | regex_search('(?m)^SABNZBD_API_KEY=(.+)$', '\\1') or ['']) | first }}"
         newshosting_username: "{{ (_env | regex_search('(?m)^NEWSHOSTING_USERNAME=(.+)$', '\\1') or ['']) | first }}"
         newshosting_password: "{{ (_env | regex_search('(?m)^NEWSHOSTING_PASSWORD=(.+)$', '\\1') or ['']) | first }}"
-        nzbplanet_api_key: "{{ (_env | regex_search('(?m)^NZBPLANET_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        _homelab_env_content: "{{ _env }}"
       vars:
         _env: "{{ _homelab_env_raw.content | b64decode }}"
 
@@ -97,7 +101,6 @@
         _seerr_key_new: "{{ seerr_api_key == '' }}"
         _sabnzbd_key_new: "{{ sabnzbd_api_key == '' }}"
         _newshosting_new: "{{ newshosting_username == '' }}"
-        _nzbplanet_new: "{{ nzbplanet_api_key == '' }}"
 
     - name: Generate Jellyfin admin password
       ansible.builtin.set_fact:
@@ -204,9 +207,9 @@
       no_log: true
       when: _newshosting_new and (newshosting_password | default('')) not in ['', 'REPLACE_ME']
 
-    - name: Push NZBPlanet API key to Infisical
+    - name: Push indexer API keys to Infisical
       ansible.builtin.uri:
-        url: "{{ infisical_host }}/api/v3/secrets/raw/NZBPLANET_API_KEY"
+        url: "{{ infisical_host }}/api/v3/secrets/raw/{{ item.api_key_var }}"
         method: POST
         headers:
           Authorization: "Bearer {{ _inf_token.json.accessToken }}"
@@ -215,11 +218,14 @@
           workspaceId: "{{ _inf_project_id }}"
           environment: "{{ _inf_environment }}"
           secretPath: "/"
-          secretValue: "{{ nzbplanet_api_key }}"
+          secretValue: "{{ lookup('vars', item.api_key_var | lower, default='') }}"
           type: shared
         status_code: [200, 201]
       no_log: true
-      when: _nzbplanet_new and (nzbplanet_api_key | default('')) not in ['', 'REPLACE_ME']
+      loop: "{{ prowlarr_indexers }}"
+      when: >
+        ((_homelab_env_content | regex_search('(?m)^' + item.api_key_var + '=(.+)$', '\\1') or ['']) | first) == ''
+        and (lookup('vars', item.api_key_var | lower, default='')) not in ['', 'REPLACE_ME']
 
     - name: Fetch all secrets from Infisical after generating keys
       ansible.builtin.uri:
@@ -229,7 +235,7 @@
         status_code: 200
       register: _infisical_refreshed
       no_log: true
-      when: _jellyfin_password_new or _bazarr_key_new or _sabnzbd_key_new or _newshosting_new or _nzbplanet_new
+      when: _jellyfin_password_new or _bazarr_key_new or _sabnzbd_key_new or _newshosting_new
 
     - name: Write refreshed /etc/homelab.env after generating keys
       ansible.builtin.copy:
@@ -243,7 +249,7 @@
           {% endfor %}
       become: true
       no_log: true
-      when: _jellyfin_password_new or _bazarr_key_new or _sabnzbd_key_new or _newshosting_new or _nzbplanet_new
+      when: _jellyfin_password_new or _bazarr_key_new or _sabnzbd_key_new or _newshosting_new
 
   tasks:
 
@@ -1153,7 +1159,7 @@
         status_code: 201
       when: prowlarr_apps.json | selectattr('name', 'equalto', 'Sonarr') | list | length == 0
 
-    # ── Block 6b: Prowlarr — add NZBPlanet indexer ──────────────────────────
+    # ── Block 6b: Prowlarr — add indexers from vars/prowlarr_indexers.yml ──────
 
     - name: Get existing Prowlarr indexers
       ansible.builtin.uri:
@@ -1161,9 +1167,9 @@
         headers:
           X-Api-Key: "{{ prowlarr_api_key }}"
         return_content: true
-      register: prowlarr_indexers
+      register: _prowlarr_existing_indexers
 
-    - name: Add NZBPlanet to Prowlarr
+    - name: Add indexers to Prowlarr
       ansible.builtin.uri:
         url: "{{ prowlarr_url }}/api/v1/indexer"
         method: POST
@@ -1171,7 +1177,7 @@
           X-Api-Key: "{{ prowlarr_api_key }}"
         body_format: json
         body:
-          name: NZBPlanet
+          name: "{{ item.name }}"
           enable: true
           supportsRss: true
           supportsSearch: true
@@ -1181,17 +1187,18 @@
           privacy: private
           fields:
             - name: baseUrl
-              value: "https://api.nzbplanet.net"
+              value: "{{ item.url }}"
             - name: apiPath
               value: /api
             - name: apiKey
-              value: "{{ nzbplanet_api_key }}"
+              value: "{{ lookup('vars', item.api_key_var | lower, default='') }}"
             - name: categories
-              value: [2000, 2010, 2020, 2030, 2040, 2045, 2050, 5000, 5010, 5020, 5030, 5040, 5045, 5050, 5060, 5070, 5080, 5090]
+              value: "{{ item.categories }}"
         status_code: 201
+      loop: "{{ prowlarr_indexers }}"
       when: >
-        (nzbplanet_api_key | default('')) not in ['', 'REPLACE_ME']
-        and prowlarr_indexers.json | selectattr('name', 'equalto', 'NZBPlanet') | list | length == 0
+        (lookup('vars', item.api_key_var | lower, default='')) not in ['', 'REPLACE_ME']
+        and _prowlarr_existing_indexers.json | selectattr('name', 'equalto', item.name) | list | length == 0
 
     # ── Block 7: Radarr — add qBittorrent download client ───────────────────
 
