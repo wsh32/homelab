@@ -362,7 +362,7 @@
     # have a config without host_whitelist, causing 403s from Radarr/Sonarr.
 
     - name: Check SABnzbd host_whitelist config
-      ansible.builtin.shell: grep -c "^host_whitelist.*sabnzbd:8080" /mnt/nas/docker/sabnzbd/sabnzbd.ini || true
+      ansible.builtin.shell: grep -c "^url_base = /" /mnt/nas/docker/sabnzbd/sabnzbd.ini || true
       register: _sabnzbd_whitelist_check
       changed_when: false
       become: true
@@ -395,6 +395,7 @@
           enable_https = 0
           username =
           password =
+          url_base = /
           host_whitelist = sabnzbd,sabnzbd:8080,localhost,127.0.0.1
           local_ranges = 172.16.0.0/12,192.168.0.0/16
 
