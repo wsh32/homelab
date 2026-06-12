@@ -154,6 +154,25 @@
         mode: "0755"
       become: true
 
+    - name: Ensure homelab scripts directory exists on VM
+      ansible.builtin.file:
+        path: /home/{{ ansible_user }}/homelab/scripts
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+      become: true
+
+    - name: Sync machamp-services scripts to VM
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../scripts/machamp-services/"
+        dest: /home/{{ ansible_user }}/homelab/scripts/
+        delete: true
+        recursive: true
+        rsync_opts:
+          - "--chown={{ ansible_user }}:{{ ansible_user }}"
+          - "--chmod=D755,F755"
+
     - name: Sync machamp-services compose stack to VM
       ansible.posix.synchronize:
         src: "{{ playbook_dir }}/../services/machamp-services/"
