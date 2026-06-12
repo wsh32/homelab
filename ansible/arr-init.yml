@@ -39,6 +39,10 @@
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/vars/prowlarr_indexers.yml"
 
+    - name: Load SABnzbd server definitions
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/vars/sabnzbd_servers.yml"
+
     # ── Load Infisical push credentials from the target ──────────────────────
 
     - name: Load /etc/infisical.env (push credentials)
@@ -86,8 +90,6 @@
         jellyfin_admin_password: "{{ (_env | regex_search('(?m)^JELLYFIN_ADMIN_PASSWORD=(.+)$', '\\1') or ['']) | first }}"
         jellyfin_api_key: "{{ (_env | regex_search('(?m)^JELLYFIN_API_KEY=(.+)$', '\\1') or ['']) | first }}"
         sabnzbd_api_key: "{{ (_env | regex_search('(?m)^SABNZBD_API_KEY=(.+)$', '\\1') or ['']) | first }}"
-        newshosting_username: "{{ (_env | regex_search('(?m)^NEWSHOSTING_USERNAME=(.+)$', '\\1') or ['']) | first }}"
-        newshosting_password: "{{ (_env | regex_search('(?m)^NEWSHOSTING_PASSWORD=(.+)$', '\\1') or ['']) | first }}"
         _homelab_env_content: "{{ _env }}"
       vars:
         _env: "{{ _homelab_env_raw.content | b64decode }}"
@@ -100,7 +102,6 @@
         _bazarr_key_new: "{{ bazarr_api_key == '' }}"
         _seerr_key_new: "{{ seerr_api_key == '' }}"
         _sabnzbd_key_new: "{{ sabnzbd_api_key == '' }}"
-        _newshosting_new: "{{ newshosting_username == '' }}"
 
     - name: Generate Jellyfin admin password
       ansible.builtin.set_fact:
@@ -173,9 +174,9 @@
       no_log: true
       when: _sabnzbd_key_new
 
-    - name: Push Newshosting username to Infisical
+    - name: Push news server credentials to Infisical
       ansible.builtin.uri:
-        url: "{{ infisical_host }}/api/v3/secrets/raw/NEWSHOSTING_USERNAME"
+        url: "{{ infisical_host }}/api/v3/secrets/raw/{{ cred_var }}"
         method: POST
         headers:
           Authorization: "Bearer {{ _inf_token.json.accessToken }}"
@@ -184,28 +185,16 @@
           workspaceId: "{{ _inf_project_id }}"
           environment: "{{ _inf_environment }}"
           secretPath: "/"
-          secretValue: "{{ newshosting_username }}"
+          secretValue: "{{ lookup('vars', cred_var | lower, default='') }}"
           type: shared
         status_code: [200, 201]
       no_log: true
-      when: _newshosting_new and (newshosting_username | default('')) not in ['', 'REPLACE_ME']
-
-    - name: Push Newshosting password to Infisical
-      ansible.builtin.uri:
-        url: "{{ infisical_host }}/api/v3/secrets/raw/NEWSHOSTING_PASSWORD"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
-        body_format: json
-        body:
-          workspaceId: "{{ _inf_project_id }}"
-          environment: "{{ _inf_environment }}"
-          secretPath: "/"
-          secretValue: "{{ newshosting_password }}"
-          type: shared
-        status_code: [200, 201]
-      no_log: true
-      when: _newshosting_new and (newshosting_password | default('')) not in ['', 'REPLACE_ME']
+      loop: "{{ sabnzbd_servers | subelements(['username_var', 'password_var']) }}"
+      vars:
+        cred_var: "{{ item[1] }}"
+      when: >
+        ((_homelab_env_content | regex_search('(?m)^' + cred_var + '=(.+)$', '\\1') or ['']) | first) == ''
+        and (lookup('vars', cred_var | lower, default='')) not in ['', 'REPLACE_ME']
 
     - name: Push indexer API keys to Infisical
       ansible.builtin.uri:
@@ -235,7 +224,7 @@
         status_code: 200
       register: _infisical_refreshed
       no_log: true
-      when: _jellyfin_password_new or _bazarr_key_new or _sabnzbd_key_new or _newshosting_new
+      when: _jellyfin_password_new or _bazarr_key_new or _sabnzbd_key_new
 
     - name: Write refreshed /etc/homelab.env after generating keys
       ansible.builtin.copy:
@@ -249,7 +238,7 @@
           {% endfor %}
       become: true
       no_log: true
-      when: _jellyfin_password_new or _bazarr_key_new or _sabnzbd_key_new or _newshosting_new
+      when: _jellyfin_password_new or _bazarr_key_new or _sabnzbd_key_new
 
   tasks:
 
@@ -337,24 +326,25 @@
           password =
 
           [servers]
-          [[newshosting]]
-          name = newshosting
-          displayname = Newshosting
-          host = news.newshosting.com
-          port = 563
-          ssl = 1
+          {% for server in sabnzbd_servers %}
+          [[{{ server.name }}]]
+          name = {{ server.name }}
+          host = {{ server.host }}
+          port = {{ server.port }}
+          ssl = {{ server.ssl }}
           ssl_verify = 2
-          username = {{ newshosting_username }}
-          password = {{ newshosting_password }}
-          connections = 30
+          username = {{ lookup('vars', server.username_var | lower, default='') }}
+          password = {{ lookup('vars', server.password_var | lower, default='') }}
+          connections = {{ server.connections }}
           enable = 1
           required = 0
           optional = 0
           retention = 0
-          priority = 0
+          priority = {{ server.priority }}
           expire_date =
           quota =
           usage_at_start =
+          {% endfor %}
 
           [categories]
           [[tv]]
@@ -1181,23 +1171,21 @@
           enable: true
           supportsRss: true
           supportsSearch: true
-          implementationName: Newznab
-          implementation: Newznab
-          configContract: NewznabSettings
-          privacy: private
-          fields:
-            - name: baseUrl
-              value: "{{ item.url }}"
-            - name: apiPath
-              value: /api
-            - name: apiKey
-              value: "{{ lookup('vars', item.api_key_var | lower, default='') }}"
-            - name: categories
-              value: "{{ item.categories }}"
+          implementationName: "{{ item.implementation | default('Newznab') }}"
+          implementation: "{{ item.implementation | default('Newznab') }}"
+          configContract: "{{ item.config_contract | default('NewznabSettings') }}"
+          privacy: "{{ item.privacy | default('private') }}"
+          fields: >-
+            {{ [{'name': 'baseUrl', 'value': item.url}]
+               + (item.protocol == 'usenet') | ternary(
+                   [{'name': 'apiPath', 'value': '/api'},
+                    {'name': 'apiKey',  'value': lookup('vars', item.api_key_var | lower, default='')}],
+                   [])
+               + [{'name': 'categories', 'value': item.categories}] }}
         status_code: 201
       loop: "{{ prowlarr_indexers }}"
       when: >
-        (lookup('vars', item.api_key_var | lower, default='')) not in ['', 'REPLACE_ME']
+        (item.protocol != 'usenet' or (lookup('vars', item.api_key_var | lower, default='')) not in ['', 'REPLACE_ME'])
         and _prowlarr_existing_indexers.json | selectattr('name', 'equalto', item.name) | list | length == 0
 
     # ── Block 7: Radarr — add qBittorrent download client ───────────────────
