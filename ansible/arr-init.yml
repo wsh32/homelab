@@ -90,7 +90,6 @@
         jellyfin_admin_password: "{{ (_env | regex_search('(?m)^JELLYFIN_ADMIN_PASSWORD=(.+)$', '\\1') or ['']) | first }}"
         jellyfin_api_key: "{{ (_env | regex_search('(?m)^JELLYFIN_API_KEY=(.+)$', '\\1') or ['']) | first }}"
         sabnzbd_api_key: "{{ (_env | regex_search('(?m)^SABNZBD_API_KEY=(.+)$', '\\1') or ['']) | first }}"
-        _homelab_env_content: "{{ _env }}"
       vars:
         _env: "{{ _homelab_env_raw.content | b64decode }}"
 
@@ -118,38 +117,18 @@
         seerr_api_key: "placeholder"
       when: _seerr_key_new
 
-    - name: Push Jellyfin admin password to Infisical
-      ansible.builtin.uri:
-        url: "{{ infisical_host }}/api/v3/secrets/raw/JELLYFIN_ADMIN_PASSWORD"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
-        body_format: json
-        body:
-          workspaceId: "{{ _inf_project_id }}"
-          environment: "{{ _inf_environment }}"
-          secretPath: "/"
-          secretValue: "{{ jellyfin_admin_password }}"
-          type: shared
-        status_code: [200, 201]
-      no_log: true
+    - name: Upsert JELLYFIN_ADMIN_PASSWORD in Infisical
+      ansible.builtin.include_tasks: tasks/infisical-upsert.yml
+      vars:
+        _inf_upsert_name: JELLYFIN_ADMIN_PASSWORD
+        _inf_upsert_value: "{{ jellyfin_admin_password }}"
       when: _jellyfin_password_new
 
-    - name: Push Bazarr API key to Infisical
-      ansible.builtin.uri:
-        url: "{{ infisical_host }}/api/v3/secrets/raw/BAZARR_API_KEY"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
-        body_format: json
-        body:
-          workspaceId: "{{ _inf_project_id }}"
-          environment: "{{ _inf_environment }}"
-          secretPath: "/"
-          secretValue: "{{ bazarr_api_key }}"
-          type: shared
-        status_code: [200, 201]
-      no_log: true
+    - name: Upsert BAZARR_API_KEY in Infisical
+      ansible.builtin.include_tasks: tasks/infisical-upsert.yml
+      vars:
+        _inf_upsert_name: BAZARR_API_KEY
+        _inf_upsert_value: "{{ bazarr_api_key }}"
       when: _bazarr_key_new
 
     - name: Generate SABnzbd API key
@@ -157,64 +136,32 @@
         sabnzbd_api_key: "{{ lookup('ansible.builtin.password', '/dev/null', length=32, chars=['0123456789abcdef']) }}"
       when: _sabnzbd_key_new
 
-    - name: Push SABnzbd API key to Infisical
-      ansible.builtin.uri:
-        url: "{{ infisical_host }}/api/v3/secrets/raw/SABNZBD_API_KEY"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
-        body_format: json
-        body:
-          workspaceId: "{{ _inf_project_id }}"
-          environment: "{{ _inf_environment }}"
-          secretPath: "/"
-          secretValue: "{{ sabnzbd_api_key }}"
-          type: shared
-        status_code: [200, 201]
-      no_log: true
+    - name: Upsert SABNZBD_API_KEY in Infisical
+      ansible.builtin.include_tasks: tasks/infisical-upsert.yml
+      vars:
+        _inf_upsert_name: SABNZBD_API_KEY
+        _inf_upsert_value: "{{ sabnzbd_api_key }}"
       when: _sabnzbd_key_new
 
-    - name: Push news server credentials to Infisical
-      ansible.builtin.uri:
-        url: "{{ infisical_host }}/api/v3/secrets/raw/{{ cred_var }}"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
-        body_format: json
-        body:
-          workspaceId: "{{ _inf_project_id }}"
-          environment: "{{ _inf_environment }}"
-          secretPath: "/"
-          secretValue: "{{ lookup('vars', cred_var | lower, default='') }}"
-          type: shared
-        status_code: [200, 201]
-      no_log: true
-      loop: "{{ sabnzbd_servers | subelements(['username_var', 'password_var']) }}"
+    - name: Upsert news server credentials in Infisical
+      ansible.builtin.include_tasks: tasks/infisical-upsert.yml
       vars:
-        cred_var: "{{ item[1] }}"
-      when: >
-        ((_homelab_env_content | regex_search('(?m)^' + cred_var + '=(.+)$', '\\1') or ['']) | first) == ''
-        and (lookup('vars', cred_var | lower, default='')) not in ['', 'REPLACE_ME']
+        _inf_upsert_name: "{{ cred_item }}"
+        _inf_upsert_value: "{{ lookup('vars', cred_item | lower, default='') }}"
+      loop: "{{ sabnzbd_servers | map(attribute='username_var') | list + sabnzbd_servers | map(attribute='password_var') | list }}"
+      loop_control:
+        loop_var: cred_item
+      when: (lookup('vars', cred_item | lower, default='')) not in ['', 'REPLACE_ME']
 
-    - name: Push indexer API keys to Infisical
-      ansible.builtin.uri:
-        url: "{{ infisical_host }}/api/v3/secrets/raw/{{ item.api_key_var }}"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
-        body_format: json
-        body:
-          workspaceId: "{{ _inf_project_id }}"
-          environment: "{{ _inf_environment }}"
-          secretPath: "/"
-          secretValue: "{{ lookup('vars', item.api_key_var | lower, default='') }}"
-          type: shared
-        status_code: [200, 201]
-      no_log: true
-      loop: "{{ prowlarr_indexers }}"
-      when: >
-        ((_homelab_env_content | regex_search('(?m)^' + item.api_key_var + '=(.+)$', '\\1') or ['']) | first) == ''
-        and (lookup('vars', item.api_key_var | lower, default='')) not in ['', 'REPLACE_ME']
+    - name: Upsert indexer API keys in Infisical
+      ansible.builtin.include_tasks: tasks/infisical-upsert.yml
+      vars:
+        _inf_upsert_name: "{{ idx_item.api_key_var }}"
+        _inf_upsert_value: "{{ lookup('vars', idx_item.api_key_var | lower, default='') }}"
+      loop: "{{ prowlarr_indexers | selectattr('api_key_var', 'defined') | list }}"
+      loop_control:
+        loop_var: idx_item
+      when: (lookup('vars', idx_item.api_key_var | lower, default='')) not in ['', 'REPLACE_ME']
 
     - name: Fetch all secrets from Infisical after generating keys
       ansible.builtin.uri:
@@ -850,21 +797,11 @@
       no_log: true
       when: _jf_recovery_auth is not skipped and _jf_recovery_keys is not skipped
 
-    - name: Push recovered Jellyfin API key to Infisical
-      ansible.builtin.uri:
-        url: "{{ infisical_host }}/api/v3/secrets/raw/JELLYFIN_API_KEY"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
-        body_format: json
-        body:
-          workspaceId: "{{ _inf_project_id }}"
-          environment: "{{ _inf_environment }}"
-          secretPath: "/"
-          secretValue: "{{ jellyfin_api_key }}"
-          type: shared
-        status_code: [200, 201]
-      no_log: true
+    - name: Upsert recovered JELLYFIN_API_KEY in Infisical
+      ansible.builtin.include_tasks: tasks/infisical-upsert.yml
+      vars:
+        _inf_upsert_name: JELLYFIN_API_KEY
+        _inf_upsert_value: "{{ jellyfin_api_key }}"
       when: _jf_recovery_auth is not skipped and jellyfin_api_key != ''
 
     # ── Block 3.5: Jellyfin SSO plugin (jellyfin-plugin-sso) ────────────────

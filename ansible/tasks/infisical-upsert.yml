@@ -1,0 +1,54 @@
+# Idempotent upsert for a single Infisical secret.
+# Creates the secret if it doesn't exist; updates it if the value differs; skips if it matches.
+#
+# Required vars (pass via vars: when calling include_tasks):
+#   _inf_upsert_name   — secret name, e.g. "SABNZBD_API_KEY"
+#   _inf_upsert_value  — desired secret value
+#
+# Playbook-scoped vars consumed:
+#   infisical_host, _inf_token, _inf_project_id, _inf_environment
+
+- name: "Get {{ _inf_upsert_name }} from Infisical"
+  ansible.builtin.uri:
+    url: "{{ infisical_host }}/api/v3/secrets/raw/{{ _inf_upsert_name }}?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
+    headers:
+      Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+    status_code: [200, 404]
+  register: _inf_upsert_get
+  no_log: true
+
+- name: "Create {{ _inf_upsert_name }} in Infisical"
+  ansible.builtin.uri:
+    url: "{{ infisical_host }}/api/v3/secrets/raw/{{ _inf_upsert_name }}"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+    body_format: json
+    body:
+      workspaceId: "{{ _inf_project_id }}"
+      environment: "{{ _inf_environment }}"
+      secretPath: "/"
+      secretValue: "{{ _inf_upsert_value }}"
+      type: shared
+    status_code: [200, 201]
+  no_log: true
+  when: _inf_upsert_get.status == 404
+
+- name: "Update {{ _inf_upsert_name }} in Infisical"
+  ansible.builtin.uri:
+    url: "{{ infisical_host }}/api/v3/secrets/raw/{{ _inf_upsert_name }}"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+    body_format: json
+    body:
+      workspaceId: "{{ _inf_project_id }}"
+      environment: "{{ _inf_environment }}"
+      secretPath: "/"
+      secretValue: "{{ _inf_upsert_value }}"
+      type: shared
+    status_code: [200, 201]
+  no_log: true
+  when: >
+    _inf_upsert_get.status == 200
+    and _inf_upsert_get.json.secret.secretValue != _inf_upsert_value
