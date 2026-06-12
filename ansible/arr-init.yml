@@ -1026,10 +1026,19 @@
         body_format: json
         body: "{{ _jf_encoding_config.json | combine({'EnableTonemapping': true}) }}"
         status_code: [200, 204]
+      register: _jf_tonemapping_set
       when:
         - jellyfin_api_key != ''
         - _jf_encoding_config is not skipped
         - not _jf_encoding_config.json.EnableTonemapping
+
+    - name: Restart Jellyfin to persist tonemapping setting
+      community.docker.docker_container:
+        name: jellyfin
+        state: started
+        restart: true
+      become: true
+      when: _jf_tonemapping_set is not skipped and _jf_tonemapping_set is changed
 
     # ── Block 3c: Jellyfin media libraries ──────────────────────────────────
 
