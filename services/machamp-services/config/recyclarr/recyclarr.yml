@@ -1,14 +1,16 @@
 # Recyclarr configuration — syncs TRaSH Guide quality profiles to Radarr and Sonarr.
 # API keys are read from environment variables (injected by Infisical at runtime).
 # Profile: Option B — 4K WEB movies, 1080p WEB TV, no Remux.
-# Trash IDs from: https://trash-guides.info
+# Uses include templates from the TRaSH guide so IDs stay current automatically.
 
 radarr:
   radarr-main:
     base_url: http://radarr:7878
     api_key: !env_var RADARR_API_KEY
-    quality_definition:
-      type: movie
+    include:
+      - template: radarr-quality-definition-movie
+      - template: radarr-custom-formats-audio
+      - template: radarr-custom-formats-hdr-formats
     quality_profiles:
       - name: 4K WEB Movies
         upgrade:
@@ -38,40 +40,18 @@ radarr:
             enabled: false
     custom_formats:
       - trash_ids:
-          # Audio — https://trash-guides.info/Radarr/radarr-collection-of-custom-formats/#audio
-          - 496f355514737f7d83bf7aa4d24f8169  # TrueHD Atmos
-          - 2f22d89048b01681dde8afe203bf2e95  # DTS X
-          - 1af239278386be2919e1bcee0bde047e  # DD+ Atmos
-          - 3cafb66171b47f226146a0770576870f  # TrueHD
-          - dcf3ec6938fa32445f590a4da84256cd  # DTS-HD MA
-          - a570d4a0e56a2874b64e5bfa55202a1b  # FLAC
-          - e7c2fcae07cbada050a0af3357491d7b  # PCM
-          - 8e109e50e0a0b83a5098b056e13bf6db  # DTS-HD HRA
-          - 185f1dd7264c4562b9022d963ac37424  # DD+
-          - f9f847ac70a0af62ea4a08280b859636  # DTS-ES
-          - 1c1a4c5e823891c75bc50380a6866f73  # DTS
-          - 240770601cc226190c367ef59aba7463  # AAC
-          - c2998bd0d90ed5621d8df281e839436e  # DD
-          # HDR — https://trash-guides.info/Radarr/radarr-collection-of-custom-formats/#hdr-formats
-          - 9364dd386c22b173b3fcd9db8ef0a2ba  # HDR10
-          - eb6cbf0e592a51ce4fd56b8fb4e2d1bd  # HDR10+
-          - e61e28db95d22bedcadf030b8f156d96  # HDR
-          - 2a4d9069cc1fe3242ff9bdaebed239bb  # DV HDR10
-          - 6d0d8de7b57e35518ac0308b0ddf404e  # DV
-          - 7878c33f1963fefb3d6c8657d46c2f0a  # DV HLG
-          - 1f733af03141f068a540eec352589a89  # DV SDR
-          - 83304f261cf516bb208c18c54c0adf97  # HLG
-          # Unwanted
           - b8cd450cbfa689c0259a01d9e29ba3d6  # 3D
         assign_scores_to:
           - name: 4K WEB Movies
+            score: -10000
 
 sonarr:
   sonarr-main:
     base_url: http://sonarr:8989
     api_key: !env_var SONARR_API_KEY
-    quality_definition:
-      type: series
+    include:
+      - template: sonarr-quality-definition-series
+      - template: sonarr-custom-formats-audio
     quality_profiles:
       - name: WEB-1080p
         upgrade:
@@ -91,28 +71,13 @@ sonarr:
             enabled: true
           - name: WEBRip-720p
             enabled: true
-          - name: Remux-1080p
-            enabled: false
           - name: WEBDL-2160p
             enabled: false
           - name: WEBRip-2160p
             enabled: false
     custom_formats:
       - trash_ids:
-          # Audio — https://trash-guides.info/Sonarr/sonarr-collection-of-custom-formats/#audio
-          - a061e2eb6ceef9dbe0d9ae3d26e20c40  # TrueHD Atmos
-          - 4232a509ce60c4e208d4b825b7c5f09a  # DTS X
-          - 1da960a8a3c7e2c9e73a3e5a389d4977  # DD+ Atmos
-          - 3cafb66171b47f226146a0770576870f  # TrueHD
-          - dcf3ec6938fa32445f590a4da84256cd  # DTS-HD MA
-          - a570d4a0e56a2874b64e5bfa55202a1b  # FLAC
-          - e7c2fcae07cbada050a0af3357491d7b  # PCM
-          - 185f1dd7264c4562b9022d963ac37424  # DD+
-          - f9f847ac70a0af62ea4a08280b859636  # DTS-ES
-          - 1c1a4c5e823891c75bc50380a6866f73  # DTS
-          - 240770601cc226190c367ef59aba7463  # AAC
-          - c2998bd0d90ed5621d8df281e839436e  # DD
-          # Unwanted
           - 85c61753df5da1fb2aab6f2a47426b09  # 3D
         assign_scores_to:
           - name: WEB-1080p
+            score: -10000
