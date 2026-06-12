@@ -1952,7 +1952,7 @@
         var: recyclarr_result.container.Output
       when: recyclarr_result is defined
 
-    # ── Block 11: Set default quality profiles ────────────────────────────────
+    # ── Block 11: Set default quality profiles on root folders ───────────────
 
     - name: Get Radarr quality profiles
       ansible.builtin.uri:
@@ -1962,23 +1962,24 @@
         return_content: true
       register: radarr_quality_profiles
 
-    - name: Get Radarr UI config
+    - name: Get Radarr root folders (for default profile update)
       ansible.builtin.uri:
-        url: "{{ radarr_url }}/api/v3/config/ui"
+        url: "{{ radarr_url }}/api/v3/rootfolder"
         headers:
           X-Api-Key: "{{ radarr_api_key }}"
         return_content: true
-      register: radarr_ui_config
+      register: radarr_rootfolders_current
 
-    - name: Set Radarr default quality profile to 4K WEB Movies
+    - name: Set default quality profile to 4K WEB Movies on Radarr root folder
       vars:
         _profile_id: "{{ radarr_quality_profiles.json | selectattr('name', 'equalto', '4K WEB Movies') | map(attribute='id') | list | first | default('') }}"
+        _folder: "{{ radarr_rootfolders_current.json | selectattr('path', 'equalto', '/data/movies') | list | first | default({}) }}"
       ansible.builtin.uri:
-        url: "{{ radarr_url }}/api/v3/config/ui"
+        url: "{{ radarr_url }}/api/v3/rootfolder/{{ _folder.id }}"
         method: PUT
         headers:
           X-Api-Key: "{{ radarr_api_key }}"
         body_format: json
-        body: "{{ radarr_ui_config.json | combine({'defaultQualityProfileId': _profile_id | int}) }}"
+        body: "{{ _folder | combine({'qualityProfileId': _profile_id | int}) }}"
         status_code: 202
-      when: _profile_id != ''
+      when: _profile_id != '' and _folder.id is defined
