@@ -1167,7 +1167,7 @@
       when:
         - bazarr_api_key != ''
         - _bazarr_lang_profiles is not skipped
-        - _bazarr_lang_profiles.json.data | selectattr('name', 'equalto', 'English + Original') | list | length == 0
+        - (_bazarr_lang_profiles.content | from_json).data | selectattr('name', 'equalto', 'English + Original') | list | length == 0
 
     - name: Get Bazarr language profiles (after possible creation)
       ansible.builtin.uri:
@@ -1186,7 +1186,7 @@
         with open('/mnt/nas/docker/bazarr/config/config.yaml') as f:
             cfg = yaml.safe_load(f)
 
-        profiles = {{ _bazarr_lang_profiles_current.json.data | to_json }}
+        profiles = {{ (_bazarr_lang_profiles_current.content | from_json).data | to_json }}
         profile = next((p for p in profiles if p['name'] == 'English + Original'), None)
         if not profile:
             print('ok')
