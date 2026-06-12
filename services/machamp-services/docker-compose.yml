@@ -146,7 +146,7 @@ services:
 
   # ── Usenet ────────────────────────────────────────────────────────────────
   sabnzbd:
-    image: lscr.io/linuxserver/sabnzbd:latest
+    image: lscr.io/linuxserver/sabnzbd:5.0.4-ls258
     container_name: sabnzbd
     restart: unless-stopped
     ports:
