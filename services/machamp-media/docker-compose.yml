@@ -81,12 +81,7 @@ services:
       start_period: 30s
     ports:
       - "8080:8080"   # qBittorrent WebUI -- also used by Traefik backend routing
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.qbittorrent-wsh.rule=Host(`qbittorrent.wsh`)"
-      - "traefik.http.routers.qbittorrent-wsh.entrypoints=websecure"
-      - "traefik.http.routers.qbittorrent-wsh.tls=true"
-      - "traefik.http.services.qbittorrent-svc.loadbalancer.server.port=8080"
+    # No Traefik labels — routing handled by services-vm.yml (file provider)
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:5.2.1_v2.0.12-ls459
@@ -119,12 +114,7 @@ services:
       PGID: "1000"
     ports:
       - "6767:6767"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.bazarr-wsh.rule=Host(`bazarr.wsh`)"
-      - "traefik.http.routers.bazarr-wsh.entrypoints=websecure"
-      - "traefik.http.routers.bazarr-wsh.tls=true"
-      - "traefik.http.services.bazarr-svc.loadbalancer.server.port=6767"
+    # No Traefik labels — routing handled by services-vm.yml (file provider)
 
   # ── Media Requests ─────────────────────────────────────────────────────────
   seerr:
@@ -136,14 +126,7 @@ services:
       - /mnt/nas/docker/seerr:/app/config
     ports:
       - "5055:5055"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.seerr-wsh.rule=Host(`seerr.wsh`)"
-      - "traefik.http.routers.seerr-wsh.entrypoints=websecure"
-      - "traefik.http.routers.seerr-wsh.tls=true"
-      - "traefik.http.routers.seerr-home.rule=Host(`seerr.home`)"
-      - "traefik.http.routers.seerr-home.entrypoints=web"
-      - "traefik.http.services.seerr-svc.loadbalancer.server.port=5055"
+    # No Traefik labels — routing handled by services-vm.yml (file provider)
 
   # ── Usenet ────────────────────────────────────────────────────────────────
   sabnzbd:
