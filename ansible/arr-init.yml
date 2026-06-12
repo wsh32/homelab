@@ -1104,11 +1104,107 @@
         - sonarr_api_key != ''
         - radarr_api_key != ''
 
+    - name: Get Bazarr language profiles
+      ansible.builtin.uri:
+        url: "{{ bazarr_url }}/api/languageprofiles"
+        headers:
+          X-Api-Key: "{{ bazarr_api_key }}"
+        return_content: true
+      register: _bazarr_lang_profiles
+      when: bazarr_api_key != ''
+
+    - name: Create Bazarr language profile — English + Original
+      ansible.builtin.uri:
+        url: "{{ bazarr_url }}/api/languageprofiles"
+        method: POST
+        headers:
+          X-Api-Key: "{{ bazarr_api_key }}"
+        body_format: json
+        body:
+          name: "English + Original"
+          cutoff: 1
+          items:
+            - id: 1
+              language: en
+              forced: "False"
+              hi: "False"
+              audio_exclude: "False"
+            - id: 2
+              language: original
+              forced: "False"
+              hi: "False"
+              audio_exclude: "False"
+          mustContain: []
+          mustNotContain: []
+          originalFormat: false
+        status_code: 200
+      register: _bazarr_profile_create
+      when:
+        - bazarr_api_key != ''
+        - _bazarr_lang_profiles is not skipped
+        - _bazarr_lang_profiles.json.data | selectattr('name', 'equalto', 'English + Original') | list | length == 0
+
+    - name: Get Bazarr language profiles (after possible creation)
+      ansible.builtin.uri:
+        url: "{{ bazarr_url }}/api/languageprofiles"
+        headers:
+          X-Api-Key: "{{ bazarr_api_key }}"
+        return_content: true
+      register: _bazarr_lang_profiles_current
+      when: bazarr_api_key != ''
+
+    - name: Patch Bazarr config.yaml — set default language profile
+      ansible.builtin.shell: |
+        python3 << 'EOF'
+        import yaml
+
+        with open('/mnt/nas/docker/bazarr/config/config.yaml') as f:
+            cfg = yaml.safe_load(f)
+
+        profiles = {{ _bazarr_lang_profiles_current.json.data | to_json }}
+        profile = next((p for p in profiles if p['name'] == 'English + Original'), None)
+        if not profile:
+            print('ok')
+            exit(0)
+
+        profile_id = str(profile['profileId'])
+        changed = False
+
+        if str(cfg.get('general', {}).get('serie_default_profile', '')) != profile_id:
+            cfg.setdefault('general', {})['serie_default_profile'] = profile_id
+            changed = True
+
+        if not cfg.get('general', {}).get('serie_default_enabled'):
+            cfg.setdefault('general', {})['serie_default_enabled'] = True
+            changed = True
+
+        if str(cfg.get('general', {}).get('movie_default_profile', '')) != profile_id:
+            cfg.setdefault('general', {})['movie_default_profile'] = profile_id
+            changed = True
+
+        if not cfg.get('general', {}).get('movie_default_enabled'):
+            cfg.setdefault('general', {})['movie_default_enabled'] = True
+            changed = True
+
+        if changed:
+            with open('/mnt/nas/docker/bazarr/config/config.yaml', 'w') as f:
+                yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
+            print('changed')
+        else:
+            print('ok')
+        EOF
+      register: _bazarr_profile_patch
+      changed_when: _bazarr_profile_patch.stdout | trim == 'changed'
+      become: true
+      when:
+        - bazarr_api_key != ''
+        - _bazarr_lang_profiles_current is not skipped
+
     - name: Restart Bazarr to apply config changes
       ansible.builtin.command: docker restart bazarr
       become: true
       changed_when: true
-      when: _bazarr_config_patch is changed
+      when: _bazarr_config_patch is changed or _bazarr_profile_patch is changed
 
     # ── Block 4: Volume migration — Radarr ──────────────────────────────────
 
