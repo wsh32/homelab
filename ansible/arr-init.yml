@@ -1790,8 +1790,6 @@
         body:
           localLogin: false
           mediaServerLogin: true
-          # 32=REQUEST, 64=AUTO_APPROVE, 128=AUTO_APPROVE_4K, 256=REQUEST_4K
-          defaultPermissions: 480
         status_code: 200
       when: seerr_api_key != '' and seerr_api_key != 'placeholder'
 
