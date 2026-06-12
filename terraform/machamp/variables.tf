@@ -50,7 +50,7 @@ variable "authentik_subdomain" {
 }
 
 variable "services_gpu_mappings" {
-  description = "Proxmox hardware mapping names for GPU passthrough to machamp-services (e.g. [\"quadro-p2200\"]). Create mappings via pvesh first — see GPU passthrough section in docs/runbook.md."
+  description = "Proxmox hardware mapping names for GPU passthrough to machamp-media (e.g. [\"quadro-p2200\"]). Create mappings via pvesh first — see GPU passthrough section in docs/runbook.md."
   type        = list(string)
   default     = []
 }

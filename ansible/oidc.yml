@@ -178,8 +178,8 @@
         restart: true
       become: true
 
-- name: Inject OIDC credentials into Seerr (machamp-services)
-  hosts: machamp-services
+- name: Inject OIDC credentials into Seerr (machamp-media)
+  hosts: machamp-media
   gather_facts: false
 
   vars:

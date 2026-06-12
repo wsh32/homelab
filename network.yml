@@ -81,11 +81,11 @@ nodes:
     ansible_user: root
     bridge_port: nic1
     vms:
-      machamp-services:
+      machamp-media:
         ip: 192.168.0.30
         tailscale_ip: 100.64.1.30
         vm_id: 100
-        vm_roles: [services, gpu]
+        vm_roles: [media, gpu]
       machamp-dev:
         ip: 192.168.0.31
         tailscale_ip: 100.64.1.31

@@ -14,5 +14,5 @@ scrape_configs:
           - machamp-infra:9100
           - alakazam-deploy:9100
           - diglett-dns:9100
-          - machamp-services:9100
+          - machamp-media:9100
           - machamp-dev:9100

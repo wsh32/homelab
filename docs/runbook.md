@@ -440,7 +440,7 @@ At this point:
 
 ---
 
-## GPU passthrough (Quadro P2200 → machamp-services)
+## GPU passthrough (Quadro P2200 → machamp-media)
 
 One-time setup. Run after the VM is provisioned (Phase 3). Proxmox hardware mappings
 let the `terraform@pam` API token assign PCI devices without root credentials — root

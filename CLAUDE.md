@@ -41,7 +41,7 @@ terraform/diglett/             — Diglett VMs (DNS, HAOS)
 terraform/machamp/             — Machamp VMs (Infra, Services, Dev)
 services/diglett-dns/          — AdGuard Home + Headscale + cloudflared
 services/machamp-infra/        — Infisical + Vaultwarden + Authentik + Litestream
-services/machamp-services/     — all Docker Compose services (Jellyfin, Grafana, etc.)
+services/machamp-media/     — all Docker Compose services (Jellyfin, Grafana, etc.)
 scripts/                       — bootstrap and init scripts (headless service setup)
 ansible/                       — push-only config management for VMs and physical devices
 docs/                          — architecture docs, plan, TODOs

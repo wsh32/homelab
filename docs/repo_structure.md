@@ -60,7 +60,7 @@ Root module for Machamp. VM ID range 100–199, IP range `192.168.0.30–49`.
 
 **`main.tf`** — Defines:
 - `proxmox_virtual_environment_download_file.ubuntu_2404` — downloads the Ubuntu 24.04 cloud image once.
-- `module.services` — `machamp-services` VM (VM 100, `192.168.0.30`, 8 cores, 32GB): media services stack (Jellyfin, Servarr, qBittorrent). Quadro P2200 passthrough for Jellyfin transcoding.
+- `module.services` — `machamp-media` VM (VM 100, `192.168.0.30`, 8 cores, 32GB): media services stack (Jellyfin, Servarr, qBittorrent). Quadro P2200 passthrough for Jellyfin transcoding.
 - `module.dev` — `machamp-dev` VM (VM 101, `192.168.0.31`, 6 cores, 16GB): personal development workstation.
 - `module.infra` — `machamp-infra` VM (VM 102, `192.168.0.32`, 4 cores, 12GB): Traefik, step-ca, Infisical, Vaultwarden, Authentik, Litestream.
 
@@ -98,9 +98,9 @@ Not yet created.
 
 ---
 
-## `services/machamp-services/`
+## `services/machamp-media/`
 
-Docker Compose stack for the `machamp-services` VM. This is the main services stack.
+Docker Compose stack for the `machamp-media` VM. This is the main services stack.
 
 **`docker-compose.yml`** — Media services stack:
 - **Jellyfin** — media server; Quadro P2200 NVIDIA runtime for hardware transcoding
