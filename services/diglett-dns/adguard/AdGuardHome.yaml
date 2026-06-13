@@ -166,7 +166,7 @@ filtering:
       answer: diglett-infra.ts.home
       enabled: true
     - domain: '*.home'
-      answer: 192.168.0.23
+      answer: 192.168.0.20
       enabled: true
   safe_fs_patterns:
     - /opt/adguardhome/work/data/userfilters/*

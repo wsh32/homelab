@@ -211,7 +211,7 @@
 
     - name: Set Infisical host, bootstrap token, and org ID
       ansible.builtin.set_fact:
-        _infisical_host: "{{ infisical_host | default('http://192.168.0.23:8080') }}"
+        _infisical_host: "{{ infisical_host | default('http://192.168.0.20:8080') }}"
         _bootstrap_token: "{{ (_bootstrap_raw.content | b64decode | from_json).identity.credentials.token }}"
         _org_id: "{{ (_bootstrap_raw.content | b64decode | from_json).organization.id }}"
       no_log: true
@@ -412,7 +412,7 @@
 
     - name: Resolve Infisical settings
       ansible.builtin.set_fact:
-        _infisical_host: "{{ infisical_host | default('http://192.168.0.23:8080') }}"
+        _infisical_host: "{{ infisical_host | default('http://192.168.0.20:8080') }}"
         _client_id: "{{ infisical_client_id }}"
         _client_secret: "{{ infisical_client_secret }}"
         _project_id: "{{ infisical_project_id }}"

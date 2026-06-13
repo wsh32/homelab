@@ -90,7 +90,7 @@
 
     - name: Get Infisical access token via Universal Auth
       ansible.builtin.uri:
-        url: "{{ infisical_host | default('http://192.168.0.23:8080') }}/api/v1/auth/universal-auth/login"
+        url: "{{ infisical_host | default('http://192.168.0.20:8080') }}/api/v1/auth/universal-auth/login"
         method: POST
         body_format: json
         body:
@@ -107,7 +107,7 @@
 
     - name: Fetch all secrets from Infisical
       ansible.builtin.uri:
-        url: "{{ infisical_host | default('http://192.168.0.23:8080') }}/api/v3/secrets/raw?workspaceId={{ infisical_project_id }}&environment={{ infisical_environment | default('prod') }}&secretPath=/"
+        url: "{{ infisical_host | default('http://192.168.0.20:8080') }}/api/v3/secrets/raw?workspaceId={{ infisical_project_id }}&environment={{ infisical_environment | default('prod') }}&secretPath=/"
         headers:
           Authorization: "Bearer {{ _infisical_ua_token.json.accessToken }}"
         status_code: 200

@@ -9,7 +9,7 @@
 #   .2       diglett-dns VM (AdGuard Home — primary DNS; special-cased outside VM range)
 #   .3       reserved (future backup DNS)
 #   .4–.19   physical nodes (.7 = alakazam-deploy deploy host)
-#   .21–.29  Diglett VMs (VM IDs 200–299)
+#   .20–.29  Diglett VMs (VM IDs 200–299)
 #   .30–.49  Machamp VMs (VM IDs 100–199)
 #   .100+    DHCP (Eero managed)
 #
@@ -69,15 +69,15 @@ nodes:
         vm_id: 200
         vm_roles: [services]
         tailscale_exit_node: true
+      diglett-infra:
+        ip: 192.168.0.20
+        tailscale_ip: 100.64.1.20
+        vm_id: 201
+        vm_roles: [services]
       diglett-haos:
-        ip: 192.168.0.22
+        ip: 192.168.0.21
         vm_id: 202
         ansible_managed: false  # HAOS — no SSH access via Ansible
-      diglett-infra:
-        ip: 192.168.0.23
-        tailscale_ip: 100.64.1.23
-        vm_id: 203
-        vm_roles: [services]
 
   machamp:
     ip: 192.168.0.5
