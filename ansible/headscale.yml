@@ -54,7 +54,7 @@
         headscale_preauth_key: "{{ (_new_key.stdout | from_json).key }}"
 
 - name: Join all hosts to Headscale
-  hosts: all:!localhost
+  hosts: all:!localhost:!physical
   gather_facts: false
 
   vars:
