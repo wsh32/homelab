@@ -19,8 +19,8 @@ timezone = "UTC"
 vm_password = "REPLACE_ME"
 
 # Cloudflare API token — create at https://dash.cloudflare.com/profile/api-tokens
-# Required permissions: Zone > DNS > Edit (for the headscale zone only)
-# Used by Terraform to manage the A record, and by Headscale for Let's Encrypt DNS-01 cert issuance.
+# Required permissions: Zone > DNS > Edit and Account > Cloudflare Tunnel > Edit
+# Used by Terraform to manage DNS records and the Authentik Cloudflare Tunnel.
 cloudflare_api_token = "REPLACE_ME"
 
 # Cloudflare zone ID — found in the right sidebar of the zone's Overview page
@@ -28,3 +28,6 @@ cloudflare_zone_id = "REPLACE_ME"
 
 # Subdomain for Headscale — will create <headscale_subdomain>.<your-zone> in Cloudflare DNS
 headscale_subdomain = "headscale"
+
+# Subdomain for the public Authentik OIDC endpoint (creates auth.<your-zone>)
+authentik_subdomain = "auth"

@@ -42,3 +42,9 @@ variable "headscale_subdomain" {
   type        = string
   default     = "headscale"
 }
+
+variable "authentik_subdomain" {
+  description = "Subdomain for the public Authentik OIDC endpoint (e.g. 'auth' → auth.example.com)"
+  type        = string
+  default     = "auth"
+}

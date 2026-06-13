@@ -8,7 +8,3 @@ provider "proxmox" {
     username = "root"
   }
 }
-
-provider "cloudflare" {
-  api_token = var.cloudflare_api_token
-}
