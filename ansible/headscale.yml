@@ -199,6 +199,7 @@
       become: true
       delegate_to: diglett-dns
       register: _ip_assigned
+      throttle: 1
       when:
         - tailscale_ip is defined
         - _current_ip.stdout | trim != tailscale_ip
