@@ -32,9 +32,7 @@ resource "proxmox_download_file" "haos" {
   datastore_id = "local"
 
   url       = "https://github.com/home-assistant/operating-system/releases/download/17.3/haos_ova-17.3.qcow2.xz"
-  file_name = "haos_ova-17.3.qcow2"
-
-  decompression_algorithm = "xz"
+  file_name = "haos_ova-17.3.qcow2.xz"
   overwrite               = false
 }
 
