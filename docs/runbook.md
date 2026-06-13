@@ -100,7 +100,39 @@ Log into TrueNAS at `https://192.168.0.4`:
    Changes to allowed hosts in the TrueNAS UI do **not** take effect until
    exports are reloaded.
 
-### 3a. Enable Snippets storage on each Proxmox node
+### 3a. Set up VM storage on Machamp (NVMe)
+
+Machamp has 6 NVMe drives — 2 on the motherboard (`nvme4n1`, `nvme5n1`) and 4 on a
+PCIe expansion card. Use one motherboard NVMe (`nvme4n1`) as dedicated VM storage.
+
+SSH to machamp as root (`ssh root@192.168.0.5`):
+
+```bash
+# Identify which drives are on the motherboard vs expansion card
+lspci | grep -i nvme
+ls -l /sys/block/nvme*/device/device
+# Motherboard drives are on lower PCI bus addresses (e.g. 21:xx, 22:xx)
+
+# Create LVM volume group on the chosen drive
+pvcreate /dev/nvme4n1
+vgcreate vmdata /dev/nvme4n1
+
+# Create a thin pool using all available space
+lvcreate -l 100%FREE -T vmdata/data
+
+# Register as a Proxmox storage (datacenter-level, restricted to machamp)
+pvesh create /storage \
+  --storage vmdata \
+  --type lvmthin \
+  --vgname vmdata \
+  --thinpool data \
+  --content rootdir,images \
+  --nodes machamp
+```
+
+Verify it appears in the Proxmox UI under Datacenter → Storage as `vmdata`.
+
+### 3b. Enable Snippets storage on each Proxmox node
 
 The bpg/proxmox Terraform provider uploads cloud-init user-data as snippet files.
 The `local` datastore must have the Snippets content type enabled or Terraform will
