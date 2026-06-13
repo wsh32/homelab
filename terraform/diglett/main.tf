@@ -25,17 +25,6 @@ resource "proxmox_download_file" "ubuntu_2404" {
   overwrite = false
 }
 
-# Download HAOS qcow2 image for Home Assistant VM.
-resource "proxmox_download_file" "haos" {
-  node_name    = local.node
-  content_type = "import"
-  datastore_id = "local"
-
-  url       = "https://github.com/home-assistant/operating-system/releases/download/17.3/haos_ova-17.3.qcow2.xz"
-  file_name = "haos_ova-17.3.qcow2.xz"
-  overwrite               = false
-}
-
 module "dns" {
   source = "../modules/proxmox-vm"
 
@@ -94,47 +83,11 @@ module "infra" {
   extra_runcmd = []
 }
 
-# HAOS uses a dedicated VM resource (not the proxmox-vm module) because it boots
-# directly from the HAOS qcow2 image with no cloud-init. Configuration is restored
-# from a Proxmox vzdump backup after first boot.
-resource "proxmox_virtual_environment_vm" "haos" {
-  node_name   = local.node
-  vm_id       = local.vms["diglett-haos"].vm_id
-  name        = "diglett-haos"
-  description = "Home Assistant OS — restore config from vzdump backup after first boot"
-  tags        = ["diglett", "haos"]
-
-  on_boot = true
-
-  cpu {
-    cores = 2
-    type  = local.vm_defaults.cpu_type
-  }
-
-  memory {
-    dedicated = 4096
-  }
-
-  disk {
-    datastore_id = local.vm_defaults.datastore
-    file_id      = proxmox_download_file.haos.id
-    interface    = "virtio0"
-    size         = 32
-    discard      = "on"
-    iothread     = true
-  }
-
-  network_device {
-    bridge = local.vm_defaults.bridge
-    model  = local.vm_defaults.nic_model
-  }
-
-  operating_system {
-    type = local.vm_defaults.os_type
-  }
-
-  lifecycle {
-    prevent_destroy = true
-    ignore_changes  = [disk[0].file_id]
-  }
-}
+# TODO: Manage HAOS VM in Terraform.
+# HAOS image releases use .qcow2.xz compression which the bpg/proxmox provider
+# does not support (only gz/lzo/zst/bz2). For now, create the VM manually:
+#   1. SSH to diglett, download and decompress the image:
+#      wget -O /tmp/haos.qcow2.xz https://github.com/home-assistant/operating-system/releases/download/17.3/haos_ova-17.3.qcow2.xz
+#      xz -d /tmp/haos.qcow2.xz
+#   2. Create VM via Proxmox UI (VM ID 202, 2 cores, 4GB RAM, import disk from /tmp/haos.qcow2)
+#   3. Restore config from vzdump backup after first boot.

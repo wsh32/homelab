@@ -1,5 +1,27 @@
 # TODOs
 
+## HAOS VM in Terraform
+
+**What:** Manage `diglett-haos` (VM ID 202) via Terraform like the other VMs.
+
+**Blocker:** HAOS image releases use `.qcow2.xz` compression. The `bpg/proxmox` provider's
+`proxmox_download_file` only supports gz/lzo/zst/bz2 — not xz. Proxmox itself also rejects
+`.qcow2.xz` as a valid import filename.
+
+**Options:**
+- Wait for `bpg/proxmox` to add xz support
+- Pre-download and decompress on the Proxmox host via a `null_resource` + remote-exec, then reference the `.qcow2` file directly
+- Use a `local-exec` to decompress locally and upload via SCP
+
+**For now:** Create manually:
+```bash
+# On diglett (ssh root@192.168.0.6)
+wget -O /tmp/haos.qcow2.xz https://github.com/home-assistant/operating-system/releases/download/17.3/haos_ova-17.3.qcow2.xz
+xz -d /tmp/haos.qcow2.xz
+# Then create VM via Proxmox UI: VM ID 202, 2 cores, 4GB RAM, import disk from /tmp/haos.qcow2
+# Restore config from vzdump backup after first boot.
+```
+
 ## Internal Bridge Network Isolation (vmbr1)
 
 **What:** Create a Proxmox internal bridge (`vmbr1`) on machamp and attach machamp-infra and machamp-media to it, so Traefik can reach service backends without those ports being exposed on the LAN.
