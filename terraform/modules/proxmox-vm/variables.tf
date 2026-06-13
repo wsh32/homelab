@@ -88,12 +88,6 @@ variable "vm_password" {
   sensitive   = true
 }
 
-variable "tailscale_auth_key" {
-  description = "Tailscale one-time auth key for this VM"
-  type        = string
-  sensitive   = true
-}
-
 variable "extra_runcmd" {
   description = "Additional shell commands to run at first boot, appended to runcmd"
   type        = list(string)

@@ -39,7 +39,6 @@ module "dev" {
   ssh_public_key     = var.ssh_public_key
   vm_password        = var.vm_password
   timezone           = var.timezone
-  tailscale_auth_key = var.tailscale_auth_key
 }
 
 module "services" {
@@ -62,8 +61,6 @@ module "services" {
   ssh_public_key     = var.ssh_public_key
   vm_password        = var.vm_password
   timezone           = var.timezone
-  tailscale_auth_key = var.tailscale_auth_key
-
   extra_runcmd = []
 
   machine          = "q35"

@@ -18,10 +18,6 @@ timezone = "UTC"
 # Password for the ubuntu user on all VMs (enables console + SSH password login)
 vm_password = "REPLACE_ME"
 
-# Tailscale reusable auth key — generate at https://login.tailscale.com/admin/settings/keys
-# Use a reusable, ephemeral key tagged with "tag:homelab"
-tailscale_auth_key = "tskey-auth-REPLACE_ME"
-
 # Cloudflare API token — create at https://dash.cloudflare.com/profile/api-tokens
 # Required permissions: Zone > DNS > Edit (for the headscale zone only)
 # Used by Terraform to manage the A record, and by Headscale for Let's Encrypt DNS-01 cert issuance.

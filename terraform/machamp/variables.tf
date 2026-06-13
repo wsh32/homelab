@@ -26,12 +26,6 @@ variable "vm_password" {
   sensitive   = true
 }
 
-variable "tailscale_auth_key" {
-  description = "Tailscale reusable auth key for VM provisioning"
-  type        = string
-  sensitive   = true
-}
-
 variable "cloudflare_api_token" {
   description = "Cloudflare API token with Zone > DNS > Edit and Account > Cloudflare Tunnel > Edit permissions"
   type        = string

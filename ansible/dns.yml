@@ -255,30 +255,4 @@
         msg: "headplane login — navigate to :3001/admin and enter this API key: {{ headplane_api_key_nfs.content | b64decode | trim }}"
       when: not _api_key_valid
 
-- name: Write pre-auth key to terraform.tfvars
-  hosts: localhost
-  gather_facts: false
-
-  vars:
-    preauth_key: "{{ hostvars['diglett-dns'].headscale_preauth_key | default('') }}"
-    tfvars_files:
-      - "{{ playbook_dir }}/../terraform/diglett/terraform.tfvars"
-      - "{{ playbook_dir }}/../terraform/machamp/terraform.tfvars"
-
-  tasks:
-    - name: Skip if no pre-auth key was obtained (bootstrap headscale play may have failed)
-      ansible.builtin.meta: end_play
-      when: preauth_key == ''
-
-    - name: Write tailscale_auth_key to terraform.tfvars
-      ansible.builtin.lineinfile:
-        path: "{{ item }}"
-        regexp: '^tailscale_auth_key'
-        line: 'tailscale_auth_key = "{{ preauth_key }}"'
-        state: present
-      loop: "{{ tfvars_files }}"
-
-    - name: Display pre-auth key
-      ansible.builtin.debug:
-        msg: "Headscale pre-auth key written to terraform.tfvars: {{ preauth_key }}"
 

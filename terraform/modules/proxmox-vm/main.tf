@@ -22,7 +22,6 @@ resource "proxmox_virtual_environment_file" "user_data" {
       timezone           = var.timezone
       ssh_public_key     = var.ssh_public_key
       vm_password        = var.vm_password
-      tailscale_auth_key = var.tailscale_auth_key
       swap_size_gb       = var.swap_size_gb
       extra_runcmd       = var.extra_runcmd
     })

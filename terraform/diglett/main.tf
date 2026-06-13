@@ -59,8 +59,6 @@ module "dns" {
   ssh_public_key     = var.ssh_public_key
   vm_password        = var.vm_password
   timezone           = var.timezone
-  tailscale_auth_key = var.tailscale_auth_key
-
   extra_runcmd = [
     "tailscale set --advertise-exit-node",
     # /etc/headscale.env is read by both the headscale and cloudflare-ddns containers.
@@ -95,8 +93,6 @@ module "infra" {
   ssh_public_key     = var.ssh_public_key
   vm_password        = var.vm_password
   timezone           = var.timezone
-  tailscale_auth_key = var.tailscale_auth_key
-
   extra_runcmd = []
 }
 
