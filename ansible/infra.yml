@@ -1,5 +1,5 @@
 ---
-# Deploy the machamp-infra stack (Infisical + Vaultwarden + Authentik + Litestream)
+# Deploy the diglett-infra stack (Infisical + Vaultwarden + Authentik + Litestream)
 # and bootstrap Infisical with an admin account.
 #
 # Bootstrap is always attempted — --ignore-if-bootstrapped makes it idempotent.
@@ -7,16 +7,16 @@
 # failed deploy) that would otherwise prevent re-seeding.
 #
 # Prerequisites:
-#   - machamp-infra VM must be up and cloud-init must have completed
+#   - diglett-infra VM must be up and cloud-init must have completed
 #   - Alakazam NFS must be reachable at 192.168.0.4:/mnt/apps/docker
 #   - ansible/secrets.yml must contain infisical_admin_email and infisical_admin_password
 #
 # Usage (first run or re-run):
 #   ansible-playbook ansible/infra.yml
-#   ansible-playbook ansible/site.yml --limit machamp-infra
+#   ansible-playbook ansible/site.yml --limit diglett-infra
 
 - name: Deploy infra stack
-  hosts: machamp-infra
+  hosts: diglett-infra
   gather_facts: true
 
   vars:
@@ -38,7 +38,7 @@
 
 # ── Phase 1: Bootstrap Infisical ──────────────────────────────────────────────
 - name: Bootstrap Infisical
-  hosts: machamp-infra
+  hosts: diglett-infra
   gather_facts: false
 
   tasks:
@@ -181,17 +181,17 @@
       when: >
         (infisical_client_id | default('')) not in ['', 'REPLACE_ME']
 
-    - name: Check bootstrap credentials file exists on machamp-infra
+    - name: Check bootstrap credentials file exists on diglett-infra
       ansible.builtin.stat:
         path: /var/lib/infisical/bootstrap.json
-      delegate_to: machamp-infra
+      delegate_to: diglett-infra
       become: true
       register: _bootstrap_file
 
     - name: Fail if bootstrap credentials file not found
       ansible.builtin.fail:
         msg: >
-          /var/lib/infisical/bootstrap.json not found on machamp-infra.
+          /var/lib/infisical/bootstrap.json not found on diglett-infra.
           Infisical was bootstrapped before credentials were captured.
           Options: (A) wipe the Infisical instance (docker compose down,
           remove its volumes, docker compose up -d) and re-run infra.yml —
@@ -204,14 +204,14 @@
     - name: Read bootstrap credentials from file
       ansible.builtin.slurp:
         src: /var/lib/infisical/bootstrap.json
-      delegate_to: machamp-infra
+      delegate_to: diglett-infra
       become: true
       register: _bootstrap_raw
       no_log: true
 
     - name: Set Infisical host, bootstrap token, and org ID
       ansible.builtin.set_fact:
-        _infisical_host: "{{ infisical_host | default('http://192.168.0.32:8080') }}"
+        _infisical_host: "{{ infisical_host | default('http://192.168.0.23:8080') }}"
         _bootstrap_token: "{{ (_bootstrap_raw.content | b64decode | from_json).identity.credentials.token }}"
         _org_id: "{{ (_bootstrap_raw.content | b64decode | from_json).organization.id }}"
       no_log: true
@@ -412,7 +412,7 @@
 
     - name: Resolve Infisical settings
       ansible.builtin.set_fact:
-        _infisical_host: "{{ infisical_host | default('http://192.168.0.32:8080') }}"
+        _infisical_host: "{{ infisical_host | default('http://192.168.0.23:8080') }}"
         _client_id: "{{ infisical_client_id }}"
         _client_secret: "{{ infisical_client_secret }}"
         _project_id: "{{ infisical_project_id }}"

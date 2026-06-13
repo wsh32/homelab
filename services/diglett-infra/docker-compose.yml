@@ -32,7 +32,7 @@ services:
       - /mnt/nas/docker/step-ca:/home/step
     environment:
       DOCKER_STEPCA_INIT_NAME: Team Rocket
-      DOCKER_STEPCA_INIT_DNS_NAMES: "step-ca,step-ca.wsh,localhost,192.168.0.32"
+      DOCKER_STEPCA_INIT_DNS_NAMES: "step-ca,step-ca.wsh,localhost,192.168.0.23"
       DOCKER_STEPCA_INIT_ACME: "true"
     healthcheck:
       # nc -z works with TLS ports; start_period gives first-run init time

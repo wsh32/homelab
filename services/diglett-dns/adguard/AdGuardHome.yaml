@@ -163,10 +163,10 @@ filtering:
     #   *.wsh  → Tailscale HTTPS path (step-ca TLS, personal devices)
     #   *.home → LAN HTTP path (guests, IoT, no TLS)
     - domain: '*.wsh'
-      answer: machamp-infra.ts.home
+      answer: diglett-infra.ts.home
       enabled: true
     - domain: '*.home'
-      answer: 192.168.0.32
+      answer: 192.168.0.23
       enabled: true
   safe_fs_patterns:
     - /opt/adguardhome/work/data/userfilters/*

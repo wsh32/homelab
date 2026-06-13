@@ -25,7 +25,7 @@
     bazarr_url: "http://localhost:6767"
     seerr_url: "http://localhost:5055"
     qbittorrent_webui_port: 8080
-    infisical_host: "http://192.168.0.32:8080"
+    infisical_host: "http://192.168.0.23:8080"
 
   pre_tasks:
 
