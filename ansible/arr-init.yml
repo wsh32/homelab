@@ -90,16 +90,15 @@
 
     - name: Set API key facts from homelab.env
       ansible.builtin.set_fact:
-        prowlarr_api_key: "{{ (_env | regex_search('(?m)^PROWLARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
-        radarr_api_key: "{{ (_env | regex_search('(?m)^RADARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
-        sonarr_api_key: "{{ (_env | regex_search('(?m)^SONARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
-        bazarr_api_key: "{{ (_env | regex_search('(?m)^BAZARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
-        seerr_api_key: "{{ (_env | regex_search('(?m)^SEERR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
-        jellyfin_admin_password: "{{ (_env | regex_search('(?m)^JELLYFIN_ADMIN_PASSWORD=(.+)$', '\\1') or ['']) | first }}"
-        jellyfin_api_key: "{{ (_env | regex_search('(?m)^JELLYFIN_API_KEY=(.+)$', '\\1') or ['']) | first }}"
-        sabnzbd_api_key: "{{ (_env | regex_search('(?m)^SABNZBD_API_KEY=(.+)$', '\\1') or ['']) | first }}"
-      vars:
         _env: "{{ _homelab_env_raw.content | b64decode }}"
+        prowlarr_api_key: "{{ (_homelab_env_raw.content | b64decode | regex_search('(?m)^PROWLARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        radarr_api_key: "{{ (_homelab_env_raw.content | b64decode | regex_search('(?m)^RADARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        sonarr_api_key: "{{ (_homelab_env_raw.content | b64decode | regex_search('(?m)^SONARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        bazarr_api_key: "{{ (_homelab_env_raw.content | b64decode | regex_search('(?m)^BAZARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        seerr_api_key: "{{ (_homelab_env_raw.content | b64decode | regex_search('(?m)^SEERR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        jellyfin_admin_password: "{{ (_homelab_env_raw.content | b64decode | regex_search('(?m)^JELLYFIN_ADMIN_PASSWORD=(.+)$', '\\1') or ['']) | first }}"
+        jellyfin_api_key: "{{ (_homelab_env_raw.content | b64decode | regex_search('(?m)^JELLYFIN_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        sabnzbd_api_key: "{{ (_homelab_env_raw.content | b64decode | regex_search('(?m)^SABNZBD_API_KEY=(.+)$', '\\1') or ['']) | first }}"
 
     # ── Generate secrets we control (only if absent) ─────────────────────────
 
