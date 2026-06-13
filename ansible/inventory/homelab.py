@@ -89,6 +89,8 @@ def build_inventory():
                 hostvars[vmname]['tailscale_exit_node'] = True
             if 'tailscale_ip' in vmattrs:
                 hostvars[vmname]['tailscale_ip'] = vmattrs['tailscale_ip']
+            if 'tailscale_advertise_routes' in vmattrs:
+                hostvars[vmname]['tailscale_advertise_routes'] = vmattrs['tailscale_advertise_routes']
 
     return {**groups, '_meta': {'hostvars': hostvars}}
 
