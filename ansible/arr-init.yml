@@ -11,8 +11,8 @@
 #
 # Subsequent runs: all keys already in homelab.env; no Infisical writes occur.
 
-- name: Initialize arr and media stack on machamp-services
-  hosts: machamp-services
+- name: Initialize arr and media stack on machamp-media
+  hosts: machamp-media
   gather_facts: false
 
   vars:
@@ -627,7 +627,7 @@
 
     - name: Deploy Jellyfin encoding.xml
       ansible.builtin.copy:
-        src: "{{ playbook_dir }}/../services/machamp-services/config/jellyfin-encoding.xml"
+        src: "{{ playbook_dir }}/../services/machamp-media/config/jellyfin-encoding.xml"
         dest: /mnt/nas/docker/jellyfin/config/encoding.xml
         owner: root
         group: root
@@ -2069,7 +2069,7 @@
 
     - name: Copy Recyclarr config to VM
       ansible.builtin.copy:
-        src: "{{ playbook_dir }}/../services/machamp-services/config/recyclarr/"
+        src: "{{ playbook_dir }}/../services/machamp-media/config/recyclarr/"
         dest: /tmp/recyclarr-config/
         mode: "0644"
 
@@ -2079,7 +2079,7 @@
         name: recyclarr-init
         image: ghcr.io/recyclarr/recyclarr:7
         networks:
-          - name: machamp-services_default
+          - name: machamp-media_default
         volumes:
           - /tmp/recyclarr-config:/config
         env:

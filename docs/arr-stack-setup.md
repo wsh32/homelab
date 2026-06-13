@@ -1,6 +1,6 @@
 # Arr Stack Setup Guide
 
-End-to-end instructions for deploying the media stack on `machamp-services`: Gluetun +
+End-to-end instructions for deploying the media stack on `machamp-media`: Gluetun +
 qBittorrent + SABnzbd, Prowlarr, Radarr, Sonarr, Bazarr, Seerr, Unpackerr, Recyclarr,
 and Jellyfin with NVENC.
 
@@ -8,9 +8,9 @@ and Jellyfin with NVENC.
 
 ## Prerequisites
 
-- `machamp-services` VM is online and reachable via Tailscale (`machamp-services.ts.home`)
-- NFS share `/mnt/nas/media` is mounted on `machamp-services`
-- Infisical instance is running (`diglett-infra`) and `machamp-services` has `/etc/infisical.env`
+- `machamp-media` VM is online and reachable via Tailscale (`machamp-media.ts.home`)
+- NFS share `/mnt/nas/media` is mounted on `machamp-media`
+- Infisical instance is running (`diglett-infra`) and `machamp-media` has `/etc/infisical.env`
 - You are running commands from `alakazam-deploy` unless stated otherwise
 
 ---
@@ -20,7 +20,7 @@ and Jellyfin with NVENC.
 ### 1a. Infisical machine identity (auto-created by `infra.yml`)
 
 `ansible-playbook ansible/infra.yml` creates a project, a Universal Auth machine identity
-named `machamp-services`, and writes `infisical_project_id`, `infisical_client_id`, and
+named `machamp-media`, and writes `infisical_project_id`, `infisical_client_id`, and
 `infisical_client_secret` back to `ansible/secrets.yml` automatically using the bootstrap
 token returned on first run. No manual Infisical UI steps needed.
 
@@ -80,10 +80,10 @@ corresponding API key to `secrets.yml`. No changes to `arr-init.yml` needed.
 
 ## 2. Create NFS media directory structure
 
-Run once on `machamp-services` (or from `alakazam-deploy` if you have NFS access):
+Run once on `machamp-media` (or from `alakazam-deploy` if you have NFS access):
 
 ```bash
-ssh ubuntu@machamp-services.ts.home bash <<'EOF'
+ssh ubuntu@machamp-media.ts.home bash <<'EOF'
 mkdir -p /mnt/nas/media/movies
 mkdir -p /mnt/nas/media/tv
 mkdir -p /mnt/nas/media/downloads/complete
@@ -147,7 +147,7 @@ NVIDIA runtime into `/etc/docker/daemon.json` and restarts Docker.
 Verify after completion:
 
 ```bash
-ssh ubuntu@machamp-services.ts.home "nvidia-smi"
+ssh ubuntu@machamp-media.ts.home "nvidia-smi"
 # Should show: NVIDIA Quadro P2200
 ```
 
@@ -158,14 +158,14 @@ ssh ubuntu@machamp-services.ts.home "nvidia-smi"
 Push to the branch (or merge to main), which triggers webhook deployment. Or deploy manually:
 
 ```bash
-ssh ubuntu@machamp-services.ts.home \
-  "cd /home/ubuntu/homelab/services/machamp-services && docker compose pull && docker compose up -d"
+ssh ubuntu@machamp-media.ts.home \
+  "cd /home/ubuntu/homelab/services/machamp-media && docker compose pull && docker compose up -d"
 ```
 
 Watch the VPN connect:
 
 ```bash
-ssh ubuntu@machamp-services.ts.home "docker logs -f gluetun"
+ssh ubuntu@machamp-media.ts.home "docker logs -f gluetun"
 # Wait for: "Connected to PIA ..."
 ```
 
@@ -236,7 +236,7 @@ ansible-playbook ansible/arr-init.yml
 ## 8. Verification checklist
 
 ```
-[ ] nvidia-smi shows Quadro P2200 on machamp-services
+[ ] nvidia-smi shows Quadro P2200 on machamp-media
 [ ] docker logs gluetun shows VPN connected
 [ ] curl from qBittorrent container returns a PIA exit IP:
       docker exec qbittorrent curl -s https://ipinfo.io | grep org

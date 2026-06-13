@@ -50,7 +50,7 @@ TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/boo
 | Authentik | OIDC identity provider. SSO for Grafana, n8n, Headplane, and Headscale (configure OIDC clients post-deploy) |
 | Litestream | Continuously streams the Vaultwarden SQLite WAL to Alakazam NFS |
 
-### machamp-services (`192.168.0.30`)
+### machamp-media (`192.168.0.30`)
 
 | Service | Notes |
 |---------|-------|

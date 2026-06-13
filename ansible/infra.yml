@@ -161,12 +161,12 @@
       no_log: true
       when: not _bootstrap_json_exists.stat.exists
 
-# ── Phase 2: Create machamp-services machine identity in Infisical ───────────
+# ── Phase 2: Create machamp-media machine identity in Infisical ───────────
 #
 # Uses the bootstrap token from Phase 1 to create a project, machine identity,
 # and Universal Auth credentials via the Infisical REST API — no SRP user login
 # required.  Skipped on re-runs when credentials are already in secrets.yml.
-- name: Create machamp-services machine identity in Infisical
+- name: Create machamp-media machine identity in Infisical
   hosts: localhost
   gather_facts: false
 
@@ -216,16 +216,16 @@
         _org_id: "{{ (_bootstrap_raw.content | b64decode | from_json).organization.id }}"
       no_log: true
 
-    - name: Check if machamp-services project already exists
+    - name: Check if machamp-media project already exists
       ansible.builtin.uri:
-        url: "{{ _infisical_host }}/api/v1/projects/slug/machamp-services"
+        url: "{{ _infisical_host }}/api/v1/projects/slug/machamp-media"
         headers:
           Authorization: "Bearer {{ _bootstrap_token }}"
         status_code: [200, 404]
       register: _project_check
       no_log: true
 
-    - name: Create machamp-services project in Infisical
+    - name: Create machamp-media project in Infisical
       ansible.builtin.uri:
         url: "{{ _infisical_host }}/api/v1/projects"
         method: POST
@@ -233,8 +233,8 @@
           Authorization: "Bearer {{ _bootstrap_token }}"
         body_format: json
         body:
-          projectName: "machamp-services"
-          slug: "machamp-services"
+          projectName: "machamp-media"
+          slug: "machamp-media"
           type: "secret-manager"
         status_code: [200, 201]
       register: _project_new
@@ -253,7 +253,7 @@
       no_log: true
       when: _project_check.status != 404
 
-    - name: Check if machamp-services identity already exists
+    - name: Check if machamp-media identity already exists
       ansible.builtin.uri:
         url: "{{ _infisical_host }}/api/v1/identities?orgId={{ _org_id }}"
         headers:
@@ -266,12 +266,12 @@
       ansible.builtin.set_fact:
         _existing_identity_id: >-
           {{ (_identities_list.json.identities
-              | selectattr('identity.name', 'equalto', 'machamp-services')
+              | selectattr('identity.name', 'equalto', 'machamp-media')
               | map(attribute='identity.id')
               | first | default('')) }}
       no_log: true
 
-    - name: Create machine identity for machamp-services
+    - name: Create machine identity for machamp-media
       ansible.builtin.uri:
         url: "{{ _infisical_host }}/api/v1/identities"
         method: POST
@@ -279,7 +279,7 @@
           Authorization: "Bearer {{ _bootstrap_token }}"
         body_format: json
         body:
-          name: "machamp-services"
+          name: "machamp-media"
           organizationId: "{{ _org_id }}"
           role: "no-access"
         status_code: [200, 201]
@@ -299,7 +299,7 @@
       no_log: true
       when: _existing_identity_id != ''
 
-    - name: Add identity to machamp-services project
+    - name: Add identity to machamp-media project
       ansible.builtin.uri:
         url: "{{ _infisical_host }}/api/v1/projects/{{ _project_id }}/identity-memberships/{{ _identity_id }}"
         method: POST
@@ -387,7 +387,7 @@
     - name: Report machine identity created
       ansible.builtin.debug:
         msg: >
-          Infisical machine identity 'machamp-services' created.
+          Infisical machine identity 'machamp-media' created.
           Project ID, client ID, and client secret written to ansible/secrets.yml.
 
 # ── Phase 3: Seed PIA credentials ────────────────────────────────────────────

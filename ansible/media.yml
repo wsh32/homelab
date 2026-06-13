@@ -1,12 +1,12 @@
 ---
-# Configure machamp-services: NVIDIA drivers (via gpu.yml import),
+# Configure machamp-media: NVIDIA drivers (via gpu.yml import),
 # NFS mounts, Infisical secrets, and compose stack.
 # Run after services.yml. Requires Infisical (diglett-infra) to be up for secret export.
 #
 # Prerequisites:
 #   - Alakazam NFS reachable at 192.168.0.4:/mnt/apps/docker, :/mnt/pool/media, :/mnt/pool/photos
 #   - ansible/secrets.yml contains infisical_client_id/secret/project_id
-#   - Infisical machine identity created for machamp-services (see secrets.yml.example)
+#   - Infisical machine identity created for machamp-media (see secrets.yml.example)
 #
 # Usage:
 #   ansible-playbook ansible/media.yml
@@ -18,8 +18,8 @@
 # picks up the nvidia runtime on a clean kernel load.
 - import_playbook: gpu.yml
 
-- name: Configure machamp-services (NFS, Infisical, compose stack)
-  hosts: machamp-services
+- name: Configure machamp-media (NFS, Infisical, compose stack)
+  hosts: machamp-media
   gather_facts: true
 
   vars:
@@ -147,7 +147,7 @@
 
     - name: Ensure homelab services directory exists on VM
       ansible.builtin.file:
-        path: /home/{{ ansible_user }}/homelab/services/machamp-services
+        path: /home/{{ ansible_user }}/homelab/services/machamp-media
         state: directory
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
@@ -163,9 +163,9 @@
         mode: "0755"
       become: true
 
-    - name: Sync machamp-services scripts to VM
+    - name: Sync machamp-media scripts to VM
       ansible.posix.synchronize:
-        src: "{{ playbook_dir }}/../scripts/machamp-services/"
+        src: "{{ playbook_dir }}/../scripts/machamp-media/"
         dest: /home/{{ ansible_user }}/homelab/scripts/
         delete: true
         recursive: true
@@ -173,10 +173,10 @@
           - "--chown={{ ansible_user }}:{{ ansible_user }}"
           - "--chmod=D755,F755"
 
-    - name: Sync machamp-services compose stack to VM
+    - name: Sync machamp-media compose stack to VM
       ansible.posix.synchronize:
-        src: "{{ playbook_dir }}/../services/machamp-services/"
-        dest: /home/{{ ansible_user }}/homelab/services/machamp-services/
+        src: "{{ playbook_dir }}/../services/machamp-media/"
+        dest: /home/{{ ansible_user }}/homelab/services/machamp-media/
         delete: true
         recursive: true
         rsync_opts:
@@ -186,7 +186,7 @@
     - name: Symlink .env → /etc/homelab.env for compose variable substitution
       ansible.builtin.file:
         src: /etc/homelab.env
-        dest: /home/{{ ansible_user }}/homelab/services/machamp-services/.env
+        dest: /home/{{ ansible_user }}/homelab/services/machamp-media/.env
         state: link
         force: true
       become: true
@@ -329,9 +329,9 @@
           Downloads\PreAllocation=false
       become: true
 
-    - name: Start machamp-services compose stack
+    - name: Start machamp-media compose stack
       community.docker.docker_compose_v2:
-        project_src: /home/{{ ansible_user }}/homelab/services/machamp-services
+        project_src: /home/{{ ansible_user }}/homelab/services/machamp-media
         state: present
         pull: missing
       become: true
