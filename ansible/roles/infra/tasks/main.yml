@@ -907,7 +907,7 @@
 - name: Set headplane app PK fact from existing app
   ansible.builtin.set_fact:
     _hp_app_pk: "{{ _hp_existing_app.json.results[0].pk }}"
-  when: _hp_provider_exists
+  when: _hp_provider_exists and _hp_existing_app.json.results | length > 0
 
 - name: Set headplane app PK fact from new app
   ansible.builtin.set_fact:
