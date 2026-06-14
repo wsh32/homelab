@@ -90,9 +90,10 @@
         fi
         IOMMU=$(find /sys/kernel/iommu_groups -name "*{{ item.path }}*" | grep -oP 'iommu_groups/\K[0-9]+')
         VENDOR=$(lspci -n | awk '/^{{ item.path[5:] }}/ {print $3}')
+        SUBSYSTEM=$(lspci -n -vmm -s {{ item.path[5:] }} | awk '/^SVendor:/{sv=$2} /^SDevice:/{sd=$2} END{print sv ":" sd}')
         pvesh create /cluster/mapping/pci \
           --id {{ item.id }} \
-          --map "node={{ inventory_hostname }},id=${VENDOR},path={{ item.path }},iommugroup=${IOMMU}" \
+          --map "node={{ inventory_hostname }},id=${VENDOR},path={{ item.path }},iommugroup=${IOMMU},subsystem-id=${SUBSYSTEM}" \
           --description "{{ item.description }}"
         echo "created"
       loop: "{{ _mappings }}"
