@@ -648,6 +648,15 @@
     # creates a "root" admin user with no password. After completing the wizard
     # we authenticate as root (empty password) and set jellyfin_admin_password.
 
+    - name: Wait for Jellyfin to be ready
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/health"
+        status_code: 200
+      register: _jf_health
+      until: _jf_health.status == 200
+      retries: 40
+      delay: 10
+
     - name: Check Jellyfin wizard status
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Startup/Configuration"
