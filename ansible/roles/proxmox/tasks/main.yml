@@ -8,18 +8,8 @@
       - ipmitool
       - powerstat
       - linux-cpupower
-      - cpufrequtils
     state: present
     update_cache: true
-  become: true
-
-- name: Persist schedutil CPU governor
-  ansible.builtin.copy:
-    content: "GOVERNOR=\"schedutil\"\n"
-    dest: /etc/default/cpufrequtils
-    owner: root
-    group: root
-    mode: "0644"
   become: true
 
 - name: Set CPU governor to schedutil
