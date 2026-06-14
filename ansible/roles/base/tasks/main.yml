@@ -75,6 +75,20 @@
     mode: "0755"
   become: true
 
+- name: Add Tailscale apt signing key
+  ansible.builtin.apt_key:
+    url: https://pkgs.tailscale.com/stable/{{ ansible_distribution | lower }}/{{ ansible_distribution_release | lower }}.noarmor.gpg
+    keyring: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    state: present
+  become: true
+
+- name: Add Tailscale apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/{{ ansible_distribution | lower }} {{ ansible_distribution_release | lower }} main"
+    filename: tailscale
+    state: present
+  become: true
+
 - name: Ensure Tailscale is running and up to date
   ansible.builtin.apt:
     name: tailscale
