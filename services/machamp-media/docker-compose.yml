@@ -72,6 +72,7 @@ services:
       OPENVPN_USER: ${PIA_USERNAME}
       OPENVPN_PASSWORD: ${PIA_PASSWORD}
       SERVER_REGIONS: US East
+      FIREWALL_INPUT_PORTS: "8080"
     healthcheck:
       test: ["CMD", "/gluetun-entrypoint", "healthcheck"]
       interval: 30s
