@@ -30,7 +30,7 @@
   become: true
   notify: Reload network
 
-- name: Disable TSO/GSO/GRO on physical NIC (e1000e/I219 hang workaround)
+- name: Disable TSO/GSO/GRO on physical NIC (older NIC driver hang workaround)
   ansible.builtin.command: ethtool -K {{ proxmox_bridge_port }} tso off gso off gro off
   become: true
   when: disable_nic_offload | default(false)
