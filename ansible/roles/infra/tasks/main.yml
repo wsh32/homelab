@@ -1542,8 +1542,11 @@
           req = urllib.request.Request(url, data=data, headers=headers, method=method)
           try:
               with urllib.request.urlopen(req) as r:
-                  return r.status, json.loads(r.read()) if r.length != 0 else {}
+                  raw = r.read()
+                  return r.status, json.loads(raw) if raw else {}
           except urllib.error.HTTPError as e:
+              raw = e.read()
+              print(f"HTTP {e.code} {method} {path}: {raw.decode()}", file=sys.stderr)
               return e.code, {}
 
       # Build desired set: {app_pk: {group_pk, ...}}
@@ -1598,7 +1601,6 @@
       - "{{ authentik_app_bindings | to_json }}"
   register: _binding_sync
   changed_when: "'changed' in _binding_sync.stdout"
-  no_log: true
 
 - name: Remove binding sync script
   ansible.builtin.file:
