@@ -61,12 +61,60 @@
       register: _hp_api_key_stat
       become: true
 
-    - name: Read headplane API key
+    - name: Read existing headplane API key
       ansible.builtin.slurp:
         src: /mnt/nas/docker/headplane/api.key
       register: _hp_api_key_raw
       become: true
       when: _hp_api_key_stat.stat.exists
+
+    - name: Validate existing API key against headscale
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale apikeys list --output json
+      register: _hp_apikeys_list
+      become: true
+      when: _hp_api_key_stat.stat.exists
+
+    - name: Determine if stored API key is still valid
+      ansible.builtin.set_fact:
+        _hp_api_key_valid: >-
+          {{
+            _hp_api_key_stat.stat.exists and
+            (_hp_apikeys_list.stdout | from_json
+             | selectattr('prefix', 'in', (_hp_api_key_raw.content | b64decode | trim))
+             | list | length > 0)
+          }}
+
+    - name: Regenerate headscale API key if invalid or missing
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale apikeys create --expiration 0 --output json
+      register: _hp_apikey_new
+      become: true
+      when: not _hp_api_key_valid
+
+    - name: Extract new API key
+      ansible.builtin.set_fact:
+        _hp_new_apikey_value: >-
+          {{ (_hp_apikey_new.stdout | from_json).key
+             if (_hp_apikey_new.stdout | from_json) is mapping
+             else _hp_apikey_new.stdout | from_json }}
+      when: not _hp_api_key_valid
+
+    - name: Write regenerated API key to NFS
+      ansible.builtin.copy:
+        content: "{{ _hp_new_apikey_value }}"
+        dest: /mnt/nas/docker/headplane/api.key
+        mode: "0600"
+      become: true
+      when: not _hp_api_key_valid
+
+    - name: Read headplane API key from NFS
+      ansible.builtin.slurp:
+        src: /mnt/nas/docker/headplane/api.key
+      register: _hp_api_key_final
+      become: true
 
     - name: Remove any existing OIDC blocks from headplane config
       ansible.builtin.shell: |
@@ -83,7 +131,7 @@
             issuer: "{{ authentik_public_url }}/application/o/headplane/"
             client_id: "{{ _hp_oidc_client_id }}"
             client_secret: "{{ _hp_oidc_client_secret }}"
-            headscale_api_key: "{{ _hp_api_key_raw.content | b64decode | trim if _hp_api_key_stat.stat.exists else '' }}"
+            headscale_api_key: "{{ _hp_api_key_final.content | b64decode | trim }}"
             disable_api_key_login: false
             use_pkce: true
       notify: Restart headplane

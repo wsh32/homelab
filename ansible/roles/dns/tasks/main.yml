@@ -75,12 +75,60 @@
   register: headplane_api_key_stat_role
   become: true
 
-- name: Read headplane API key for config injection
+- name: Read existing headplane API key for validation
+  ansible.builtin.slurp:
+    src: /mnt/nas/docker/headplane/api.key
+  register: headplane_api_key_role_raw
+  become: true
+  when: headplane_api_key_stat_role.stat.exists
+
+- name: Validate existing API key against headscale
+  community.docker.docker_container_exec:
+    container: headscale
+    command: headscale apikeys list --output json
+  register: _role_apikeys_list
+  become: true
+  when: headplane_api_key_stat_role.stat.exists
+
+- name: Determine if stored API key is still valid
+  ansible.builtin.set_fact:
+    _role_api_key_valid: >-
+      {{
+        headplane_api_key_stat_role.stat.exists and
+        (_role_apikeys_list.stdout | from_json
+         | selectattr('prefix', 'in', (headplane_api_key_role_raw.content | b64decode | trim))
+         | list | length > 0)
+      }}
+
+- name: Regenerate headscale API key if invalid or missing
+  community.docker.docker_container_exec:
+    container: headscale
+    command: headscale apikeys create --expiration 0 --output json
+  register: _role_apikey_new
+  become: true
+  when: not _role_api_key_valid
+
+- name: Extract new API key
+  ansible.builtin.set_fact:
+    _role_new_apikey_value: >-
+      {{ (_role_apikey_new.stdout | from_json).key
+         if (_role_apikey_new.stdout | from_json) is mapping
+         else _role_apikey_new.stdout | from_json }}
+  when: not _role_api_key_valid
+
+- name: Write regenerated API key to NFS
+  ansible.builtin.copy:
+    content: "{{ _role_new_apikey_value }}"
+    dest: /mnt/nas/docker/headplane/api.key
+    mode: "0600"
+  become: true
+  when: not _role_api_key_valid
+
+- name: Read headplane API key from NFS
   ansible.builtin.slurp:
     src: /mnt/nas/docker/headplane/api.key
   register: headplane_api_key_role
   become: true
-  when: headplane_api_key_stat_role.stat.exists
 
 - name: Inject headplane API key into config
   ansible.builtin.lineinfile:
@@ -88,7 +136,6 @@
     regexp: '^\s+api_key:'
     line: "  api_key: \"{{ headplane_api_key_role.content | b64decode | trim }}\""
   notify: Restart diglett-dns stack
-  when: headplane_api_key_stat_role.stat.exists
 
 # ── Headplane OIDC (conditional -- skipped until infra.yml has run) ────────────
 
@@ -121,7 +168,7 @@
         issuer: "{{ authentik_public_url }}/application/o/headplane/"
         client_id: "{{ _hp_oidc_client_id }}"
         client_secret: "{{ _hp_oidc_client_secret }}"
-        headscale_api_key: "{{ headplane_api_key_role.content | b64decode | trim if headplane_api_key_stat_role.stat.exists else '' }}"
+        headscale_api_key: "{{ headplane_api_key_role.content | b64decode | trim }}"
         disable_api_key_login: false
   notify: Restart diglett-dns stack
   when: _hp_oidc_env_stat.stat.exists and authentik_public_url is defined
