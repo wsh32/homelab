@@ -308,7 +308,22 @@ curl https://192.168.0.5:8006  # should connect without certificate errors
 
 ---
 
-## Phase 3 — Full deployment (from the deploy VM)
+## Phase 3 — Configure Proxmox nodes (from the deploy VM)
+
+```bash
+ansible-playbook ansible/proxmox.yml
+```
+
+This configures both Proxmox nodes: CPU governor, power tuning, and PCI hardware mappings
+(e.g. `quadro-p2200` on machamp). PCI mappings are defined under `pci_mappings` in
+`network.yml` and created idempotently — safe to re-run.
+
+The Terraform token is also granted `PVEMappingUser` permission on each mapping so
+`terraform apply` can attach PCI devices without requiring root.
+
+---
+
+## Phase 4 — Full deployment (from the deploy VM)
 
 SSH to the deploy VM:
 ```bash
@@ -474,85 +489,28 @@ At this point:
 
 ## GPU passthrough (Quadro P2200 → machamp-media)
 
-One-time setup. Run after the VM is provisioned (Phase 3). Proxmox hardware mappings
-let the `terraform@pam` API token assign PCI devices without root credentials — root
-creates the mapping once, then Terraform manages it like any other VM attribute.
+The Proxmox PCI mapping (`quadro-p2200`) is created automatically by `ansible/proxmox.yml`
+(Phase 3). After `terraform apply` provisions machamp-media with the GPU attached:
 
-### 1. Create the Proxmox hardware mapping
-
-SSH to machamp as root (`ssh root@192.168.0.5`):
+### Install NVIDIA drivers
 
 ```bash
-# Find the IOMMU group number for the P2200 GPU function
-find /sys/kernel/iommu_groups -name "*0000:41:00.0*" | grep -oP 'iommu_groups/\K[0-9]+'
-
-# Get the vendor:device ID for the GPU (the 4+4 hex digits after the class code)
-lspci -n | grep "41:00.0"
-# e.g.: 41:00.0 0300: 10de:1c31 (rev a1)  ← use 10de:1c31 as VENDOR_DEV below
-
-# Create the mapping — replace N with IOMMU group, VENDOR_DEV with id from lspci -n
-pvesh create /cluster/mapping/pci \
-  --id quadro-p2200 \
-  --map "node=machamp,id=VENDOR_DEV,path=0000:41:00.0,iommugroup=N" \
-  --description "Quadro P2200 GPU"
-
-# Grant the Terraform API token permission to use the mapping
-# Use single quotes around the token to prevent bash history expansion of '!'
-pvesh set /access/acl \
-  --path /mapping/pci/quadro-p2200 \
-  --roles PVEMappingUser \
-  --tokens 'terraform@pam!terraform'
-```
-
-Note: only the GPU function (`41:00.0`) is mapped. The audio function (`41:00.1`) is for
-HDMI audio output and is not needed for NVENC transcoding.
-
-### 2. Add the mapping to terraform.tfvars
-
-On the deploy VM (`~/homelab/terraform/machamp/terraform.tfvars`):
-```
-services_gpu_mappings = ["quadro-p2200"]
-```
-
-### 3. Apply Terraform
-
-```bash
-cd ~/homelab/terraform/machamp
-terraform plan   # should show only: + hostpci { mapping = "quadro-p2200" }
-terraform apply
-```
-
-### 4. Reboot the VM
-
-Proxmox applies the `hostpci` config on next boot — the running VM is not affected until then.
-
-```bash
-ssh root@192.168.0.5 "qm reboot 100"
-```
-
-### 5. Install NVIDIA drivers
-
-After the VM comes back up:
-
-```bash
-cd ~/homelab
 ansible-playbook ansible/gpu.yml
 ```
 
 The role installs `nvidia-driver-550-server`, adds the NVIDIA container toolkit, merges
-the nvidia runtime into Docker's `daemon.json`, and reboots the VM again if the driver
-was newly installed. The second reboot loads the driver into the kernel.
+the nvidia runtime into Docker's `daemon.json`, and reboots the VM if the driver was
+newly installed.
 
-### 6. Verify
+### Verify
 
 ```bash
 ssh ubuntu@192.168.0.30 nvidia-smi
 # Expected: Quadro P2200 listed, driver version ~550.x
 ```
 
-Jellyfin's `encoding.xml` is already bind-mounted with NVENC enabled. After the compose
-stack comes back up, check Jellyfin → Dashboard → Playback — hardware acceleration should
-show NVENC/NVDEC.
+Jellyfin's `encoding.xml` is already bind-mounted with NVENC enabled. Check
+Jellyfin → Dashboard → Playback — hardware acceleration should show NVENC/NVDEC.
 
 ---
 

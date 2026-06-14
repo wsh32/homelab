@@ -56,3 +56,58 @@
     state: started
     daemon_reload: true
   become: true
+
+- name: Create Proxmox PCI mappings
+  vars:
+    _net: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
+    _node: "{{ _net.nodes[inventory_hostname] }}"
+    _mappings: "{{ _node.pci_mappings | default([]) }}"
+  when: _mappings | length > 0
+  block:
+    - name: Check existing PCI mappings
+      ansible.builtin.command: pvesh get /cluster/mapping/pci/{{ item.id }}
+      loop: "{{ _mappings }}"
+      register: _mapping_check
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Discover IOMMU group for each PCI device
+      ansible.builtin.shell:
+        cmd: find /sys/kernel/iommu_groups -name "*{{ item.item.path }}*" | grep -oP 'iommu_groups/\K[0-9]+'
+      loop: "{{ _mapping_check.results }}"
+      register: _iommu_groups
+      changed_when: false
+      when: item.rc != 0
+      become: true
+
+    - name: Discover vendor:device ID for each PCI device
+      ansible.builtin.shell:
+        cmd: lspci -n | awk '/^{{ item.item.path[5:] }}/ {print $3}'
+      loop: "{{ _mapping_check.results }}"
+      register: _vendor_ids
+      changed_when: false
+      when: item.rc != 0
+      become: true
+
+    - name: Create missing PCI mappings
+      ansible.builtin.command: >
+        pvesh create /cluster/mapping/pci
+        --id {{ item.item.item.id }}
+        --map "node={{ inventory_hostname }},id={{ _vendor_ids.results[idx].stdout | trim }},path={{ item.item.item.path }},iommugroup={{ _iommu_groups.results[idx].stdout | trim }}"
+        --description "{{ item.item.item.description }}"
+      loop: "{{ _mapping_check.results }}"
+      loop_control:
+        index_var: idx
+      when: item.rc != 0
+      become: true
+
+    - name: Grant terraform API token permission on PCI mappings
+      ansible.builtin.command: >
+        pvesh set /access/acl
+        --path /mapping/pci/{{ item.id }}
+        --roles PVEMappingUser
+        --tokens 'terraform@pam!terraform'
+      loop: "{{ _mappings }}"
+      changed_when: false
+      become: true

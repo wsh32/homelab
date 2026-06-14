@@ -85,6 +85,10 @@ nodes:
     type: proxmox
     ansible_user: root
     bridge_port: nic1
+    pci_mappings:
+      - id: quadro-p2200
+        path: "0000:41:00.0"
+        description: "Quadro P2200 GPU"
     vms:
       machamp-media:
         ip: 192.168.0.30
