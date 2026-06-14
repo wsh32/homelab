@@ -12,10 +12,39 @@
     update_cache: true
   become: true
 
-- name: Set CPU governor to schedutil
-  ansible.builtin.command: cpupower frequency-set -g schedutil
+- name: Set CPU governor to powersave
+  ansible.builtin.command: cpupower frequency-set -g powersave
   become: true
   changed_when: false
+
+- name: Persist CPU governor via systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/cpupower-governor.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Set CPU frequency governor
+      After=multi-user.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/cpupower frequency-set -g powersave
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+  become: true
+  notify: Reload systemd
+
+- name: Enable CPU governor service
+  ansible.builtin.systemd:
+    name: cpupower-governor
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
 
 - name: Auto-detect hardware sensors
   ansible.builtin.command: sensors-detect --auto
