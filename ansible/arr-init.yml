@@ -1106,9 +1106,7 @@
         regexp: '^BAZARR_API_KEY='
         line: "BAZARR_API_KEY={{ bazarr_api_key }}"
       become: true
-      when:
-        - bazarr_api_key != ''
-        - bazarr_api_key != ((_env | regex_search('(?m)^BAZARR_API_KEY=(.+)$', '\\1') or ['']) | first)
+      when: bazarr_api_key != ''
 
     - name: Get current Bazarr enabled providers
       ansible.builtin.uri:
