@@ -357,7 +357,8 @@ http:
         # Proxmox uses a self-signed cert; serversTransport skips verification.
         serversTransport: insecureTransport
         servers:
-          - url: "https://192.168.0.PROXMOX_IP:8006"
+          - url: "https://192.168.0.5:8006"   # machamp
+          - url: "https://192.168.0.6:8006"   # diglett
 
   serversTransports:
     insecureTransport:
