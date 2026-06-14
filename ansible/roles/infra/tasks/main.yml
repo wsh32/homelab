@@ -1037,7 +1037,7 @@
         | unique
       }}
 
-- name: Add arr proxy providers to embedded outpost
+- name: Add arr proxy providers to embedded outpost and set authentik_host
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/outposts/instances/{{ _embedded_outpost.json.results[0].pk }}/"
     method: PATCH
@@ -1047,6 +1047,9 @@
     body_format: json
     body:
       providers: "{{ _outpost_provider_pks }}"
+      config:
+        authentik_host: "{{ authentik_public_url }}"
+        authentik_host_browser: "{{ authentik_public_url }}"
     status_code: 200
 
 # ── Jellyfin: native OIDC provider ────────────────────────────────────────────
