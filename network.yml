@@ -1,4 +1,4 @@
-# network.yml — single source of truth for all static IP assignments.
+# network.yml -- single source of truth for all static IP assignments.
 #
 # Terraform reads this file directly via yamldecode().
 # Ansible inventory is generated from this file and ansible/group_config.yml
@@ -6,10 +6,10 @@
 #
 # IP layout:
 #   .1       gateway (Eero)
-#   .2       diglett-dns VM (AdGuard Home — primary DNS; special-cased outside VM range)
+#   .2       diglett-dns VM (AdGuard Home -- primary DNS; special-cased outside VM range)
 #   .3       reserved (future backup DNS)
 #   .4–.19   physical nodes (.7 = alakazam-deploy deploy host)
-#   .21–.29  Diglett VMs (VM IDs 200–299)
+#   .20–.29  Diglett VMs (VM IDs 200–299)
 #   .30–.49  Machamp VMs (VM IDs 100–199)
 #   .100+    DHCP (Eero managed)
 #
@@ -22,15 +22,15 @@ subnet_prefix: 24
 
 # DNS servers injected into all VMs via cloud-init
 dns:
-  - 192.168.0.2   # diglett-dns (AdGuard Home) — primary
+  - 192.168.0.2   # diglett-dns (AdGuard Home) -- primary
   - 8.8.8.8       # fallback if diglett-dns is down
 
-# All nodes — physical and compute.
+# All nodes -- physical and compute.
 #
 # Fields on every node:
 #   ip:              LAN IP address
 #   type:            Ansible physical group (proxmox | nas | other)
-#   os:              OS family — nodes with os=truenas are excluded from Ansible inventory
+#   os:              OS family -- nodes with os=truenas are excluded from Ansible inventory
 #   ansible_user:    SSH user override (default: ubuntu)
 #
 # Additional fields for Proxmox nodes:
@@ -61,7 +61,6 @@ nodes:
     type: proxmox
     ansible_user: root
     bridge_port: nic0
-    disable_nic_offload: true  # e1000e/I219 TSO/GSO/GRO hang workaround; see ansible/roles/network
     vms:
       diglett-dns:
         ip: 192.168.0.2
@@ -69,30 +68,34 @@ nodes:
         vm_id: 200
         vm_roles: [services]
         tailscale_exit_node: true
+      diglett-infra:
+        ip: 192.168.0.20
+        tailscale_ip: 100.64.1.20
+        vm_id: 201
+        vm_roles: [services]
       diglett-haos:
-        ip: 192.168.0.22
+        ip: 192.168.0.21
         vm_id: 202
-        ansible_managed: false  # HAOS — no SSH access via Ansible
+        ansible_managed: false  # HAOS -- no SSH access via Ansible
 
   machamp:
     ip: 192.168.0.5
     tailscale_ip: 100.64.1.5
     type: proxmox
     ansible_user: root
-    bridge_port: nic1
+    bridge_port: nic0
+    pci_mappings:
+      - id: quadro-p2200
+        path: "0000:41:00.0"
+        description: "Quadro P2200 GPU"
     vms:
-      machamp-services:
+      machamp-media:
         ip: 192.168.0.30
         tailscale_ip: 100.64.1.30
         vm_id: 100
-        vm_roles: [services, gpu]
+        vm_roles: [media, gpu]
       machamp-dev:
         ip: 192.168.0.31
         tailscale_ip: 100.64.1.31
         vm_id: 101
         vm_roles: [dev]
-      machamp-infra:
-        ip: 192.168.0.32
-        tailscale_ip: 100.64.1.32
-        vm_id: 102
-        vm_roles: [services]

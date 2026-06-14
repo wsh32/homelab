@@ -8,24 +8,43 @@
       - ipmitool
       - powerstat
       - linux-cpupower
-      - cpufrequtils
     state: present
     update_cache: true
   become: true
 
-- name: Persist schedutil CPU governor
+- name: Set CPU governor to powersave
+  ansible.builtin.command: cpupower frequency-set -g powersave
+  become: true
+  changed_when: false
+
+- name: Persist CPU governor via systemd service
   ansible.builtin.copy:
-    content: "GOVERNOR=\"schedutil\"\n"
-    dest: /etc/default/cpufrequtils
+    dest: /etc/systemd/system/cpupower-governor.service
     owner: root
     group: root
     mode: "0644"
-  become: true
+    content: |
+      [Unit]
+      Description=Set CPU frequency governor
+      After=multi-user.target
 
-- name: Set CPU governor to schedutil
-  ansible.builtin.command: cpupower frequency-set -g schedutil
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/cpupower frequency-set -g powersave
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
   become: true
-  changed_when: false
+  notify: Reload systemd
+
+- name: Enable CPU governor service
+  ansible.builtin.systemd:
+    name: cpupower-governor
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
 
 - name: Auto-detect hardware sensors
   ansible.builtin.command: sensors-detect --auto
@@ -56,3 +75,38 @@
     state: started
     daemon_reload: true
   become: true
+
+- name: Create Proxmox PCI mappings
+  vars:
+    _net: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
+    _mappings: "{{ _net.nodes[inventory_hostname].pci_mappings | default([]) }}"
+  when: _mappings | length > 0
+  block:
+    - name: Create PCI mapping if not present
+      ansible.builtin.shell: |
+        if pvesh get /cluster/mapping/pci/{{ item.id }} >/dev/null 2>&1; then
+          echo "exists"
+          exit 0
+        fi
+        IOMMU=$(find /sys/kernel/iommu_groups -name "*{{ item.path }}*" | grep -oP 'iommu_groups/\K[0-9]+')
+        VENDOR=$(lspci -n | awk '/^{{ item.path[5:] }}/ {print $3}')
+        SUBSYSTEM=$(lspci -n -vmm -s {{ item.path[5:] }} | awk '/^SVendor:/{sv=$2} /^SDevice:/{sd=$2} END{print sv ":" sd}')
+        pvesh create /cluster/mapping/pci \
+          --id {{ item.id }} \
+          --map "node={{ inventory_hostname }},id=${VENDOR},path={{ item.path }},iommugroup=${IOMMU},subsystem-id=${SUBSYSTEM}" \
+          --description "{{ item.description }}"
+        echo "created"
+      loop: "{{ _mappings }}"
+      register: _mapping_result
+      changed_when: "'created' in _mapping_result.stdout"
+      become: true
+
+    - name: Grant terraform API token permission on PCI mappings
+      ansible.builtin.command: >
+        pvesh set /access/acl
+        --path /mapping/pci/{{ item.id }}
+        --roles PVEMappingUser
+        --tokens 'terraform@pam!terraform'
+      loop: "{{ _mappings }}"
+      changed_when: false
+      become: true

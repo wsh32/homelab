@@ -13,7 +13,7 @@ http:
   session_ttl: 30d
 users:
   - name: admin
-    # bcrypt hash — plaintext in Vaultwarden. Generate with: htpasswd -bnBC 10 "" <password> | tr -d ':\n'
+    # bcrypt hash -- plaintext in Vaultwarden. Generate with: htpasswd -bnBC 10 "" <password> | tr -d ':\n'
     password: $2y$10$AJQxn6NM9IXJAxjmQyrD8Og87JDDyrMTkEg4F.E.U5vqFrwhsLiIK
 auth_attempts: 5
 block_auth_min: 15
@@ -159,14 +159,14 @@ filtering:
   parental_block_host: family-block.dns.adguard.com
   safebrowsing_block_host: standard-block.dns.adguard.com
   rewrites:
-    # DNS rewrites — two-domain architecture:
+    # DNS rewrites -- two-domain architecture:
     #   *.wsh  → Tailscale HTTPS path (step-ca TLS, personal devices)
     #   *.home → LAN HTTP path (guests, IoT, no TLS)
     - domain: '*.wsh'
-      answer: machamp-infra.ts.home
+      answer: diglett-infra.ts.home
       enabled: true
     - domain: '*.home'
-      answer: 192.168.0.32
+      answer: 192.168.0.20
       enabled: true
   safe_fs_patterns:
     - /opt/adguardhome/work/data/userfilters/*

@@ -6,7 +6,7 @@
 # Usage:
 #   INFISICAL_HOST=http://192.168.0.32:8080 ./scripts/infisical-bootstrap.sh
 #
-# Outputs workspace_id, client_id, client_secret — add to terraform.tfvars.
+# Outputs workspace_id, client_id, client_secret -- add to terraform.tfvars.
 
 set -euo pipefail
 

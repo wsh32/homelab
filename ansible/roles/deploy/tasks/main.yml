@@ -1,5 +1,5 @@
 ---
-# Deploy role — applied to alakazam-deploy on top of the base role.
+# Deploy role -- applied to alakazam-deploy on top of the base role.
 # Installs operator tooling: Terraform, Infisical CLI, Ansible (via pipx).
 
 - name: Install pipx and pip
@@ -65,7 +65,7 @@
 - name: Configure SSH agent in .bashrc
   ansible.builtin.blockinfile:
     path: "{{ ansible_env.HOME }}/.bashrc"
-    marker: "# {mark} ANSIBLE MANAGED BLOCK — ssh-agent"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK -- ssh-agent"
     block: |
       if [ -z "$SSH_AUTH_SOCK" ]; then
         eval $(ssh-agent -s)

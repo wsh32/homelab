@@ -26,12 +26,6 @@ variable "vm_password" {
   sensitive   = true
 }
 
-variable "tailscale_auth_key" {
-  description = "Tailscale reusable auth key for VM provisioning"
-  type        = string
-  sensitive   = true
-}
-
 variable "cloudflare_api_token" {
   description = "Cloudflare API token with Zone > DNS > Edit permission"
   type        = string
@@ -47,4 +41,10 @@ variable "headscale_subdomain" {
   description = "Subdomain for Headscale public endpoint (e.g. 'headscale' → headscale.example.com)"
   type        = string
   default     = "headscale"
+}
+
+variable "authentik_subdomain" {
+  description = "Subdomain for the public Authentik OIDC endpoint (e.g. 'auth' → auth.example.com)"
+  type        = string
+  default     = "auth"
 }

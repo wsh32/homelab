@@ -1,6 +1,6 @@
 # Arr Stack Setup Guide
 
-End-to-end instructions for deploying the media stack on `machamp-services`: Gluetun +
+End-to-end instructions for deploying the media stack on `machamp-media`: Gluetun +
 qBittorrent + SABnzbd, Prowlarr, Radarr, Sonarr, Bazarr, Seerr, Unpackerr, Recyclarr,
 and Jellyfin with NVENC.
 
@@ -8,9 +8,9 @@ and Jellyfin with NVENC.
 
 ## Prerequisites
 
-- `machamp-services` VM is online and reachable via Tailscale (`machamp-services.ts.home`)
-- NFS share `/mnt/nas/media` is mounted on `machamp-services`
-- Infisical instance is running (`diglett-infra`) and `machamp-services` has `/etc/infisical.env`
+- `machamp-media` VM is online and reachable via Tailscale (`machamp-media.ts.home`)
+- NFS share `/mnt/nas/media` is mounted on `machamp-media`
+- Infisical instance is running (`diglett-infra`) and `machamp-media` has `/etc/infisical.env`
 - You are running commands from `alakazam-deploy` unless stated otherwise
 
 ---
@@ -20,7 +20,7 @@ and Jellyfin with NVENC.
 ### 1a. Infisical machine identity (auto-created by `infra.yml`)
 
 `ansible-playbook ansible/infra.yml` creates a project, a Universal Auth machine identity
-named `machamp-services`, and writes `infisical_project_id`, `infisical_client_id`, and
+named `machamp-media`, and writes `infisical_project_id`, `infisical_client_id`, and
 `infisical_client_secret` back to `ansible/secrets.yml` automatically using the bootstrap
 token returned on first run. No manual Infisical UI steps needed.
 
@@ -28,19 +28,19 @@ token returned on first run. No manual Infisical UI steps needed.
 
 PIA credentials can be seeded in two ways:
 
-**Option A — Automatic from Vaultwarden** (recommended): The infra role creates a
+**Option A -- Automatic from Vaultwarden** (recommended): The infra role creates a
 Vaultwarden service account (`infra@team.rocket`) automatically. After running
 `ansible-playbook ansible/infra.yml`:
 1. Log into Vaultwarden at `https://vault.home` as `infra@team.rocket`
    (password is in `/etc/homelab.env` on `machamp-infra` as `VAULTWARDEN_SVC_PASSWORD`)
 2. Create a login item named **PIA VPN** with your PIA username and password
-3. Re-run `ansible-playbook ansible/infra.yml` — Phase 3 reads the item via `bw` CLI
+3. Re-run `ansible-playbook ansible/infra.yml` -- Phase 3 reads the item via `bw` CLI
    on `machamp-infra` and pushes credentials to Infisical
 
 If the vault item uses a different name, set `pia_vault_item: "My Item Name"` in
 `ansible/secrets.yml`.
 
-**Option B — Manual**: Add directly in the Infisical web UI:
+**Option B -- Manual**: Add directly in the Infisical web UI:
 
 | Key | Description |
 |-----|-------------|
@@ -55,7 +55,7 @@ Add to `ansible/secrets.yml` before running `arr-init.yml`:
 |-----|-------------|
 | `newshosting_username` | Newshosting account username |
 | `newshosting_password` | Newshosting account password |
-| `nzbplanet_api_key` | NZBPlanet API key — get from nzbplanet.net → Account → API Key |
+| `nzbplanet_api_key` | NZBPlanet API key -- get from nzbplanet.net → Account → API Key |
 
 `arr-init.yml` pushes these to Infisical and pre-seeds `sabnzbd.ini` with the Newshosting
 server block. Without these, SABnzbd will start but have no server configured and NZBPlanet
@@ -80,15 +80,15 @@ corresponding API key to `secrets.yml`. No changes to `arr-init.yml` needed.
 
 ## 2. Create NFS media directory structure
 
-Run once on `machamp-services` (or from `alakazam-deploy` if you have NFS access):
+Run once on `machamp-media` (or from `alakazam-deploy` if you have NFS access):
 
 ```bash
-ssh ubuntu@machamp-services.ts.home bash <<'EOF'
+ssh ubuntu@machamp-media.ts.home bash <<'EOF'
 mkdir -p /mnt/nas/media/movies
 mkdir -p /mnt/nas/media/tv
 mkdir -p /mnt/nas/media/downloads/complete
 mkdir -p /mnt/nas/media/downloads/incomplete
-mkdir -p /var/lib/qbittorrent/incomplete   # local disk — active torrent writes
+mkdir -p /var/lib/qbittorrent/incomplete   # local disk -- active torrent writes
 EOF
 ```
 
@@ -107,7 +107,7 @@ ssh root@machamp "lspci | grep -i quadro"
 
 ### 3b. Configure Terraform
 
-Edit `terraform/machamp/terraform.tfvars` (not committed — lives on `alakazam-deploy`):
+Edit `terraform/machamp/terraform.tfvars` (not committed -- lives on `alakazam-deploy`):
 
 ```hcl
 services_gpu_pci_ids = ["0000:01:00.0"]
@@ -147,7 +147,7 @@ NVIDIA runtime into `/etc/docker/daemon.json` and restarts Docker.
 Verify after completion:
 
 ```bash
-ssh ubuntu@machamp-services.ts.home "nvidia-smi"
+ssh ubuntu@machamp-media.ts.home "nvidia-smi"
 # Should show: NVIDIA Quadro P2200
 ```
 
@@ -158,14 +158,14 @@ ssh ubuntu@machamp-services.ts.home "nvidia-smi"
 Push to the branch (or merge to main), which triggers webhook deployment. Or deploy manually:
 
 ```bash
-ssh ubuntu@machamp-services.ts.home \
-  "cd /home/ubuntu/homelab/services/machamp-services && docker compose pull && docker compose up -d"
+ssh ubuntu@machamp-media.ts.home \
+  "cd /home/ubuntu/homelab/services/machamp-media && docker compose pull && docker compose up -d"
 ```
 
 Watch the VPN connect:
 
 ```bash
-ssh ubuntu@machamp-services.ts.home "docker logs -f gluetun"
+ssh ubuntu@machamp-media.ts.home "docker logs -f gluetun"
 # Wait for: "Connected to PIA ..."
 ```
 
@@ -181,7 +181,7 @@ From `alakazam-deploy`:
 ansible-playbook ansible/arr-init.yml
 ```
 
-This playbook is idempotent — safe to re-run. It:
+This playbook is idempotent -- safe to re-run. It:
 
 1. Generates and pushes any missing secrets to Infisical (`SABNZBD_API_KEY`, `BAZARR_API_KEY`, `JELLYFIN_ADMIN_PASSWORD`)
 2. Pushes Usenet credentials from `secrets.yml` to Infisical (`NEWSHOSTING_*`, indexer API keys)
@@ -201,28 +201,28 @@ Expected runtime: ~3–5 minutes on a clean install.
 
 ## 7. Post-init manual steps
 
-### SABnzbd — verify Newshosting connection
+### SABnzbd -- verify Newshosting connection
 
 1. Open `http://sabnzbd.home` → Config → Servers
-2. Newshosting should be listed — click **Test Server**
+2. Newshosting should be listed -- click **Test Server**
 3. A green tick confirms the news server is reachable and credentials are correct
 
 If the test fails: check `NEWSHOSTING_USERNAME` and `NEWSHOSTING_PASSWORD` in Infisical, then
 delete `sabnzbd.ini` from `/mnt/nas/docker/sabnzbd/config/` and re-run `arr-init.yml` to
 re-seed it.
 
-### Jellyfin — verify NVENC
+### Jellyfin -- verify NVENC
 
 1. Open `https://jellyfin.wsh` → Dashboard → Playback
 2. Under Hardware Acceleration, confirm **NVENC** is shown as active
-3. Play a video and check the active streams view — transcodes should show `(hw)`
+3. Play a video and check the active streams view -- transcodes should show `(hw)`
 
-### Bazarr — configure subtitle providers
+### Bazarr -- configure subtitle providers
 
 Bazarr's providers (OpenSubtitles, Subscene, etc.) require account credentials not stored in
 Infisical. Add them via `https://bazarr.wsh` → Settings → Providers.
 
-### Recyclarr — schedule regular syncs
+### Recyclarr -- schedule regular syncs
 
 Recyclarr was run once during init. To keep quality profiles in sync with TRaSH Guide
 updates, trigger it periodically via n8n or run manually:
@@ -236,7 +236,7 @@ ansible-playbook ansible/arr-init.yml
 ## 8. Verification checklist
 
 ```
-[ ] nvidia-smi shows Quadro P2200 on machamp-services
+[ ] nvidia-smi shows Quadro P2200 on machamp-media
 [ ] docker logs gluetun shows VPN connected
 [ ] curl from qBittorrent container returns a PIA exit IP:
       docker exec qbittorrent curl -s https://ipinfo.io | grep org
@@ -257,16 +257,16 @@ ansible-playbook ansible/arr-init.yml
 
 ## Troubleshooting
 
-**qBittorrent not starting**: Check `docker logs gluetun` — qBittorrent won't start until
+**qBittorrent not starting**: Check `docker logs gluetun` -- qBittorrent won't start until
 Gluetun's healthcheck passes. If Gluetun is stuck, check PIA credentials in Infisical and
 that `/dev/net/tun` exists on the VM (`ls /dev/net/tun`).
 
 **arr-init.yml fails on Prowlarr linking**: Prowlarr may still be indexing on first start.
-Re-run the playbook — it will skip already-completed steps.
+Re-run the playbook -- it will skip already-completed steps.
 
 **Jellyfin not using NVENC after GPU passthrough**: Confirm `nvidia-smi` works on the VM.
 Check that `runtime: nvidia` is in `docker inspect jellyfin`. Jellyfin's encoding.xml is
-bind-mounted read-only at `/config/config/encoding.xml` — if Jellyfin created the file before
+bind-mounted read-only at `/config/config/encoding.xml` -- if Jellyfin created the file before
 the compose file was updated, restart Jellyfin to pick up the bind mount.
 
 **Recyclarr sync fails**: Run with `--debug` to see Radarr/Sonarr API errors:
@@ -276,7 +276,7 @@ docker compose run --rm recyclarr sync --debug
 Most failures are API key mismatches or quality profile name conflicts.
 
 **SABnzbd not appearing as a download client in Radarr/Sonarr**: SABnzbd may not have been
-healthy when `arr-init.yml` ran. Re-run the playbook — it will skip already-done steps and
+healthy when `arr-init.yml` ran. Re-run the playbook -- it will skip already-done steps and
 retry the download client registration.
 
 **SABnzbd server test fails**: Credentials may not have been in `homelab.env` when `sabnzbd.ini`
@@ -293,7 +293,7 @@ with the current credentials from Infisical.
 The recommended way to add content is via **Seerr** at `http://seerr.home`:
 
 1. Search for a movie or TV show
-2. Click **Request** — Radarr or Sonarr picks it up automatically
+2. Click **Request** -- Radarr or Sonarr picks it up automatically
 3. Prowlarr searches NZBPlanet (and any other configured indexers) for a matching release
 4. The best match is sent to SABnzbd (Usenet) or qBittorrent (torrent) depending on what's available
 5. After download, Unpackerr extracts any archives, Radarr/Sonarr renames and moves the file to `/mnt/nas/media/movies` or `/mnt/nas/media/tv`
@@ -304,22 +304,22 @@ The recommended way to add content is via **Seerr** at `http://seerr.home`:
 Both download clients are active. Radarr and Sonarr will prefer whichever has the best
 release available, subject to priority settings. In practice:
 
-- **Usenet (SABnzbd)** — faster, more reliable, no seeding required. Requires a Newshosting
+- **Usenet (SABnzbd)** -- faster, more reliable, no seeding required. Requires a Newshosting
   subscription and NZBPlanet finding the release. Best for new/popular content.
-- **Torrents (qBittorrent via Gluetun VPN)** — better for older or obscure content not on
+- **Torrents (qBittorrent via Gluetun VPN)** -- better for older or obscure content not on
   Usenet. Slower, routed through PIA VPN.
 
 ### Adding a new indexer
 
 1. Add an entry to `ansible/vars/prowlarr_indexers.yml`
 2. Add the API key to `ansible/secrets.yml`
-3. Run `ansible-playbook ansible/arr-init.yml` — the new indexer is added to Prowlarr and
+3. Run `ansible-playbook ansible/arr-init.yml` -- the new indexer is added to Prowlarr and
    the key is pushed to Infisical. Existing indexers are skipped.
 
 ### Monitoring downloads
 
-- **SABnzbd queue**: `http://sabnzbd.home` — shows active Usenet downloads, speed, ETA
-- **qBittorrent queue**: `http://qbittorrent.home` — shows active torrent downloads
+- **SABnzbd queue**: `http://sabnzbd.home` -- shows active Usenet downloads, speed, ETA
+- **qBittorrent queue**: `http://qbittorrent.home` -- shows active torrent downloads
 - **Radarr activity**: `http://radarr.home` → Activity → Queue
 - **Sonarr activity**: `http://sonarr.home` → Activity → Queue
 
@@ -329,4 +329,4 @@ If Radarr/Sonarr didn't find a release automatically, you can search manually:
 
 1. Radarr/Sonarr → the movie/show → **Interactive Search**
 2. Browse results from all Prowlarr indexers
-3. Click the download icon on the desired release — it goes straight to SABnzbd or qBittorrent
+3. Click the download icon on the desired release -- it goes straight to SABnzbd or qBittorrent

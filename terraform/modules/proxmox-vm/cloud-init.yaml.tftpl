@@ -37,8 +37,6 @@ packages:
   - qemu-guest-agent
 
 runcmd:
-  - curl -fsSL https://tailscale.com/install.sh | sh
-  - tailscale up --authkey=${tailscale_auth_key} --hostname=${name}
   - systemctl enable --now qemu-guest-agent
 %{ for cmd in extra_runcmd ~}
   - ${cmd}

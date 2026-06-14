@@ -1,12 +1,12 @@
 # Authentik groups and application access bindings.
 #
 # Groups: define children on a group to have those children inherit its access.
-#   In Authentik, children inherit FROM their parent — so listing admins as a
+#   In Authentik, children inherit FROM their parent -- so listing admins as a
 #   child of users means admins members also get access to all user-tier apps.
 #
 # To add a group: add an entry under authentik_groups.
 # To add access: add the slug + groups to authentik_app_bindings.
-# Apps not yet in Authentik are silently skipped — list them here ahead of
+# Apps not yet in Authentik are silently skipped -- list them here ahead of
 # their OIDC wiring and the binding is created automatically when it lands.
 
 authentik_groups:
@@ -16,9 +16,9 @@ authentik_groups:
   - name: admins
 
 # slug must match the Authentik application slug.
-# groups is a list — an app can be bound to multiple groups.
+# groups is a list -- an app can be bound to multiple groups.
 authentik_app_bindings:
-  # infra tier — admins only
+  # infra tier -- admins only
   - slug: headplane
     groups: [admins]
   - slug: grafana
@@ -28,7 +28,7 @@ authentik_app_bindings:
   - slug: n8n
     groups: [admins]
 
-  # arr/media services — admins only (web-facing management UIs)
+  # arr/media services -- admins only (web-facing management UIs)
   - slug: prowlarr
     groups: [admins]
   - slug: radarr
@@ -40,7 +40,7 @@ authentik_app_bindings:
   - slug: qbittorrent
     groups: [admins]
 
-  # user tier — all authenticated users
+  # user tier -- all authenticated users
   - slug: jellyfin
     groups: [users]
   - slug: seerr

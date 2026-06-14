@@ -26,31 +26,8 @@ variable "vm_password" {
   sensitive   = true
 }
 
-variable "tailscale_auth_key" {
-  description = "Tailscale reusable auth key for VM provisioning"
-  type        = string
-  sensitive   = true
-}
-
-variable "cloudflare_api_token" {
-  description = "Cloudflare API token with Zone > DNS > Edit and Account > Cloudflare Tunnel > Edit permissions"
-  type        = string
-  sensitive   = true
-}
-
-variable "cloudflare_zone_id" {
-  description = "Cloudflare zone ID for the public domain"
-  type        = string
-}
-
-variable "authentik_subdomain" {
-  description = "Subdomain for the public Authentik OIDC endpoint (e.g. 'auth' → auth.example.com)"
-  type        = string
-  default     = "auth"
-}
-
 variable "services_gpu_mappings" {
-  description = "Proxmox hardware mapping names for GPU passthrough to machamp-services (e.g. [\"quadro-p2200\"]). Create mappings via pvesh first — see GPU passthrough section in docs/runbook.md."
+  description = "Proxmox hardware mapping names for GPU passthrough to machamp-media (e.g. [\"quadro-p2200\"]). Create mappings via pvesh first -- see GPU passthrough section in docs/runbook.md."
   type        = list(string)
   default     = []
 }

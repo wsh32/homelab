@@ -11,8 +11,8 @@
 #
 # Subsequent runs: all keys already in homelab.env; no Infisical writes occur.
 
-- name: Initialize arr and media stack on machamp-services
-  hosts: machamp-services
+- name: Initialize arr and media stack on machamp-media
+  hosts: machamp-media
   gather_facts: false
 
   vars:
@@ -25,7 +25,7 @@
     bazarr_url: "http://localhost:6767"
     seerr_url: "http://localhost:5055"
     qbittorrent_webui_port: 8080
-    infisical_host: "http://192.168.0.32:8080"
+    infisical_host: "http://192.168.0.20:8080"
 
   pre_tasks:
 
@@ -320,7 +320,7 @@
       when: qbt_auth_check.status in [401, 403]
 
     # ── Block 2: Wait for services healthy ───────────────────────────────────
-    # Accept 401 (Unauthorized) as "service is up" — API keys may not be in
+    # Accept 401 (Unauthorized) as "service is up" -- API keys may not be in
     # homelab.env yet on first run; we harvest them from config files below.
 
     - name: Wait for Prowlarr
@@ -476,7 +476,7 @@
 
     # ── Block 2.5a: Set reverse-proxy auth mode on arr services ─────────────
     # AuthenticationMethod=External tells *arr apps that auth is handled by
-    # the reverse proxy (Traefik + Authentik forwardAuth) — no double-login.
+    # the reverse proxy (Traefik + Authentik forwardAuth) -- no double-login.
 
     - name: Set arr services auth method to External
       ansible.builtin.replace:
@@ -627,7 +627,7 @@
 
     - name: Deploy Jellyfin encoding.xml
       ansible.builtin.copy:
-        src: "{{ playbook_dir }}/../services/machamp-services/config/jellyfin-encoding.xml"
+        src: "{{ playbook_dir }}/../services/machamp-media/config/jellyfin-encoding.xml"
         dest: /mnt/nas/docker/jellyfin/config/encoding.xml
         owner: root
         group: root
@@ -647,6 +647,15 @@
     # In Jellyfin 10.11+, POST /Startup/User was removed. The wizard auto-
     # creates a "root" admin user with no password. After completing the wizard
     # we authenticate as root (empty password) and set jellyfin_admin_password.
+
+    - name: Wait for Jellyfin to be ready
+      ansible.builtin.uri:
+        url: "{{ jellyfin_url }}/health"
+        status_code: 200
+      register: _jf_health
+      until: _jf_health.status == 200
+      retries: 40
+      delay: 10
 
     - name: Check Jellyfin wizard status
       ansible.builtin.uri:
@@ -813,7 +822,7 @@
     # Wizard already completed on a prior partial run but API key was never
     # saved. Authenticate with the existing admin password and create the key.
 
-    - name: Authenticate as Jellyfin admin (recovery — wizard already done)
+    - name: Authenticate as Jellyfin admin (recovery -- wizard already done)
       ansible.builtin.uri:
         url: "{{ jellyfin_url }}/Users/AuthenticateByName"
         method: POST
@@ -1069,7 +1078,7 @@
         - jellyfin_api_key != ''
         - _jf_libraries.json | selectattr('Name', 'equalto', item.name) | list | length == 0
 
-    # ── Block 3d: Bazarr — sync API key and enable subtitle providers ────────
+    # ── Block 3d: Bazarr -- sync API key and enable subtitle providers ────────
 
     - name: Read Bazarr API key from config.yaml
       ansible.builtin.shell: >-
@@ -1097,9 +1106,7 @@
         regexp: '^BAZARR_API_KEY='
         line: "BAZARR_API_KEY={{ bazarr_api_key }}"
       become: true
-      when:
-        - bazarr_api_key != ''
-        - bazarr_api_key != ((_env | regex_search('(?m)^BAZARR_API_KEY=(.+)$', '\\1') or ['']) | first)
+      when: bazarr_api_key != ''
 
     - name: Get current Bazarr enabled providers
       ansible.builtin.uri:
@@ -1157,7 +1164,7 @@
       register: _bazarr_lang_profiles
       when: bazarr_api_key != ''
 
-    - name: Create Bazarr language profile — English
+    - name: Create Bazarr language profile -- English
       ansible.builtin.uri:
         url: "{{ bazarr_url }}/api/system/settings"
         method: POST
@@ -1181,7 +1188,7 @@
       register: _bazarr_lang_profiles_current
       when: bazarr_api_key != ''
 
-    - name: Patch Bazarr config.yaml — set default language profile
+    - name: Patch Bazarr config.yaml -- set default language profile
       ansible.builtin.shell: |
         python3 << 'EOF'
         import yaml, json
@@ -1228,7 +1235,7 @@
       changed_when: true
       when: _bazarr_config_patch is changed or _bazarr_profile_patch is changed
 
-    # ── Block 4: Volume migration — Radarr ──────────────────────────────────
+    # ── Block 4: Volume migration -- Radarr ──────────────────────────────────
 
     - name: Get Radarr root folders
       ansible.builtin.uri:
@@ -1271,7 +1278,7 @@
         status_code: 201
       when: radarr_folders.json | selectattr('path', 'equalto', '/movies') | list | length > 0
 
-    # ── Block 5: Volume migration — Sonarr ──────────────────────────────────
+    # ── Block 5: Volume migration -- Sonarr ──────────────────────────────────
 
     - name: Get Sonarr root folders
       ansible.builtin.uri:
@@ -1314,7 +1321,7 @@
         status_code: 201
       when: sonarr_folders.json | selectattr('path', 'equalto', '/tv') | list | length > 0
 
-    # ── Block 6: Prowlarr — link Radarr and Sonarr ──────────────────────────
+    # ── Block 6: Prowlarr -- link Radarr and Sonarr ──────────────────────────
 
     - name: Get existing Prowlarr applications
       ansible.builtin.uri:
@@ -1374,7 +1381,7 @@
         status_code: 201
       when: prowlarr_apps.json | selectattr('name', 'equalto', 'Sonarr') | list | length == 0
 
-    # ── Block 6b: Prowlarr — add indexers from vars/prowlarr_indexers.yml ──────
+    # ── Block 6b: Prowlarr -- add indexers from vars/prowlarr_indexers.yml ──────
 
     - name: Get existing Prowlarr indexers
       ansible.builtin.uri:
@@ -1457,7 +1464,7 @@
         and (_prowlarr_schema.json | selectattr('name', 'equalto', item.name) | list | length > 0)
         and _prowlarr_existing_indexers.json | selectattr('name', 'equalto', item.name) | list | length == 0
 
-    # ── Block 7: Radarr — add qBittorrent download client ───────────────────
+    # ── Block 7: Radarr -- add qBittorrent download client ───────────────────
 
     - name: Get existing Radarr download clients
       ansible.builtin.uri:
@@ -1527,7 +1534,7 @@
         status_code: 201
       when: radarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list | length == 0
 
-    # ── Block 8: Sonarr — add qBittorrent download client ───────────────────
+    # ── Block 8: Sonarr -- add qBittorrent download client ───────────────────
 
     - name: Get existing Sonarr download clients
       ansible.builtin.uri:
@@ -1715,7 +1722,7 @@
               cursor.execute('PRAGMA table_info(user)')
               schema = cursor.fetchall()
               # schema rows: (cid, name, type, notnull, dflt_value, pk)
-              # Build a set of NOT NULL columns that have no default value —
+              # Build a set of NOT NULL columns that have no default value --
               # we must supply a value for these or the INSERT will fail.
               notnull_no_default = {
                   row[1] for row in schema
@@ -2057,7 +2064,7 @@
       no_log: true
       when: _seerr_key_new and seerr_api_key != 'placeholder' and seerr_api_key != ''
 
-    # ── Block 10: Recyclarr — run one-shot sync ──────────────────────────────
+    # ── Block 10: Recyclarr -- run one-shot sync ──────────────────────────────
     # Recyclarr is stateless for sync purposes; use a local VM temp dir to
     # avoid needing write access to the NFS docker share root.
 
@@ -2069,7 +2076,7 @@
 
     - name: Copy Recyclarr config to VM
       ansible.builtin.copy:
-        src: "{{ playbook_dir }}/../services/machamp-services/config/recyclarr/"
+        src: "{{ playbook_dir }}/../services/machamp-media/config/recyclarr/"
         dest: /tmp/recyclarr-config/
         mode: "0644"
 
@@ -2079,7 +2086,7 @@
         name: recyclarr-init
         image: ghcr.io/recyclarr/recyclarr:7
         networks:
-          - name: machamp-services_default
+          - name: machamp-media_default
         volumes:
           - /tmp/recyclarr-config:/config
         env:

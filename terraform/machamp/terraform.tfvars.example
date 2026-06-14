@@ -3,7 +3,7 @@
 # Proxmox API endpoint for Machamp
 proxmox_endpoint = "https://192.168.0.5:8006"
 
-# Proxmox API token — create via:
+# Proxmox API token -- create via:
 #   Datacenter > Permissions > API Tokens > Add
 #   User: terraform@pam, Token ID: terraform, Privilege Separation: unchecked
 proxmox_api_token = "terraform@pam!terraform=REPLACE_ME"
@@ -11,24 +11,12 @@ proxmox_api_token = "terraform@pam!terraform=REPLACE_ME"
 # Your SSH public key (cat ~/.ssh/id_ed25519.pub)
 ssh_public_key = "ssh-ed25519 AAAAC3... you@machine"
 
-# System timezone for all VMs — use a tz database name (e.g. America/Los_Angeles)
+# System timezone for all VMs -- use a tz database name (e.g. America/Los_Angeles)
 timezone = "UTC"
 
 # Password for the ubuntu user on all VMs (enables console + SSH password login)
 vm_password = "REPLACE_ME"
 
-# Tailscale reusable auth key — generate at https://login.tailscale.com/admin/settings/keys
-tailscale_auth_key = "tskey-auth-REPLACE_ME"
-
-# Cloudflare API token — needs Zone > DNS > Edit and Account > Cloudflare Tunnel > Edit permissions
-cloudflare_api_token = "REPLACE_ME"
-
-# Cloudflare zone ID — find at Cloudflare dashboard > your domain > Overview (right sidebar)
-cloudflare_zone_id = "REPLACE_ME"
-
-# Subdomain for the public Authentik OIDC endpoint (creates auth.<your-domain>)
-authentik_subdomain = "auth"
-
-# Proxmox hardware mapping name(s) for GPU passthrough — see docs/runbook.md for setup steps.
+# Proxmox hardware mapping name(s) for GPU passthrough -- see docs/runbook.md for setup steps.
 # The mapping must be created via pvesh on the Proxmox host before applying.
 services_gpu_mappings = ["quadro-p2200"]

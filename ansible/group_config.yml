@@ -1,4 +1,4 @@
-# ansible/group_config.yml — Ansible-specific inventory configuration.
+# ansible/group_config.yml -- Ansible-specific inventory configuration.
 #
 # Maps Proxmox node names to Ansible group names and group vars for their VMs.
 # This file is read alongside network.yml by the homelab inventory plugin.

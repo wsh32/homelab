@@ -36,12 +36,12 @@ See [`docs/services.md`](docs/services.md) for the full per-VM service list.
 ```
 terraform/
   modules/proxmox-vm/     # shared VM module (bpg/proxmox provider)
-  diglett/               # Diglett root module — state on Alakazam NFS
-  machamp/                  # Machamp root module — state on Alakazam NFS
-  services/               # services node root module — state on Alakazam NFS
+  diglett/               # Diglett root module -- state on Alakazam NFS
+  machamp/                  # Machamp root module -- state on Alakazam NFS
+  services/               # services node root module -- state on Alakazam NFS
 ansible/
   inventory/
-    homelab.py            # dynamic inventory script — reads network.yml
+    homelab.py            # dynamic inventory script -- reads network.yml
   roles/
     base/                 # all Ubuntu VMs and physical devices
     docker/               # Docker Compose VMs
@@ -56,7 +56,7 @@ services/
   dns/                    # AdGuard + Headscale + cloudflare-ddns (pre-seeded, no wizards)
   machamp-infra/         # Infisical + Vaultwarden + Authentik + Litestream
   diglett-deploy/        # (not yet created)
-  machamp/                  # Docker Compose — all Machamp/services workloads
+  machamp/                  # Docker Compose -- all Machamp/services workloads
 network.yml               # single source of truth for all IPs and VM IDs
 scripts/
   deploy.sh               # terraform apply + ansible-playbook
@@ -86,21 +86,21 @@ cd ~/homelab && git pull
 ./scripts/deploy-services.sh  # docker compose only, no terraform
 ```
 
-`network.yml` is the single source of truth for all IPs and VM IDs. The dynamic inventory script (`ansible/inventory/homelab.py`) reads it directly — no separate hosts file to maintain.
+`network.yml` is the single source of truth for all IPs and VM IDs. The dynamic inventory script (`ansible/inventory/homelab.py`) reads it directly -- no separate hosts file to maintain.
 
 ## Bootstrap
 
 Full step-by-step guide in [`docs/runbook.md`](docs/runbook.md). High-level summary:
 
-**Phase 1 — Physical setup (one-time, manual):**
+**Phase 1 -- Physical setup (one-time, manual):**
 1. Form the Proxmox cluster (Machamp + Diglett) via the UI
 2. Create Proxmox API tokens on each node; enable Snippets on `local` storage
 3. Create NFS datasets on Alakazam (`apps/terraform`, `docker`); configure NFS shares with Maproot User: root
 4. Configure static IPs on physical nodes via Ansible; set static IP on Alakazam via TrueNAS UI
 
-**Phase 2 — Bootstrap the deploy VM (from operator laptop):**
+**Phase 2 -- Bootstrap the deploy VM (from operator laptop):**
 
-The deploy VM (`alakazam-deploy`, `192.168.0.7`) is a TrueNAS SCALE KVM VM — not Terraform-managed. Create it manually in the TrueNAS UI, then:
+The deploy VM (`alakazam-deploy`, `192.168.0.7`) is a TrueNAS SCALE KVM VM -- not Terraform-managed. Create it manually in the TrueNAS UI, then:
 ```bash
 # Fill in terraform.tfvars on your laptop first
 cp terraform/diglett/terraform.tfvars.example terraform/diglett/terraform.tfvars
@@ -115,7 +115,7 @@ scp terraform/diglett/terraform.tfvars ubuntu@192.168.0.7:~/homelab/terraform/di
 scp terraform/machamp/terraform.tfvars ubuntu@192.168.0.7:~/homelab/terraform/machamp/
 ```
 
-**Phase 3 — Full deployment (from the deploy VM):**
+**Phase 3 -- Full deployment (from the deploy VM):**
 ```bash
 ssh ubuntu@192.168.0.7
 cd ~/homelab
@@ -133,7 +133,7 @@ INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml
 ansible-playbook ansible/site.yml
 ```
 
-**Phase 4 — Post-bootstrap:**
+**Phase 4 -- Post-bootstrap:**
 - Trust the step-ca root CA on personal devices
 - Add external API keys (Anthropic, OpenAI, GitHub) to Infisical via UI
 - Back up `terraform.tfvars` to Vaultwarden

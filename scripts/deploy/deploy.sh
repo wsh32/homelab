@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# deploy.sh — provision VMs with Terraform and apply Ansible base config.
+# deploy.sh -- provision VMs with Terraform and apply Ansible base config.
 #
 # Usage:
 #   ./scripts/deploy.sh           # deploy both nodes

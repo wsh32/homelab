@@ -3,7 +3,7 @@ locals {
   net  = yamldecode(file("${path.module}/../../network.yml"))
   vms  = local.net.nodes[local.node].vms
 
-  # Shared VM defaults — keep in sync with modules/proxmox-vm/main.tf
+  # Shared VM defaults -- keep in sync with modules/proxmox-vm/main.tf
   vm_defaults = {
     cpu_type  = "x86-64-v2-AES"
     bridge    = "vmbr0"
@@ -23,19 +23,6 @@ resource "proxmox_download_file" "ubuntu_2404" {
   file_name = "noble-server-cloudimg-amd64.img"
 
   overwrite = false
-}
-
-# Download HAOS qcow2 image for Home Assistant VM.
-resource "proxmox_download_file" "haos" {
-  node_name    = local.node
-  content_type = "import"
-  datastore_id = "local"
-
-  url       = "https://github.com/home-assistant/operating-system/releases/download/13.2/haos_ova-13.2.qcow2.gz"
-  file_name = "haos_ova-13.2.qcow2"
-
-  decompression_algorithm = "gz"
-  overwrite               = false
 }
 
 module "dns" {
@@ -59,8 +46,6 @@ module "dns" {
   ssh_public_key     = var.ssh_public_key
   vm_password        = var.vm_password
   timezone           = var.timezone
-  tailscale_auth_key = var.tailscale_auth_key
-
   extra_runcmd = [
     "tailscale set --advertise-exit-node",
     # /etc/headscale.env is read by both the headscale and cloudflare-ddns containers.
@@ -74,47 +59,35 @@ module "dns" {
   ]
 }
 
-# HAOS uses a dedicated VM resource (not the proxmox-vm module) because it boots
-# directly from the HAOS qcow2 image with no cloud-init. Configuration is restored
-# from a Proxmox vzdump backup after first boot.
-resource "proxmox_virtual_environment_vm" "haos" {
-  node_name   = local.node
-  vm_id       = local.vms["diglett-haos"].vm_id
-  name        = "diglett-haos"
-  description = "Home Assistant OS — restore config from vzdump backup after first boot"
-  tags        = ["diglett", "haos"]
+module "infra" {
+  source = "../modules/proxmox-vm"
 
-  on_boot = true
+  node_name     = local.node
+  vm_id         = local.vms["diglett-infra"].vm_id
+  name          = "diglett-infra"
+  description   = "Infra -- Traefik, step-ca, Infisical, Vaultwarden, Authentik"
+  tags          = ["diglett", "infra"]
+  image_file_id = proxmox_download_file.ubuntu_2404.id
 
-  cpu {
-    cores = 2
-    type  = local.vm_defaults.cpu_type
-  }
+  cores        = 4
+  memory_mb    = 12288
+  disk_size_gb = 40
+  swap_size_gb = 2
 
-  memory {
-    dedicated = 4096
-  }
-
-  disk {
-    datastore_id = local.vm_defaults.datastore
-    file_id      = proxmox_download_file.haos.id
-    interface    = "virtio0"
-    size         = 32
-    discard      = "on"
-    iothread     = true
-  }
-
-  network_device {
-    bridge = local.vm_defaults.bridge
-    model  = local.vm_defaults.nic_model
-  }
-
-  operating_system {
-    type = local.vm_defaults.os_type
-  }
-
-  lifecycle {
-    prevent_destroy = true
-    ignore_changes  = [disk[0].file_id]
-  }
+  ip_address         = "${local.vms["diglett-infra"].ip}/24"
+  gateway            = local.net.gateway
+  dns_servers        = local.net.dns
+  ssh_public_key     = var.ssh_public_key
+  vm_password        = var.vm_password
+  timezone           = var.timezone
+  extra_runcmd = []
 }
+
+# TODO: Manage HAOS VM in Terraform.
+# HAOS image releases use .qcow2.xz compression which the bpg/proxmox provider
+# does not support (only gz/lzo/zst/bz2). For now, create the VM manually:
+#   1. SSH to diglett, download and decompress the image:
+#      wget -O /tmp/haos.qcow2.xz https://github.com/home-assistant/operating-system/releases/download/17.3/haos_ova-17.3.qcow2.xz
+#      xz -d /tmp/haos.qcow2.xz
+#   2. Create VM via Proxmox UI (VM ID 202, 2 cores, 4GB RAM, import disk from /tmp/haos.qcow2)
+#   3. Restore config from vzdump backup after first boot.

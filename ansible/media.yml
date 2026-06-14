@@ -1,12 +1,12 @@
 ---
-# Configure machamp-services: NVIDIA drivers (via gpu.yml import),
+# Configure machamp-media: NVIDIA drivers (via gpu.yml import),
 # NFS mounts, Infisical secrets, and compose stack.
-# Run after services.yml. Requires Infisical (machamp-infra) to be up for secret export.
+# Run after services.yml. Requires Infisical (diglett-infra) to be up for secret export.
 #
 # Prerequisites:
 #   - Alakazam NFS reachable at 192.168.0.4:/mnt/apps/docker, :/mnt/pool/media, :/mnt/pool/photos
 #   - ansible/secrets.yml contains infisical_client_id/secret/project_id
-#   - Infisical machine identity created for machamp-services (see secrets.yml.example)
+#   - Infisical machine identity created for machamp-media (see secrets.yml.example)
 #
 # Usage:
 #   ansible-playbook ansible/media.yml
@@ -14,12 +14,12 @@
 # Note: arr-init.yml is imported by site.yml after this playbook, once the compose
 # stack is running. It reads secrets from /etc/homelab.env on the target directly.
 
-# NVIDIA drivers first — installs drivers and reboots if needed so Docker
+# NVIDIA drivers first -- installs drivers and reboots if needed so Docker
 # picks up the nvidia runtime on a clean kernel load.
 - import_playbook: gpu.yml
 
-- name: Configure machamp-services (NFS, Infisical, compose stack)
-  hosts: machamp-services
+- name: Configure machamp-media (NFS, Infisical, compose stack)
+  hosts: machamp-media
   gather_facts: true
 
   vars:
@@ -27,7 +27,7 @@
     nas_ip: "{{ network.nodes.alakazam.ip }}"
 
   pre_tasks:
-    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+    - name: Load local secrets file if present (ansible/secrets.yml -- gitignored)
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
@@ -90,7 +90,7 @@
 
     - name: Get Infisical access token via Universal Auth
       ansible.builtin.uri:
-        url: "{{ infisical_host | default('http://192.168.0.32:8080') }}/api/v1/auth/universal-auth/login"
+        url: "{{ infisical_host | default('http://192.168.0.20:8080') }}/api/v1/auth/universal-auth/login"
         method: POST
         body_format: json
         body:
@@ -107,7 +107,7 @@
 
     - name: Fetch all secrets from Infisical
       ansible.builtin.uri:
-        url: "{{ infisical_host | default('http://192.168.0.32:8080') }}/api/v3/secrets/raw?workspaceId={{ infisical_project_id }}&environment={{ infisical_environment | default('prod') }}&secretPath=/"
+        url: "{{ infisical_host | default('http://192.168.0.20:8080') }}/api/v3/secrets/raw?workspaceId={{ infisical_project_id }}&environment={{ infisical_environment | default('prod') }}&secretPath=/"
         headers:
           Authorization: "Bearer {{ _infisical_ua_token.json.accessToken }}"
         status_code: 200
@@ -147,7 +147,7 @@
 
     - name: Ensure homelab services directory exists on VM
       ansible.builtin.file:
-        path: /home/{{ ansible_user }}/homelab/services/machamp-services
+        path: /home/{{ ansible_user }}/homelab/services/machamp-media
         state: directory
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
@@ -163,9 +163,9 @@
         mode: "0755"
       become: true
 
-    - name: Sync machamp-services scripts to VM
+    - name: Sync machamp-media scripts to VM
       ansible.posix.synchronize:
-        src: "{{ playbook_dir }}/../scripts/machamp-services/"
+        src: "{{ playbook_dir }}/../scripts/machamp-media/"
         dest: /home/{{ ansible_user }}/homelab/scripts/
         delete: true
         recursive: true
@@ -173,10 +173,10 @@
           - "--chown={{ ansible_user }}:{{ ansible_user }}"
           - "--chmod=D755,F755"
 
-    - name: Sync machamp-services compose stack to VM
+    - name: Sync machamp-media compose stack to VM
       ansible.posix.synchronize:
-        src: "{{ playbook_dir }}/../services/machamp-services/"
-        dest: /home/{{ ansible_user }}/homelab/services/machamp-services/
+        src: "{{ playbook_dir }}/../services/machamp-media/"
+        dest: /home/{{ ansible_user }}/homelab/services/machamp-media/
         delete: true
         recursive: true
         rsync_opts:
@@ -186,13 +186,13 @@
     - name: Symlink .env → /etc/homelab.env for compose variable substitution
       ansible.builtin.file:
         src: /etc/homelab.env
-        dest: /home/{{ ansible_user }}/homelab/services/machamp-services/.env
+        dest: /home/{{ ansible_user }}/homelab/services/machamp-media/.env
         state: link
         force: true
       become: true
 
     # ── SABnzbd config pre-seed ─────────────────────────────────────────────────
-    # Must run before compose up — SABnzbd's default port is 8080; without a
+    # Must run before compose up -- SABnzbd's default port is 8080; without a
     # pre-seeded ini it boots on the wrong port and the API key won't match.
 
     - name: Create SABnzbd config directory on NFS
@@ -292,7 +292,7 @@
       when: _sabnzbd_api_key | default('') != ''
 
     # ── qBittorrent config pre-seed ─────────────────────────────────────────────
-    # Must run before compose up — qBittorrent writes a default config with auth
+    # Must run before compose up -- qBittorrent writes a default config with auth
     # enabled on first start; this config disables auth for LAN/Docker subnets.
 
     - name: Create Seerr config directory with correct ownership (UID 1000)
@@ -329,9 +329,9 @@
           Downloads\PreAllocation=false
       become: true
 
-    - name: Start machamp-services compose stack
+    - name: Start machamp-media compose stack
       community.docker.docker_compose_v2:
-        project_src: /home/{{ ansible_user }}/homelab/services/machamp-services
+        project_src: /home/{{ ansible_user }}/homelab/services/machamp-media
         state: present
         pull: missing
       become: true

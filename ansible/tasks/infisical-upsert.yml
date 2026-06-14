@@ -2,8 +2,8 @@
 # Creates the secret if it doesn't exist; updates it if the value differs; skips if it matches.
 #
 # Required vars (pass via vars: when calling include_tasks):
-#   _inf_upsert_name   — secret name, e.g. "SABNZBD_API_KEY"
-#   _inf_upsert_value  — desired secret value
+#   _inf_upsert_name   -- secret name, e.g. "SABNZBD_API_KEY"
+#   _inf_upsert_value  -- desired secret value
 #
 # Playbook-scoped vars consumed:
 #   infisical_host, _inf_token, _inf_project_id, _inf_environment

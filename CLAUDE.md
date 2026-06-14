@@ -17,8 +17,8 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
   - Developer API keys (Claude, Codex, GitHub) → Infisical, entered manually via UI, accessed via `infisical run --` on the operator laptop.
 - **VM IDs**: Diglett VMs use 200–299, Machamp VMs use 100–199.
 - **IP addresses**: physical nodes use 192.168.0.4–19 (`.7` = alakazam-deploy), diglett-dns VM is special-cased at `.2`, Diglett VMs use 192.168.0.21–29, Machamp VMs use 192.168.0.30–49.
-- **Docker Compose**: persistent data always mounts to `/mnt/nas/<dataset>/<service>` (Alakazam NFS). Never use named volumes for stateful data — it must survive VM recreation.
-- **Traefik routing**: Traefik runs on `machamp-infra` (192.168.0.32). Services co-located on machamp-infra use Docker Compose labels. Services on other VMs are declared as external backends in `services/machamp-infra/traefik/dynamic/services-vm.yml`. `.wsh` Tailscale routing is planned but not yet active — see TODOS.md. Current label pattern for co-located services:
+- **Docker Compose**: persistent data always mounts to `/mnt/nas/<dataset>/<service>` (Alakazam NFS). Never use named volumes for stateful data -- it must survive VM recreation.
+- **Traefik routing**: Traefik runs on `machamp-infra` (192.168.0.32). Services co-located on machamp-infra use Docker Compose labels. Services on other VMs are declared as external backends in `services/machamp-infra/traefik/dynamic/services-vm.yml`. `.wsh` Tailscale routing is planned but not yet active -- see TODOS.md. Current label pattern for co-located services:
   ```yaml
   - "traefik.http.routers.<name>-home.rule=Host(`<name>.home`)"
   - "traefik.http.routers.<name>-home.entrypoints=web"
@@ -29,22 +29,22 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
   - "traefik.http.services.<name>-svc.loadbalancer.server.port=<port>"
   ```
   TLS cert resolver is `step` (local step-ca CA), not `letsencrypt`. Both HTTP and HTTPS
-  are served on `.home` — devices with the step-ca root cert installed get HTTPS, others
+  are served on `.home` -- devices with the step-ca root cert installed get HTTPS, others
   fall back to HTTP.
 - **Headless config**: all services are configured without the web UI. Two accepted exceptions: HAOS (restored from backup) and Vaultwarden (one manual browser registration). See "Headless Service Configuration" in `docs/plan.md`.
 
 ## Repo structure
 
 ```
-terraform/modules/proxmox-vm/  — shared VM module, edit here for VM-level changes
-terraform/diglett/             — Diglett VMs (DNS, HAOS)
-terraform/machamp/             — Machamp VMs (Infra, Services, Dev)
-services/diglett-dns/          — AdGuard Home + Headscale + cloudflared
-services/machamp-infra/        — Infisical + Vaultwarden + Authentik + Litestream
-services/machamp-services/     — all Docker Compose services (Jellyfin, Grafana, etc.)
-scripts/                       — bootstrap and init scripts (headless service setup)
-ansible/                       — push-only config management for VMs and physical devices
-docs/                          — architecture docs, plan, TODOs
+terraform/modules/proxmox-vm/  -- shared VM module, edit here for VM-level changes
+terraform/diglett/             -- Diglett VMs (DNS, HAOS)
+terraform/machamp/             -- Machamp VMs (Infra, Services, Dev)
+services/diglett-dns/          -- AdGuard Home + Headscale + cloudflared
+services/machamp-infra/        -- Infisical + Vaultwarden + Authentik + Litestream
+services/machamp-media/     -- all Docker Compose services (Jellyfin, Grafana, etc.)
+scripts/                       -- bootstrap and init scripts (headless service setup)
+ansible/                       -- push-only config management for VMs and physical devices
+docs/                          -- architecture docs, plan, TODOs
 ```
 
 ## Adding a new service
@@ -67,7 +67,7 @@ docs/                          — architecture docs, plan, TODOs
 Before suggesting or implementing any step that requires manual web UI interaction, exhaustively explore headless alternatives:
 
 - **Pre-seeded config files**: write config files to the NFS volume before the container starts (e.g. `qBittorrent.conf`, `config.ini`, `encoding.xml`)
-- **REST API / `uri` module**: most services expose an API — use it from Ansible with idempotent check-then-write patterns
+- **REST API / `uri` module**: most services expose an API -- use it from Ansible with idempotent check-then-write patterns
 - **Direct database writes**: if an app's setup API endpoint is broken or incompatible (e.g. Seerr's `POST /api/v1/auth/jellyfin` requiring unauthenticated Jellyfin access), write directly to the service's SQLite or config files, then restart the container
 - **Environment variables**: many services accept first-boot config via env vars; prefer these over post-start API calls where available
 - **Init containers / one-shot tasks**: use `community.docker.docker_container` with `detach: false` and `cleanup: true` for one-shot setup commands (e.g. Recyclarr)
@@ -81,10 +81,10 @@ Only accept a manual step if none of the above apply AND the service is in the e
 ## Things to avoid
 
 - Don't commit `terraform.tfvars`, `.env`, `*.tfstate`, or any file containing real credentials
-- Don't use the `telmate/proxmox` provider — use `bpg/proxmox`
-- Don't store persistent service data in Docker named volumes — use NFS mounts
-- Don't add services directly to physical nodes — everything runs in VMs
-- Don't put human-consumed passwords (web UI logins) in Infisical — those go in Vaultwarden
-- Don't put machine-consumed secrets (API keys, tokens) in Vaultwarden — those go in Infisical
-- Don't hardcode secrets or generate them with `random_password` in Terraform — use Infisical
-- Don't require web UI interaction for first-boot service setup — use pre-seeded configs or init scripts (exceptions: HAOS, Vaultwarden)
+- Don't use the `telmate/proxmox` provider -- use `bpg/proxmox`
+- Don't store persistent service data in Docker named volumes -- use NFS mounts
+- Don't add services directly to physical nodes -- everything runs in VMs
+- Don't put human-consumed passwords (web UI logins) in Infisical -- those go in Vaultwarden
+- Don't put machine-consumed secrets (API keys, tokens) in Vaultwarden -- those go in Infisical
+- Don't hardcode secrets or generate them with `random_password` in Terraform -- use Infisical
+- Don't require web UI interaction for first-boot service setup -- use pre-seeded configs or init scripts (exceptions: HAOS, Vaultwarden)

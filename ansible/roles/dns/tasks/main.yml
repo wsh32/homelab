@@ -1,5 +1,5 @@
 ---
-# DNS role — deploys the services/diglett-dns/ Docker Compose stack to diglett-dns.
+# DNS role -- deploys the services/diglett-dns/ Docker Compose stack to diglett-dns.
 # Requires: base role (already run), Docker installed via cloud-init at VM creation.
 
 - name: Create services directory
@@ -90,7 +90,7 @@
   notify: Restart diglett-dns stack
   when: headplane_api_key_stat_role.stat.exists
 
-# ── Headplane OIDC (conditional — skipped until infra.yml has run) ────────────
+# ── Headplane OIDC (conditional -- skipped until infra.yml has run) ────────────
 
 - name: Check if headplane OIDC credentials are available on NFS
   ansible.builtin.stat:
@@ -114,7 +114,7 @@
 - name: Inject OIDC block into headplane config
   ansible.builtin.blockinfile:
     path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
-    marker: "# {mark} OIDC — managed by Ansible"
+    marker: "# {mark} OIDC -- managed by Ansible"
     insertbefore: '^server:'
     block: |
       oidc:
@@ -126,7 +126,7 @@
   notify: Restart diglett-dns stack
   when: _hp_oidc_env_stat.stat.exists and authentik_public_url is defined
 
-# ── Headscale OIDC (conditional — skipped until infra.yml has run) ────────────
+# ── Headscale OIDC (conditional -- skipped until infra.yml has run) ────────────
 
 - name: Check if headscale OIDC credentials are available on NFS
   ansible.builtin.stat:

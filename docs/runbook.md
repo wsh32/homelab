@@ -34,7 +34,7 @@ ssh-keygen -t ed25519  # if no key exists
 
 ---
 
-## Phase 1 — Physical setup (one-time, manual)
+## Phase 1 -- Physical setup (one-time, manual)
 
 ### 1. Form the Proxmox cluster
 
@@ -65,24 +65,24 @@ Repeat on **both** Machamp (`192.168.0.5:8006`) and Diglett (`192.168.0.6:8006`)
    - User: `terraform@pam`
    - Token ID: `terraform`
    - **Uncheck** Privilege Separation
-4. Copy the token secret — it is only shown once. Format: `terraform@pam!terraform=<uuid>`
+4. Copy the token secret -- it is only shown once. Format: `terraform@pam!terraform=<uuid>`
 
 ### 3. Create NFS datasets and shares on Alakazam
 
 Log into TrueNAS at `https://192.168.0.4`:
 
 1. Storage → Create pools (if not already done):
-   - `pool` — HDD storage (bulk data)
-   - `apps` — SSD storage (512 GB, for latency-sensitive data)
+   - `pool` -- HDD storage (bulk data)
+   - `apps` -- SSD storage (512 GB, for latency-sensitive data)
 2. Datasets → Add Dataset for each:
-   - `apps/terraform` — Terraform state files (SSD)
-   - `apps/docker` — persistent service data / Docker volumes (SSD)
+   - `apps/terraform` -- Terraform state files (SSD)
+   - `apps/docker` -- persistent service data / Docker volumes (SSD)
    - `pool/backups`
    - `pool/media`
    - `pool/photos`
    - `pool/lightroom`
 3. Sharing → NFS → Add a share for **each** dataset below.
-   For every share set **Maproot User: `root`** — this allows the deploy VM's
+   For every share set **Maproot User: `root`** -- this allows the deploy VM's
    `ubuntu` user to create directories and set permissions via `sudo`.
    Without this, NFS root-squash maps `sudo` to `nobody` and writes fail.
 
@@ -100,7 +100,39 @@ Log into TrueNAS at `https://192.168.0.4`:
    Changes to allowed hosts in the TrueNAS UI do **not** take effect until
    exports are reloaded.
 
-### 3a. Enable Snippets storage on each Proxmox node
+### 3a. Set up VM storage on Machamp (NVMe)
+
+Machamp has 6 NVMe drives -- 2 on the motherboard (`nvme4n1`, `nvme5n1`) and 4 on a
+PCIe expansion card. Use one motherboard NVMe (`nvme4n1`) as dedicated VM storage.
+
+SSH to machamp as root (`ssh root@192.168.0.5`):
+
+```bash
+# Identify which drives are on the motherboard vs expansion card
+lspci | grep -i nvme
+ls -l /sys/block/nvme*/device/device
+# Motherboard drives are on lower PCI bus addresses (e.g. 21:xx, 22:xx)
+
+# Create LVM volume group on the chosen drive
+pvcreate /dev/nvme4n1
+vgcreate vmdata /dev/nvme4n1
+
+# Create a thin pool using all available space
+lvcreate -l 100%FREE -T vmdata/data
+
+# Register as a Proxmox storage (datacenter-level, restricted to machamp)
+pvesh create /storage \
+  --storage vmdata \
+  --type lvmthin \
+  --vgname vmdata \
+  --thinpool data \
+  --content rootdir,images \
+  --nodes machamp
+```
+
+Verify it appears in the Proxmox UI under Datacenter → Storage as `vmdata`.
+
+### 3b. Enable Snippets storage on each Proxmox node
 
 The bpg/proxmox Terraform provider uploads cloud-init user-data as snippet files.
 The `local` datastore must have the Snippets content type enabled or Terraform will
@@ -132,7 +164,7 @@ This is the only port exposed through the router. The Eero stays closed for ever
 
 Find the NIC bridged to `vmbr0` on Machamp and Diglett:
 ```bash
-ssh root@192.168.0.5 ip link show   # machamp — look for eno1 or similar
+ssh root@192.168.0.5 ip link show   # machamp -- look for eno1 or similar
 ssh root@192.168.0.6 ip link show   # diglett
 ```
 
@@ -145,7 +177,7 @@ For Alakazam: Network → Interfaces in TrueNAS UI → set static IP (`192.168.0
 
 ---
 
-## Phase 2 — Bootstrap the deploy VM (operator laptop)
+## Phase 2 -- Bootstrap the deploy VM (operator laptop)
 
 ### 5. Write terraform.tfvars
 
@@ -156,11 +188,11 @@ cp terraform/machamp/terraform.tfvars.example terraform/machamp/terraform.tfvars
 
 Fill in:
 ```hcl
-# Proxmox — Diglett
+# Proxmox -- Diglett
 proxmox_endpoint  = "https://192.168.0.6:8006"
 proxmox_api_token = "terraform@pam!terraform=<uuid-from-step-2>"
 
-# Proxmox — Machamp (used by terraform/machamp/)
+# Proxmox -- Machamp (used by terraform/machamp/)
 # proxmox_endpoint  = "https://192.168.0.5:8006"
 # proxmox_api_token = "terraform@pam!terraform=<uuid-from-step-2>"
 
@@ -175,7 +207,7 @@ cloudflare_api_token = "<cloudflare-api-token>"
 
 ### 6. Create the deploy VM in TrueNAS
 
-`alakazam-deploy` is an Ubuntu 24.04 KVM VM managed by TrueNAS SCALE — not Terraform.
+`alakazam-deploy` is an Ubuntu 24.04 KVM VM managed by TrueNAS SCALE -- not Terraform.
 Create it manually:
 
 1. Log into TrueNAS at `https://192.168.0.4`
@@ -276,7 +308,22 @@ curl https://192.168.0.5:8006  # should connect without certificate errors
 
 ---
 
-## Phase 3 — Full deployment (from the deploy VM)
+## Phase 3 -- Configure Proxmox nodes (from the deploy VM)
+
+```bash
+ansible-playbook ansible/proxmox.yml
+```
+
+This configures both Proxmox nodes: CPU governor, power tuning, and PCI hardware mappings
+(e.g. `quadro-p2200` on machamp). PCI mappings are defined under `pci_mappings` in
+`network.yml` and created idempotently -- safe to re-run.
+
+The Terraform token is also granted `PVEMappingUser` permission on each mapping so
+`terraform apply` can attach PCI devices without requiring root.
+
+---
+
+## Phase 4 -- Full deployment (from the deploy VM)
 
 SSH to the deploy VM:
 ```bash
@@ -286,7 +333,7 @@ cd ~/homelab
 
 ### 8. Provision the DNS VM
 
-Ensure the Eero port forward (step 3b) is in place before this step — Headscale will attempt
+Ensure the Eero port forward (step 3b) is in place before this step -- Headscale will attempt
 Let's Encrypt cert issuance on first start and needs port 443 reachable from the internet.
 
 ```bash
@@ -366,9 +413,9 @@ pause with instructions for the one manual browser step.
 
 ---
 
-## Phase 4 — Post-bootstrap
+## Phase 4 -- Post-bootstrap
 
-### 13. TLS — trust the step-ca root CA
+### 13. TLS -- trust the step-ca root CA
 
 step-ca is initialized by the `site.yml` Ansible role. Copy the root CA cert to your
 operator laptop and trust it:
@@ -425,7 +472,7 @@ infisical run -- env   # inspect all injected vars
 ### 16. Back up terraform.tfvars
 
 Store `terraform.tfvars` as an encrypted file attachment in Vaultwarden. This is the
-break-glass credential set — without it you cannot reprovision from scratch.
+break-glass credential set -- without it you cannot reprovision from scratch.
 
 ---
 
@@ -440,87 +487,30 @@ At this point:
 
 ---
 
-## GPU passthrough (Quadro P2200 → machamp-services)
+## GPU passthrough (Quadro P2200 → machamp-media)
 
-One-time setup. Run after the VM is provisioned (Phase 3). Proxmox hardware mappings
-let the `terraform@pam` API token assign PCI devices without root credentials — root
-creates the mapping once, then Terraform manages it like any other VM attribute.
+The Proxmox PCI mapping (`quadro-p2200`) is created automatically by `ansible/proxmox.yml`
+(Phase 3). After `terraform apply` provisions machamp-media with the GPU attached:
 
-### 1. Create the Proxmox hardware mapping
-
-SSH to machamp as root (`ssh root@192.168.0.5`):
+### Install NVIDIA drivers
 
 ```bash
-# Find the IOMMU group number for the P2200 GPU function
-find /sys/kernel/iommu_groups -name "*0000:41:00.0*" | grep -oP 'iommu_groups/\K[0-9]+'
-
-# Get the vendor:device ID for the GPU (the 4+4 hex digits after the class code)
-lspci -n | grep "41:00.0"
-# e.g.: 41:00.0 0300: 10de:1c31 (rev a1)  ← use 10de:1c31 as VENDOR_DEV below
-
-# Create the mapping — replace N with IOMMU group, VENDOR_DEV with id from lspci -n
-pvesh create /cluster/mapping/pci \
-  --id quadro-p2200 \
-  --map "node=machamp,id=VENDOR_DEV,path=0000:41:00.0,iommugroup=N" \
-  --description "Quadro P2200 GPU"
-
-# Grant the Terraform API token permission to use the mapping
-# Use single quotes around the token to prevent bash history expansion of '!'
-pvesh set /access/acl \
-  --path /mapping/pci/quadro-p2200 \
-  --roles PVEMappingUser \
-  --tokens 'terraform@pam!terraform'
-```
-
-Note: only the GPU function (`41:00.0`) is mapped. The audio function (`41:00.1`) is for
-HDMI audio output and is not needed for NVENC transcoding.
-
-### 2. Add the mapping to terraform.tfvars
-
-On the deploy VM (`~/homelab/terraform/machamp/terraform.tfvars`):
-```
-services_gpu_mappings = ["quadro-p2200"]
-```
-
-### 3. Apply Terraform
-
-```bash
-cd ~/homelab/terraform/machamp
-terraform plan   # should show only: + hostpci { mapping = "quadro-p2200" }
-terraform apply
-```
-
-### 4. Reboot the VM
-
-Proxmox applies the `hostpci` config on next boot — the running VM is not affected until then.
-
-```bash
-ssh root@192.168.0.5 "qm reboot 100"
-```
-
-### 5. Install NVIDIA drivers
-
-After the VM comes back up:
-
-```bash
-cd ~/homelab
 ansible-playbook ansible/gpu.yml
 ```
 
 The role installs `nvidia-driver-550-server`, adds the NVIDIA container toolkit, merges
-the nvidia runtime into Docker's `daemon.json`, and reboots the VM again if the driver
-was newly installed. The second reboot loads the driver into the kernel.
+the nvidia runtime into Docker's `daemon.json`, and reboots the VM if the driver was
+newly installed.
 
-### 6. Verify
+### Verify
 
 ```bash
 ssh ubuntu@192.168.0.30 nvidia-smi
 # Expected: Quadro P2200 listed, driver version ~550.x
 ```
 
-Jellyfin's `encoding.xml` is already bind-mounted with NVENC enabled. After the compose
-stack comes back up, check Jellyfin → Dashboard → Playback — hardware acceleration should
-show NVENC/NVDEC.
+Jellyfin's `encoding.xml` is already bind-mounted with NVENC enabled. Check
+Jellyfin → Dashboard → Playback -- hardware acceleration should show NVENC/NVDEC.
 
 ---
 

@@ -1,22 +1,22 @@
 ---
-# Deploy the machamp-infra stack (Infisical + Vaultwarden + Authentik + Litestream)
+# Deploy the diglett-infra stack (Infisical + Vaultwarden + Authentik + Litestream)
 # and bootstrap Infisical with an admin account.
 #
-# Bootstrap is always attempted — --ignore-if-bootstrapped makes it idempotent.
+# Bootstrap is always attempted -- --ignore-if-bootstrapped makes it idempotent.
 # This avoids the sentinel-outlives-data problem (e.g. postgres wiped after a
 # failed deploy) that would otherwise prevent re-seeding.
 #
 # Prerequisites:
-#   - machamp-infra VM must be up and cloud-init must have completed
+#   - diglett-infra VM must be up and cloud-init must have completed
 #   - Alakazam NFS must be reachable at 192.168.0.4:/mnt/apps/docker
 #   - ansible/secrets.yml must contain infisical_admin_email and infisical_admin_password
 #
 # Usage (first run or re-run):
 #   ansible-playbook ansible/infra.yml
-#   ansible-playbook ansible/site.yml --limit machamp-infra
+#   ansible-playbook ansible/site.yml --limit diglett-infra
 
 - name: Deploy infra stack
-  hosts: machamp-infra
+  hosts: diglett-infra
   gather_facts: true
 
   vars:
@@ -24,7 +24,7 @@
     nas_ip: "{{ network.nodes.alakazam.ip }}"
 
   pre_tasks:
-    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+    - name: Load local secrets file if present (ansible/secrets.yml -- gitignored)
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
@@ -38,11 +38,11 @@
 
 # ── Phase 1: Bootstrap Infisical ──────────────────────────────────────────────
 - name: Bootstrap Infisical
-  hosts: machamp-infra
+  hosts: diglett-infra
   gather_facts: false
 
   tasks:
-    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+    - name: Load local secrets file if present (ansible/secrets.yml -- gitignored)
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
@@ -161,12 +161,12 @@
       no_log: true
       when: not _bootstrap_json_exists.stat.exists
 
-# ── Phase 2: Create machamp-services machine identity in Infisical ───────────
+# ── Phase 2: Create machamp-media machine identity in Infisical ───────────
 #
 # Uses the bootstrap token from Phase 1 to create a project, machine identity,
-# and Universal Auth credentials via the Infisical REST API — no SRP user login
+# and Universal Auth credentials via the Infisical REST API -- no SRP user login
 # required.  Skipped on re-runs when credentials are already in secrets.yml.
-- name: Create machamp-services machine identity in Infisical
+- name: Create machamp-media machine identity in Infisical
   hosts: localhost
   gather_facts: false
 
@@ -181,20 +181,20 @@
       when: >
         (infisical_client_id | default('')) not in ['', 'REPLACE_ME']
 
-    - name: Check bootstrap credentials file exists on machamp-infra
+    - name: Check bootstrap credentials file exists on diglett-infra
       ansible.builtin.stat:
         path: /var/lib/infisical/bootstrap.json
-      delegate_to: machamp-infra
+      delegate_to: diglett-infra
       become: true
       register: _bootstrap_file
 
     - name: Fail if bootstrap credentials file not found
       ansible.builtin.fail:
         msg: >
-          /var/lib/infisical/bootstrap.json not found on machamp-infra.
+          /var/lib/infisical/bootstrap.json not found on diglett-infra.
           Infisical was bootstrapped before credentials were captured.
           Options: (A) wipe the Infisical instance (docker compose down,
-          remove its volumes, docker compose up -d) and re-run infra.yml —
+          remove its volumes, docker compose up -d) and re-run infra.yml --
           Phase 1 will re-bootstrap and save credentials automatically.
           Or (B) create a machine identity manually in the Infisical UI and
           set infisical_project_id, infisical_client_id, and
@@ -204,28 +204,28 @@
     - name: Read bootstrap credentials from file
       ansible.builtin.slurp:
         src: /var/lib/infisical/bootstrap.json
-      delegate_to: machamp-infra
+      delegate_to: diglett-infra
       become: true
       register: _bootstrap_raw
       no_log: true
 
     - name: Set Infisical host, bootstrap token, and org ID
       ansible.builtin.set_fact:
-        _infisical_host: "{{ infisical_host | default('http://192.168.0.32:8080') }}"
+        _infisical_host: "{{ infisical_host | default('http://192.168.0.20:8080') }}"
         _bootstrap_token: "{{ (_bootstrap_raw.content | b64decode | from_json).identity.credentials.token }}"
         _org_id: "{{ (_bootstrap_raw.content | b64decode | from_json).organization.id }}"
       no_log: true
 
-    - name: Check if machamp-services project already exists
+    - name: Check if machamp-media project already exists
       ansible.builtin.uri:
-        url: "{{ _infisical_host }}/api/v1/projects/slug/machamp-services"
+        url: "{{ _infisical_host }}/api/v1/projects/slug/machamp-media"
         headers:
           Authorization: "Bearer {{ _bootstrap_token }}"
         status_code: [200, 404]
       register: _project_check
       no_log: true
 
-    - name: Create machamp-services project in Infisical
+    - name: Create machamp-media project in Infisical
       ansible.builtin.uri:
         url: "{{ _infisical_host }}/api/v1/projects"
         method: POST
@@ -233,8 +233,8 @@
           Authorization: "Bearer {{ _bootstrap_token }}"
         body_format: json
         body:
-          projectName: "machamp-services"
-          slug: "machamp-services"
+          projectName: "machamp-media"
+          slug: "machamp-media"
           type: "secret-manager"
         status_code: [200, 201]
       register: _project_new
@@ -253,7 +253,7 @@
       no_log: true
       when: _project_check.status != 404
 
-    - name: Check if machamp-services identity already exists
+    - name: Check if machamp-media identity already exists
       ansible.builtin.uri:
         url: "{{ _infisical_host }}/api/v1/identities?orgId={{ _org_id }}"
         headers:
@@ -266,12 +266,12 @@
       ansible.builtin.set_fact:
         _existing_identity_id: >-
           {{ (_identities_list.json.identities
-              | selectattr('identity.name', 'equalto', 'machamp-services')
+              | selectattr('identity.name', 'equalto', 'machamp-media')
               | map(attribute='identity.id')
               | first | default('')) }}
       no_log: true
 
-    - name: Create machine identity for machamp-services
+    - name: Create machine identity for machamp-media
       ansible.builtin.uri:
         url: "{{ _infisical_host }}/api/v1/identities"
         method: POST
@@ -279,7 +279,7 @@
           Authorization: "Bearer {{ _bootstrap_token }}"
         body_format: json
         body:
-          name: "machamp-services"
+          name: "machamp-media"
           organizationId: "{{ _org_id }}"
           role: "no-access"
         status_code: [200, 201]
@@ -299,7 +299,7 @@
       no_log: true
       when: _existing_identity_id != ''
 
-    - name: Add identity to machamp-services project
+    - name: Add identity to machamp-media project
       ansible.builtin.uri:
         url: "{{ _infisical_host }}/api/v1/projects/{{ _project_id }}/identity-memberships/{{ _identity_id }}"
         method: POST
@@ -387,7 +387,7 @@
     - name: Report machine identity created
       ansible.builtin.debug:
         msg: >
-          Infisical machine identity 'machamp-services' created.
+          Infisical machine identity 'machamp-media' created.
           Project ID, client ID, and client secret written to ansible/secrets.yml.
 
 # ── Phase 3: Seed PIA credentials ────────────────────────────────────────────
@@ -412,7 +412,7 @@
 
     - name: Resolve Infisical settings
       ansible.builtin.set_fact:
-        _infisical_host: "{{ infisical_host | default('http://192.168.0.32:8080') }}"
+        _infisical_host: "{{ infisical_host | default('http://192.168.0.20:8080') }}"
         _client_id: "{{ infisical_client_id }}"
         _client_secret: "{{ infisical_client_secret }}"
         _project_id: "{{ infisical_project_id }}"
@@ -474,7 +474,7 @@
         (pia_username | default('')) not in ['', 'REPLACE_ME'] and
         (pia_password | default('')) not in ['', 'REPLACE_ME']
 
-    - name: Fail — PIA credentials not set in secrets.yml
+    - name: Fail -- PIA credentials not set in secrets.yml
       ansible.builtin.fail:
         msg: >
           pia_username and pia_password must be set in ansible/secrets.yml.

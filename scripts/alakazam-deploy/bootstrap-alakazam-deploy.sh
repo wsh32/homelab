@@ -50,7 +50,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 echo "==> Cloning homelab repo..."
 if [[ -d "$REPO_DIR" ]]; then
-  echo "    Repo already exists — pulling latest."
+  echo "    Repo already exists -- pulling latest."
   git -C "$REPO_DIR" pull
 else
   git clone "$REPO_URL" "$REPO_DIR"

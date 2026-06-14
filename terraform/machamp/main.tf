@@ -17,31 +17,6 @@ resource "proxmox_download_file" "ubuntu_2404" {
   overwrite = false
 }
 
-module "infra" {
-  source = "../modules/proxmox-vm"
-
-  node_name     = local.node
-  vm_id         = local.vms["machamp-infra"].vm_id
-  name          = "machamp-infra"
-  description   = "Infisical + Vaultwarden + Authentik — secrets and identity services"
-  tags          = ["machamp", "infra"]
-  image_file_id = proxmox_download_file.ubuntu_2404.id
-
-  cores        = 4
-  memory_mb    = 12288
-  disk_size_gb = 40
-  swap_size_gb = 2
-
-  ip_address         = "${local.vms["machamp-infra"].ip}/24"
-  gateway            = local.net.gateway
-  dns_servers        = local.net.dns
-  ssh_public_key     = var.ssh_public_key
-  vm_password        = var.vm_password
-  timezone           = var.timezone
-  tailscale_auth_key = var.tailscale_auth_key
-
-  extra_runcmd = []
-}
 
 module "dev" {
   source = "../modules/proxmox-vm"
@@ -64,31 +39,28 @@ module "dev" {
   ssh_public_key     = var.ssh_public_key
   vm_password        = var.vm_password
   timezone           = var.timezone
-  tailscale_auth_key = var.tailscale_auth_key
 }
 
 module "services" {
   source = "../modules/proxmox-vm"
 
   node_name     = local.node
-  vm_id         = local.vms["machamp-services"].vm_id
-  name          = "machamp-services"
-  description   = "Services VM — Jellyfin, Servarr stack, qBittorrent (Quadro P2200 passthrough)"
-  tags          = ["machamp", "gpu", "services"]
+  vm_id         = local.vms["machamp-media"].vm_id
+  name          = "machamp-media"
+  description   = "Media VM -- Jellyfin, Servarr stack, qBittorrent (Quadro P2200 passthrough)"
+  tags          = ["machamp", "gpu", "media"]
   image_file_id = proxmox_download_file.ubuntu_2404.id
 
   cores        = 8
   memory_mb    = 32768
   disk_size_gb = 40
 
-  ip_address         = "${local.vms["machamp-services"].ip}/24"
+  ip_address         = "${local.vms["machamp-media"].ip}/24"
   gateway            = local.net.gateway
   dns_servers        = local.net.dns
   ssh_public_key     = var.ssh_public_key
   vm_password        = var.vm_password
   timezone           = var.timezone
-  tailscale_auth_key = var.tailscale_auth_key
-
   extra_runcmd = []
 
   machine          = "q35"
