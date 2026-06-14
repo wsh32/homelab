@@ -1,6 +1,6 @@
 # File-provider routes for off-host backends.
 # Infra services (Infisical, Vaultwarden, Authentik) are handled by Docker labels.
-# All services are LAN (.home) only until Tailscale is wired up — see TODOS.md.
+# All services are LAN (.home) only until Tailscale is wired up -- see TODOS.md.
 http:
   middlewares:
     # Redirect Jellyfin web UI to Authentik SSO via jellyfin-plugin-sso.
@@ -10,7 +10,7 @@ http:
         replacement: "https://jellyfin.home/SSO/OID/start/authentik"
         permanent: false
 
-    # Authentik forward auth — all arr/media services require authentication.
+    # Authentik forward auth -- all arr/media services require authentication.
     # Authentik proxy providers (forward_auth_single) are bootstrapped by ansible/roles/infra/tasks/main.yml.
     authentik:
       forwardAuth:

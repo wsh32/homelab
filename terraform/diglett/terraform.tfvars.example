@@ -3,7 +3,7 @@
 # Proxmox API endpoint for the NUC node
 proxmox_endpoint = "https://192.168.0.6:8006"
 
-# Proxmox API token — create via:
+# Proxmox API token -- create via:
 #   Datacenter > Permissions > API Tokens > Add
 #   User: terraform@pam, Token ID: terraform, Privilege Separation: unchecked
 #   Note: the full token format is "terraform@pam!terraform=<uuid>"
@@ -12,21 +12,21 @@ proxmox_api_token = "terraform@pam!terraform=REPLACE_ME"
 # Your SSH public key (cat ~/.ssh/id_ed25519.pub)
 ssh_public_key = "ssh-ed25519 AAAAC3... you@machine"
 
-# System timezone for all VMs — use a tz database name (e.g. America/Los_Angeles)
+# System timezone for all VMs -- use a tz database name (e.g. America/Los_Angeles)
 timezone = "UTC"
 
 # Password for the ubuntu user on all VMs (enables console + SSH password login)
 vm_password = "REPLACE_ME"
 
-# Cloudflare API token — create at https://dash.cloudflare.com/profile/api-tokens
+# Cloudflare API token -- create at https://dash.cloudflare.com/profile/api-tokens
 # Required permissions: Zone > DNS > Edit and Account > Cloudflare Tunnel > Edit
 # Used by Terraform to manage DNS records and the Authentik Cloudflare Tunnel.
 cloudflare_api_token = "REPLACE_ME"
 
-# Cloudflare zone ID — found in the right sidebar of the zone's Overview page
+# Cloudflare zone ID -- found in the right sidebar of the zone's Overview page
 cloudflare_zone_id = "REPLACE_ME"
 
-# Subdomain for Headscale — will create <headscale_subdomain>.<your-zone> in Cloudflare DNS
+# Subdomain for Headscale -- will create <headscale_subdomain>.<your-zone> in Cloudflare DNS
 headscale_subdomain = "headscale"
 
 # Subdomain for the public Authentik OIDC endpoint (creates auth.<your-zone>)

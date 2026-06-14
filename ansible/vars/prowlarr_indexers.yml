@@ -3,13 +3,13 @@
 # the api_key_var value to ansible/secrets.yml.
 #
 # Fields:
-#   name          — display name in Prowlarr
-#   protocol      — "usenet" (Newznab) or "torrent" (native implementation)
-#   url           — base URL of the indexer
+#   name          -- display name in Prowlarr
+#   protocol      -- "usenet" (Newznab) or "torrent" (native implementation)
+#   url           -- base URL of the indexer
 #   (torrent indexers are looked up by name in Prowlarr's schema endpoint)
-#   api_key_var   — Infisical/secrets.yml key name (omit for public indexers)
-#   privacy       — "public", "semiPublic", or "private" (default: private)
-#   categories    — Newznab category IDs to enable
+#   api_key_var   -- Infisical/secrets.yml key name (omit for public indexers)
+#   privacy       -- "public", "semiPublic", or "private" (default: private)
+#   categories    -- Newznab category IDs to enable
 
 prowlarr_indexers:
   - name: NZBPlanet

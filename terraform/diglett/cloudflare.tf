@@ -8,7 +8,7 @@ locals {
 }
 
 # DNS-only A record pointing at the home IP.
-# proxied = false — Cloudflare proxy strips the TS2021 upgrade header.
+# proxied = false -- Cloudflare proxy strips the TS2021 upgrade header.
 # content is a placeholder; the cloudflare-ddns container updates it at runtime.
 # ignore_changes prevents Terraform from resetting the IP on subsequent applies.
 resource "cloudflare_record" "headscale" {
@@ -25,12 +25,12 @@ resource "cloudflare_record" "headscale" {
 }
 
 output "headscale_url" {
-  description = "Public Headscale URL — set as headscale_url in terraform.tfvars for other modules"
+  description = "Public Headscale URL -- set as headscale_url in terraform.tfvars for other modules"
   value       = "https://${local.headscale_hostname}"
 }
 
 # Cloudflare Tunnel running on diglett-infra, proxying Authentik's OIDC endpoints.
-# Only /application/o/ is exposed publicly — everything else returns 404.
+# Only /application/o/ is exposed publicly -- everything else returns 404.
 # This allows OIDC device enrollment from outside the LAN without a port forward.
 resource "cloudflare_zero_trust_tunnel_cloudflared" "authentik" {
   account_id = data.cloudflare_zone.main.account_id
@@ -69,7 +69,7 @@ resource "cloudflare_record" "authentik" {
 }
 
 output "authentik_tunnel_token" {
-  description = "Cloudflare Tunnel token — written to /etc/cloudflare-tunnel.env on diglett-infra by the infra Ansible role"
+  description = "Cloudflare Tunnel token -- written to /etc/cloudflare-tunnel.env on diglett-infra by the infra Ansible role"
   value       = cloudflare_zero_trust_tunnel_cloudflared.authentik.tunnel_token
   sensitive   = true
 }

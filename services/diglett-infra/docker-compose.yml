@@ -26,7 +26,7 @@ services:
     container_name: step-ca
     restart: unless-stopped
     dns:
-      - 192.168.0.2   # AdGuard on diglett-dns — needed to resolve .home for ACME HTTP-01
+      - 192.168.0.2   # AdGuard on diglett-dns -- needed to resolve .home for ACME HTTP-01
       - 8.8.8.8
     volumes:
       - /mnt/nas/docker/step-ca:/home/step
@@ -44,11 +44,11 @@ services:
 
   # ── Shared databases ───────────────────────────────────────────────────────
   postgres:
-    image: postgres:16-alpine  # TODO: upgrade to 17-alpine (EOL Nov 2025) — requires pg_upgrade; see impl-todos.md
+    image: postgres:16-alpine  # TODO: upgrade to 17-alpine (EOL Nov 2025) -- requires pg_upgrade; see impl-todos.md
     container_name: postgres
     restart: unless-stopped
     volumes:
-      - /var/lib/postgres:/var/lib/postgresql/data   # local disk — not NFS
+      - /var/lib/postgres:/var/lib/postgresql/data   # local disk -- not NFS
       - ./postgres-init.sh:/docker-entrypoint-initdb.d/init.sh:ro
     environment:
       POSTGRES_USER: postgres
@@ -107,7 +107,7 @@ services:
     container_name: vaultwarden
     restart: unless-stopped
     volumes:
-      - /var/lib/vaultwarden:/data   # local disk — backed up continuously by litestream
+      - /var/lib/vaultwarden:/data   # local disk -- backed up continuously by litestream
     environment:
       DOMAIN: https://vault.home
       SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
@@ -231,7 +231,7 @@ services:
     restart: unless-stopped
     command: tunnel --no-autoupdate run
     env_file: /etc/cloudflare-tunnel.env
-    # TUNNEL_TOKEN in env_file is read natively by cloudflared — no tunnel name needed
+    # TUNNEL_TOKEN in env_file is read natively by cloudflared -- no tunnel name needed
     depends_on:
       - authentik-server
 

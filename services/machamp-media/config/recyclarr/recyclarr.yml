@@ -1,6 +1,6 @@
-# Recyclarr configuration — syncs TRaSH Guide quality profiles to Radarr and Sonarr.
+# Recyclarr configuration -- syncs TRaSH Guide quality profiles to Radarr and Sonarr.
 # API keys are read from environment variables (injected by Infisical at runtime).
-# Profile: Option B — 4K WEB movies, 1080p WEB TV, no Remux.
+# Profile: Option B -- 4K WEB movies, 1080p WEB TV, no Remux.
 
 radarr:
   radarr-main:

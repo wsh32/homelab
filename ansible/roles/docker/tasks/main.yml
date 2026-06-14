@@ -1,5 +1,5 @@
 ---
-# Docker role — applied to VMs running Docker Compose services.
+# Docker role -- applied to VMs running Docker Compose services.
 
 - name: Add Docker GPG key
   ansible.builtin.shell:

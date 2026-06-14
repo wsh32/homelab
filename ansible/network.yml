@@ -1,6 +1,6 @@
 ---
 # Configure static IP on Proxmox physical nodes.
-# Safe to re-run — ifreload -a applies changes without dropping connections
+# Safe to re-run -- ifreload -a applies changes without dropping connections
 # as long as the IP address is not changing.
 #
 # Usage:

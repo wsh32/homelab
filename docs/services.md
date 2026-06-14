@@ -1,7 +1,7 @@
 # Services
 
 Per-VM service inventory. All persistent data mounts to `/mnt/nas/docker/<service>` on
-Alakazam NFS — VMs are stateless and can be rebuilt without data loss.
+Alakazam NFS -- VMs are stateless and can be rebuilt without data loss.
 
 ---
 
@@ -9,7 +9,7 @@ Alakazam NFS — VMs are stateless and can be rebuilt without data loss.
 
 ### alakazam-deploy (`192.168.0.7`)
 
-TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/bootstrap-alakazam-deploy.sh`.
+TrueNAS SCALE KVM VM -- not Proxmox-managed. Bootstrapped once via `scripts/bootstrap-alakazam-deploy.sh`.
 
 | Tool | Notes |
 |------|-------|
@@ -24,16 +24,16 @@ TrueNAS SCALE KVM VM — not Proxmox-managed. Bootstrapped once via `scripts/boo
 
 | Service | Notes |
 |---------|-------|
-| AdGuard Home | LAN DNS resolver. Pre-seeded config — no setup wizard. DNS rewrites: `*.wsh` → CNAME `machamp-infra.ts.home`, `*.home` → A `192.168.0.32` |
+| AdGuard Home | LAN DNS resolver. Pre-seeded config -- no setup wizard. DNS rewrites: `*.wsh` → CNAME `machamp-infra.ts.home`, `*.home` → A `192.168.0.32` |
 | Headscale | Self-hosted Tailscale coordination server. Pushes AdGuard's Tailscale IP as the DNS resolver for `.wsh` and `.home` to all tailnet members |
-| cloudflared | Cloudflare Tunnel — exposes Headscale publicly without open ports or a static IP |
+| cloudflared | Cloudflare Tunnel -- exposes Headscale publicly without open ports or a static IP |
 | Tailscale exit node | Primary exit node for the tailnet |
 
 ### diglett-haos (`192.168.0.22`)
 
 | Service | Notes |
 |---------|-------|
-| Home Assistant OS | Home automation. Restored from vzdump backup on first boot — not managed via cloud-init or Ansible |
+| Home Assistant OS | Home automation. Restored from vzdump backup on first boot -- not managed via cloud-init or Ansible |
 
 ---
 

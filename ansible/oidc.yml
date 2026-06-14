@@ -77,7 +77,7 @@
     - name: Inject OIDC block into headplane config
       ansible.builtin.blockinfile:
         path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
-        marker: "# {mark} OIDC — managed by Ansible"
+        marker: "# {mark} OIDC -- managed by Ansible"
         block: |
           oidc:
             issuer: "{{ authentik_public_url }}/application/o/headplane/"
@@ -187,7 +187,7 @@
     nas_ip: "{{ network.nodes.alakazam.ip }}"
 
   pre_tasks:
-    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+    - name: Load local secrets file if present (ansible/secrets.yml -- gitignored)
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false

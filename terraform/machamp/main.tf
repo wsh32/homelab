@@ -47,7 +47,7 @@ module "services" {
   node_name     = local.node
   vm_id         = local.vms["machamp-media"].vm_id
   name          = "machamp-media"
-  description   = "Media VM — Jellyfin, Servarr stack, qBittorrent (Quadro P2200 passthrough)"
+  description   = "Media VM -- Jellyfin, Servarr stack, qBittorrent (Quadro P2200 passthrough)"
   tags          = ["machamp", "gpu", "media"]
   image_file_id = proxmox_download_file.ubuntu_2404.id
 

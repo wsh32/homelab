@@ -80,7 +80,7 @@ services:
       retries: 5
       start_period: 30s
     ports:
-      - "8080:8080"   # qBittorrent WebUI — also used by Traefik backend routing
+      - "8080:8080"   # qBittorrent WebUI -- also used by Traefik backend routing
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.qbittorrent-wsh.rule=Host(`qbittorrent.wsh`)"
@@ -104,7 +104,7 @@ services:
       PUID: "1000"
       PGID: "1000"
       WEBUI_PORT: "8080"
-    # No ports or labels — network is shared with gluetun
+    # No ports or labels -- network is shared with gluetun
 
   # ── Subtitles ──────────────────────────────────────────────────────────────
   bazarr:
@@ -176,5 +176,5 @@ services:
       UN_SABNZBD_0_URL: http://sabnzbd:8080
       UN_SABNZBD_0_API_KEY: ${SABNZBD_API_KEY}
       UN_SABNZBD_0_PATHS: /data/downloads/complete
-    # No ports or labels — background daemon with no UI
+    # No ports or labels -- background daemon with no UI
 

@@ -7,7 +7,7 @@ terraform {
   }
 }
 
-# Cloud-init user-data snippet — uploaded to Proxmox local snippets storage.
+# Cloud-init user-data snippet -- uploaded to Proxmox local snippets storage.
 # Requires snippets enabled on the local datastore (one-time Proxmox UI step:
 #   Datacenter > Storage > local > Edit > check "Snippets").
 resource "proxmox_virtual_environment_file" "user_data" {
@@ -51,7 +51,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
     dedicated = var.memory_mb
   }
 
-  # Root disk — cloned from the downloaded cloud image
+  # Root disk -- cloned from the downloaded cloud image
   disk {
     datastore_id = var.datastore
     file_id      = var.image_file_id

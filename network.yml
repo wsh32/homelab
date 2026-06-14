@@ -1,4 +1,4 @@
-# network.yml — single source of truth for all static IP assignments.
+# network.yml -- single source of truth for all static IP assignments.
 #
 # Terraform reads this file directly via yamldecode().
 # Ansible inventory is generated from this file and ansible/group_config.yml
@@ -6,7 +6,7 @@
 #
 # IP layout:
 #   .1       gateway (Eero)
-#   .2       diglett-dns VM (AdGuard Home — primary DNS; special-cased outside VM range)
+#   .2       diglett-dns VM (AdGuard Home -- primary DNS; special-cased outside VM range)
 #   .3       reserved (future backup DNS)
 #   .4–.19   physical nodes (.7 = alakazam-deploy deploy host)
 #   .20–.29  Diglett VMs (VM IDs 200–299)
@@ -22,15 +22,15 @@ subnet_prefix: 24
 
 # DNS servers injected into all VMs via cloud-init
 dns:
-  - 192.168.0.2   # diglett-dns (AdGuard Home) — primary
+  - 192.168.0.2   # diglett-dns (AdGuard Home) -- primary
   - 8.8.8.8       # fallback if diglett-dns is down
 
-# All nodes — physical and compute.
+# All nodes -- physical and compute.
 #
 # Fields on every node:
 #   ip:              LAN IP address
 #   type:            Ansible physical group (proxmox | nas | other)
-#   os:              OS family — nodes with os=truenas are excluded from Ansible inventory
+#   os:              OS family -- nodes with os=truenas are excluded from Ansible inventory
 #   ansible_user:    SSH user override (default: ubuntu)
 #
 # Additional fields for Proxmox nodes:
@@ -76,7 +76,7 @@ nodes:
       diglett-haos:
         ip: 192.168.0.21
         vm_id: 202
-        ansible_managed: false  # HAOS — no SSH access via Ansible
+        ansible_managed: false  # HAOS -- no SSH access via Ansible
 
   machamp:
     ip: 192.168.0.5

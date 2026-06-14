@@ -8,7 +8,7 @@ Goals:
 
 - Rebuild infrastructure around **Proxmox + Terraform**
 - Ensure all compute infrastructure is **reproducible from Git**
-- No permanent GUI configuration — everything managed via code
+- No permanent GUI configuration -- everything managed via code
 - Separate **compute**, **storage**, and **infrastructure services**
 - Maintain **TrueNAS as a stable, NAS-only data plane**
 - Support safe iteration and easy disaster recovery
@@ -17,11 +17,11 @@ Goals:
 
 # 2. Guiding Principles
 
-1. **Infrastructure as Code** — all VMs defined in Terraform, no permanent UI config
-2. **Immutable / Rebuildable** — VMs can be destroyed and recreated; services defined via Docker Compose
-3. **Separation of Planes** — compute, infrastructure services, and storage are distinct
-4. **Stateful vs Stateless** — stateful data lives on NAS; compute nodes are disposable
-5. **Git as Source of Truth** — Terraform, cloud-init templates, service definitions, and docs all live here
+1. **Infrastructure as Code** -- all VMs defined in Terraform, no permanent UI config
+2. **Immutable / Rebuildable** -- VMs can be destroyed and recreated; services defined via Docker Compose
+3. **Separation of Planes** -- compute, infrastructure services, and storage are distinct
+4. **Stateful vs Stateless** -- stateful data lives on NAS; compute nodes are disposable
+5. **Git as Source of Truth** -- Terraform, cloud-init templates, service definitions, and docs all live here
 
 ---
 
@@ -30,7 +30,7 @@ Goals:
 ## Local Network
 
 > All static IP assignments are defined in `network.yml` at the repo root.
-> That file is the single source of truth — edit IPs there.
+> That file is the single source of truth -- edit IPs there.
 
 Router: `192.168.0.1` (Eero)
 
@@ -42,22 +42,22 @@ IP ranges: physical nodes `.4–.19` (`.7` = alakazam-deploy), diglett-dns VM sp
 
 | Device | Hostname | IP | Notes |
 |--------|----------|----|-------|
-| diglett-dns VM | diglett-dns | 192.168.0.2 | Static (Terraform) — AdGuard Home; special-cased outside VM range |
+| diglett-dns VM | diglett-dns | 192.168.0.2 | Static (Terraform) -- AdGuard Home; special-cased outside VM range |
 | (future) | dns2 | 192.168.0.3 | Reserved for backup DNS VM |
 | Alakazam | alakazam | 192.168.0.4 | Static (TrueNAS UI) |
-| Machamp | machamp | 192.168.0.5 | Static (Ansible — `/etc/network/interfaces`) |
-| Diglett | diglett | 192.168.0.6 | Static (Ansible — `/etc/network/interfaces`) |
-| alakazam-deploy | alakazam-deploy | 192.168.0.7 | Static (TrueNAS UI) — deploy host (TrueNAS KVM) |
-| diglett-haos VM | diglett-haos | 192.168.0.22 | Static (Terraform) — Home Assistant OS |
+| Machamp | machamp | 192.168.0.5 | Static (Ansible -- `/etc/network/interfaces`) |
+| Diglett | diglett | 192.168.0.6 | Static (Ansible -- `/etc/network/interfaces`) |
+| alakazam-deploy | alakazam-deploy | 192.168.0.7 | Static (TrueNAS UI) -- deploy host (TrueNAS KVM) |
+| diglett-haos VM | diglett-haos | 192.168.0.22 | Static (Terraform) -- Home Assistant OS |
 | machamp-media VM | machamp-media | 192.168.0.30 | Static (Terraform) |
 | machamp-dev VM | machamp-dev | 192.168.0.31 | Static (Terraform) |
-| machamp-infra VM | machamp-infra | 192.168.0.32 | Static (Terraform) — Infisical + Vaultwarden + Authentik |
+| machamp-infra VM | machamp-infra | 192.168.0.32 | Static (Terraform) -- Infisical + Vaultwarden + Authentik |
 
 ---
 
 ## Remote Access
 
-All physical nodes and VMs join Tailscale. VM auth keys are provisioned automatically via Terraform cloud-init. All nodes communicate freely — no ACL segmentation for now.
+All physical nodes and VMs join Tailscale. VM auth keys are provisioned automatically via Terraform cloud-init. All nodes communicate freely -- no ACL segmentation for now.
 
 ---
 
@@ -85,11 +85,11 @@ Two domains serve different audiences without subnet routing or internet exposur
 
 **TLS:**
 
-- `*.wsh` — step-ca local CA issues a wildcard cert. Traefik uses ACME against the local
+- `*.wsh` -- step-ca local CA issues a wildcard cert. Traefik uses ACME against the local
   step-ca endpoint (`step` cert resolver). Personal devices trust the step-ca root CA
   (installed once per device).
-- `*.home` — plain HTTP. LAN fallback for guests; no TLS required.
-- Let's Encrypt is not used — it does not issue certs for private TLDs like `.wsh` or `.home`.
+- `*.home` -- plain HTTP. LAN fallback for guests; no TLS required.
+- Let's Encrypt is not used -- it does not issue certs for private TLDs like `.wsh` or `.home`.
 
 **Per-service exposure control:**
 
@@ -132,7 +132,7 @@ Each service defaults to being exposed on both domains. To restrict:
 
 | Node | Role | Status |
 |------|------|--------|
-| Machamp | Compute — GPU workloads, all Docker Compose services | Active |
+| Machamp | Compute -- GPU workloads, all Docker Compose services | Active |
 | Diglett | Always-on infrastructure | Active |
 
 Full Proxmox cluster for single-pane management only. No HA or live migration.
@@ -143,25 +143,25 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 
 ### One-time manual steps (Proxmox UI)
 
-1. **Proxmox cluster** — join Machamp and Diglett into a single Proxmox cluster
-2. **Proxmox API token** — create a Terraform service account and API token on each node
+1. **Proxmox cluster** -- join Machamp and Diglett into a single Proxmox cluster
+2. **Proxmox API token** -- create a Terraform service account and API token on each node
 
 ### One-time manual steps (Alakazam TrueNAS UI)
 
-3. **NFS datasets** — create and export:
-   - `apps/terraform` — Terraform state files (mounted at `/mnt/terraform-state` on the deploy VM)
-   - `docker` — persistent Docker volumes for all services
+3. **NFS datasets** -- create and export:
+   - `apps/terraform` -- Terraform state files (mounted at `/mnt/terraform-state` on the deploy VM)
+   - `docker` -- persistent Docker volumes for all services
 
 ### One-time manual steps (operator laptop)
 
-4. **Configure static IPs on physical nodes** — `ansible-playbook ansible/network.yml`
+4. **Configure static IPs on physical nodes** -- `ansible-playbook ansible/network.yml`
    for Machamp and Diglett; set static IP on Alakazam via TrueNAS UI.
-5. **Write `terraform.tfvars`** — populate with Proxmox API tokens, SSH public key,
+5. **Write `terraform.tfvars`** -- populate with Proxmox API tokens, SSH public key,
    and Cloudflare API token. This is the only manual credential entry in the bootstrap.
-6. **Create `alakazam-deploy` VM in TrueNAS SCALE UI** — create a 1-core/1GB Ubuntu 24.04
+6. **Create `alakazam-deploy` VM in TrueNAS SCALE UI** -- create a 1-core/1GB Ubuntu 24.04
    KVM VM, assign static IP `192.168.0.7` inside the VM. All subsequent steps run from
    inside the network.
-7. **Bootstrap the deploy VM** — run the bootstrap script from the operator laptop:
+7. **Bootstrap the deploy VM** -- run the bootstrap script from the operator laptop:
    ```
    ssh ubuntu@192.168.0.7 \
      TAILSCALE_AUTH_KEY=<headscale-preauth-key> \
@@ -172,24 +172,24 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 
 ### From the alakazam-deploy VM
 
-9. **`terraform apply -target=module.dns`** — provisions the DNS VM. Terraform creates
+9. **`terraform apply -target=module.dns`** -- provisions the DNS VM. Terraform creates
    the Cloudflare Tunnel via the Cloudflare provider; the tunnel token flows automatically
    into the DNS VM cloud-init. AdGuard, Headscale, and cloudflared all start on first boot.
-10. **`ansible-playbook ansible/bootstrap-headscale.yml`** — waits for Headscale to be
+10. **`ansible-playbook ansible/bootstrap-headscale.yml`** -- waits for Headscale to be
     healthy, generates a reusable pre-auth key, writes it to `terraform.tfvars` on the
     deploy VM.
-11. **`terraform apply`** — provisions all remaining VMs. Cloud-init handles Docker
+11. **`terraform apply`** -- provisions all remaining VMs. Cloud-init handles Docker
     install and NFS mounts. VMs do not yet have Infisical credentials.
-12. **`INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`** — deploys the
+12. **`INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`** -- deploys the
     machamp-infra stack (Infisical, Vaultwarden, Authentik, shared PostgreSQL, shared Redis, Litestream) and bootstraps
     Infisical on first run (admin user `admin@team.rocket`, org, workspace). Outputs
-    `workspace_id`, `client_id`, `client_secret` — add these to `terraform.tfvars`. Idempotent
+    `workspace_id`, `client_id`, `client_secret` -- add these to `terraform.tfvars`. Idempotent
     on re-run (bootstrap skipped after first successful run).
-13. **`ansible-playbook ansible/site.yml`** — brings up all services. Each service role
+13. **`ansible-playbook ansible/site.yml`** -- brings up all services. Each service role
     generates its own secrets, seeds them to Infisical, writes config, and starts the
     container. Vaultwarden account creation attempted via the Bitwarden CLI (`bw register`);
     falls back to one manual browser registration if the CLI doesn't support it.
-14. **Add external API keys to Infisical** — the only remaining manual step. Add secrets
+14. **Add external API keys to Infisical** -- the only remaining manual step. Add secrets
     that cannot be generated locally: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
     `GITHUB_TOKEN`, etc. via the Infisical UI.
 
@@ -204,28 +204,28 @@ services that depend on those external keys.
 
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
-| Proxmox host | 2GB | — | OS overhead |
+| Proxmox host | 2GB | -- | OS overhead |
 | diglett-dns | 2GB | 2 | AdGuard + Tailscale exit node + Headscale + cloudflare-ddns |
 | diglett-haos | 4GB | 2 | HAOS |
-| Headroom | 8GB | — | Buffer / future |
+| Headroom | 8GB | -- | Buffer / future |
 
 ### Machamp (128GB ECC RAM, Threadripper 3975WX 32c/64t)
 
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
-| Proxmox host | 4GB | — | OS overhead |
+| Proxmox host | 4GB | -- | OS overhead |
 | machamp-infra | 12GB | 4 | Infisical + Vaultwarden + Authentik |
 | machamp-media | 32GB | 8 | All Docker Compose services; GPU passthrough (Quadro P2200) for Jellyfin |
 | machamp-dev | 16GB | 6 | Development workstation |
-| Headroom | 64GB | — | Future VMs / workloads |
+| Headroom | 64GB | -- | Future VMs / workloads |
 
-### Services node (planned — 128GB RAM, Ryzen 7 3700x 8c/16t)
+### Services node (planned -- 128GB RAM, Ryzen 7 3700x 8c/16t)
 
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
-| Proxmox host | 4GB | — | OS overhead |
+| Proxmox host | 4GB | -- | OS overhead |
 | Services VM | 32GB | 8 | All migrated services from Machamp |
-| Headroom | 92GB | — | Future VMs / workloads |
+| Headroom | 92GB | -- | Future VMs / workloads |
 
 ---
 
@@ -268,7 +268,7 @@ On rebuild, restore from the latest vzdump backup via the HAOS UI or `ha` CLI.
 
 ### Physical deploy host
 
-**alakazam-deploy** (`192.168.0.7` — TrueNAS SCALE KVM, out-of-band):
+**alakazam-deploy** (`192.168.0.7` -- TrueNAS SCALE KVM, out-of-band):
 
 | Tool | Notes |
 |------|-------|
@@ -287,7 +287,7 @@ On rebuild, restore from the latest vzdump backup via the HAOS UI or `ha` CLI.
 | Vaultwarden | Human-consumed secrets: web UI admin passwords, personal credentials |
 | Authentik | OIDC identity provider; SSO for Grafana, n8n, Headplane, Headscale |
 
-Infisical stores all machine-read secrets — both service API keys (fetched at VM boot via
+Infisical stores all machine-read secrets -- both service API keys (fetched at VM boot via
 `infisical export`) and developer API keys accessed via `infisical run -- <command>` on the
 operator laptop (Claude, Codex, GitHub tokens, etc.).
 Vaultwarden stores all passwords a human types into a browser. The two stores never overlap.
@@ -313,7 +313,7 @@ Authentik provides OIDC SSO for internal services; configure OIDC clients post-d
 
 ### Services node (planned)
 
-Takes over all non-permanent services from Machamp when built. Migration is trivial — all
+Takes over all non-permanent services from Machamp when built. Migration is trivial -- all
 persistent data lives on Alakazam NFS, so services redeploy by retargeting Terraform.
 
 | Service | Notes |
@@ -333,7 +333,7 @@ persistent data lives on Alakazam NFS, so services redeploy by retargeting Terra
 
 All services are configured without the web UI. Two accepted exceptions where scripting
 is infeasible: **HAOS** (stateful home automation, restored from backup) and **Vaultwarden**
-(client-side key derivation prevents scripted account creation — one browser registration,
+(client-side key derivation prevents scripted account creation -- one browser registration,
 persists on NFS forever).
 
 ### AdGuard Home
@@ -372,11 +372,11 @@ No env var skips the setup wizard. The wizard is driven headlessly via the `/Sta
 
 Pre-seeded `config.xml` placed in each app's `/config` directory before first container start.
 API keys are generated by the Ansible service role, seeded to Infisical, and written into
-the config files — making cross-app linking deterministic without Terraform involvement.
+the config files -- making cross-app linking deterministic without Terraform involvement.
 
 - Config files: `services/machamp-media/config/radarr.xml`, `sonarr.xml`, `prowlarr.xml`
 - API keys generated by Ansible role (random hex), seeded to Infisical, written to config
-- `AuthenticationRequired=DisabledForLocalAddresses` — LAN-only, behind Traefik
+- `AuthenticationRequired=DisabledForLocalAddresses` -- LAN-only, behind Traefik
 - Prowlarr → Radarr/Sonarr linked via `scripts/servarr-init.sh` (`POST /api/v1/applications`)
 
 ### Calibre-Web
@@ -398,13 +398,13 @@ endpoint is only available on a fresh instance.
 
 ### Vaultwarden
 
-Account creation requires client-side PBKDF2 key derivation — cannot be scripted without
+Account creation requires client-side PBKDF2 key derivation -- cannot be scripted without
 implementing Bitwarden's full crypto client. Accepted as a one-time manual bootstrap step.
 
 - Start Vaultwarden with `SIGNUPS_ALLOWED=true` (default on first boot)
 - Register at `https://vault.home` in a browser
 - Signups lock automatically after first account; `SIGNUPS_ALLOWED=false` enforced by env var on restart
-- Account persists on Alakazam NFS — survives all VM rebuilds, never repeated
+- Account persists on Alakazam NFS -- survives all VM rebuilds, never repeated
 
 ### CouchDB (Obsidian LiveSync)
 
@@ -447,11 +447,11 @@ Traefik listens on two entrypoints:
 **Services co-located with Traefik** (on machamp-infra) use Docker Compose labels:
 
 ```yaml
-# Tailscale path — HTTPS, personal devices
+# Tailscale path -- HTTPS, personal devices
 - "traefik.http.routers.<name>-wsh.rule=Host(`<name>.wsh`)"
 - "traefik.http.routers.<name>-wsh.entrypoints=websecure"
 - "traefik.http.routers.<name>-wsh.tls=true"
-# LAN fallback — HTTP, guests
+# LAN fallback -- HTTP, guests
 - "traefik.http.routers.<name>-home.rule=Host(`<name>.home`)"
 - "traefik.http.routers.<name>-home.entrypoints=web"
 # Backend
@@ -466,7 +466,7 @@ To restrict a service to Tailscale-only, omit the `-home` router. To restrict to
 omit the `-wsh` router. Both routers share the same backend service.
 
 TLS: Traefik uses a local ACME endpoint (`step` cert resolver) pointing at step-ca.
-step-ca issues a wildcard cert for `*.wsh`. No Let's Encrypt — Let's Encrypt does not issue
+step-ca issues a wildcard cert for `*.wsh`. No Let's Encrypt -- Let's Encrypt does not issue
 certs for private TLDs. `*.home` is HTTP only (LAN fallback for guests; no TLS needed).
 
 ---
@@ -475,7 +475,7 @@ certs for private TLDs. `*.home` is HTTP only (LAN fallback for guests; no TLS n
 
 Three separate stores with distinct roles, split by **consumer**:
 
-**`terraform.tfvars`** — alakazam-deploy VM, gitignored
+**`terraform.tfvars`** -- alakazam-deploy VM, gitignored
 
 The provisioning source of truth. Manually supplied values only:
 - Proxmox API token + endpoint + username (one set per node)
@@ -486,7 +486,7 @@ The provisioning source of truth. Manually supplied values only:
 No service secrets are generated or stored in Terraform. Backed up as an encrypted
 note in Vaultwarden. Never committed to Git.
 
-**Infisical** — Diglett Infisical VM, machine-consumed secrets
+**Infisical** -- Diglett Infisical VM, machine-consumed secrets
 
 Stores all secrets that services or processes read programmatically:
 - Service API keys and inter-service tokens (Prowlarr → Radarr/Sonarr API keys, etc.)
@@ -507,11 +507,11 @@ Machine identity credentials for other VMs (`client_id`, `client_secret`, `works
 written to `/etc/infisical.env` (root-owned, mode 0600) on each VM. This file is the only persistent secret on each VM and is the key that unlocks
 all others.
 
-Service secrets are seeded to Infisical by each service's Ansible role at bring-up time —
+Service secrets are seeded to Infisical by each service's Ansible role at bring-up time --
 not via a central seed script. External API keys that cannot be generated locally are added
 manually via the Infisical UI.
 
-**Vaultwarden** — Diglett Infisical VM, human-consumed secrets
+**Vaultwarden** -- Diglett Infisical VM, human-consumed secrets
 
 Stores every password a human types into a browser or UI:
 - All service web UI admin passwords (Grafana, n8n, Jellyfin, Calibre-Web, PhotoPrism, etc.)
@@ -534,7 +534,7 @@ corruption from soft-mount interruptions. Backups go to Alakazam NFS.
 
 | Service | DB | Backup method | Frequency |
 |---------|----|---------------|-----------|
-| Vaultwarden | SQLite | Litestream — continuous WAL streaming to NFS | Continuous |
+| Vaultwarden | SQLite | Litestream -- continuous WAL streaming to NFS | Continuous |
 | Infisical + Authentik | PostgreSQL | `pg_dumpall` cron → NFS | Daily |
 
 Proxmox vzdump of the Infisical VM provides full disaster recovery (daily).
@@ -551,7 +551,7 @@ cloud-init (runs once at VM creation):
   - NFS mount entries in /etc/fstab (soft,timeo=30)
   - First boot: pull and start Docker Compose services
 
-Ansible (push — all targets, all operations):
+Ansible (push -- all targets, all operations):
   - VMs: run manually from deploy VM after terraform apply
   - Physical devices: run manually when ansible/ paths change
   - Docker engine upgrades
@@ -573,7 +573,7 @@ ansible/
   roles/
     base/             # applied to all Ubuntu VMs and physical devices
     docker/           # applied to VMs running Docker Compose services
-    headscale/        # applied to DNS VM — Headscale + cloudflared Docker Compose + config
+    headscale/        # applied to DNS VM -- Headscale + cloudflared Docker Compose + config
     network/          # Proxmox bridge config for physical nodes
 ```
 
@@ -597,7 +597,7 @@ ssh root@<device-ip> \
   bash -s < scripts/bootstrap-physical.sh
 ```
 
-The bootstrap script installs Tailscale and joins the Headscale tailnet. That's all —
+The bootstrap script installs Tailscale and joins the Headscale tailnet. That's all --
 once the device is on Tailscale, Ansible can reach it.
 
 Then from the operator laptop (or alakazam-deploy VM):
@@ -627,8 +627,8 @@ Deploys are triggered manually from the alakazam-deploy VM. No webhook or CI aut
 ```
 
 The alakazam-deploy VM holds `terraform.tfvars` and all deploy credentials. It is not
-internet-facing — only reachable over Tailscale or the local LAN. It is a TrueNAS SCALE
-KVM VM and is intentionally outside Terraform management — bootstrapped once via
+internet-facing -- only reachable over Tailscale or the local LAN. It is a TrueNAS SCALE
+KVM VM and is intentionally outside Terraform management -- bootstrapped once via
 `scripts/bootstrap-alakazam-deploy.sh`, then self-sufficient.
 
 **Concurrency**: the deploy script holds a lock (`/var/lock/homelab-deploy.lock`)
@@ -650,14 +650,14 @@ NUT clients: Machamp, Diglett, Alakazam (shut down gracefully on power loss)
 
 | Decision | Resolution |
 |----------|------------|
-| Terraform code drift | Acknowledged — code update deferred, plan is source of truth |
+| Terraform code drift | Acknowledged -- code update deferred, plan is source of truth |
 | HAOS provisioning | Terraform provisions VM via qcow2 image download; config restored from Proxmox vzdump backup |
 | Reverse proxy for Diglett services | Single Traefik on Machamp; Diglett services as external backends by local IP |
 | Vaultwarden/Infisical DB location | Local VM disk; Vaultwarden via Litestream (continuous), shared PostgreSQL (Infisical + Authentik) via pg_dumpall daily |
 | Infisical bootstrap | `ansible/infra.yml` deploys machamp-infra stack and bootstraps Infisical (admin, org, workspace) on first run. Run as: `INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`. Idempotent on re-run. |
 | Infisical role | Single source of truth for all machine-consumed secrets. VMs fetch via `infisical export` at boot using credentials in `/etc/infisical.env`. Service secrets seeded by each service's Ansible role at bring-up time; external API keys added manually. |
 | Vaultwarden role | Human-consumed secrets only (web UI admin passwords). Populated by each service's Ansible role after the service is configured. |
-| Vaultwarden account creation | Attempted automatically via `bw register` (Bitwarden CLI) during `ansible/site.yml`. One manual browser registration accepted as fallback if CLI doesn't support it. Account persists on NFS — never repeated. |
+| Vaultwarden account creation | Attempted automatically via `bw register` (Bitwarden CLI) during `ansible/site.yml`. One manual browser registration accepted as fallback if CLI doesn't support it. Account persists on NFS -- never repeated. |
 | Diglett RAM headroom | Accept the risk; monitor closely |
 | Tailscale exit node coupling | Accept DNS+exit node coupling on Diglett; diglett-dns is the sole exit node |
 | Monitoring stack | Prometheus + Grafana + Loki only; Mimir/Tempo removed |
@@ -667,8 +667,8 @@ NUT clients: Machamp, Diglett, Alakazam (shut down gracefully on power loss)
 | Calibre-Web headless setup | Post-start `cps.py -s` CLI; library at `/books` mount |
 | n8n headless setup | `POST /api/v1/owner/setup` scripted in `n8n-init.sh` |
 | CouchDB headless setup | Env vars for credentials; init container handles `/_cluster_setup` and CORS |
-| Tailscale coordination server | Self-hosted Headscale on the Diglett DNS VM (`192.168.0.2`), co-located with AdGuard. Public HTTPS on port 443 via Eero port forward (TCP 443 → 192.168.0.2:443). TLS via Let's Encrypt DNS-01 challenge (Cloudflare API token; no port 80 needed). DNS A record kept current by a `cloudflare-ddns` sidecar. Cloudflare proxy disabled — the proxy strips the TS2021 upgrade header. Uses Tailscale's public DERP relays. |
-| Terraform execution host | `alakazam-deploy` (TrueNAS SCALE KVM VM, out-of-band) runs all Terraform workspaces. Intentionally outside Terraform management — bootstrapped once via script. Operator laptop is break-glass fallback. |
+| Tailscale coordination server | Self-hosted Headscale on the Diglett DNS VM (`192.168.0.2`), co-located with AdGuard. Public HTTPS on port 443 via Eero port forward (TCP 443 → 192.168.0.2:443). TLS via Let's Encrypt DNS-01 challenge (Cloudflare API token; no port 80 needed). DNS A record kept current by a `cloudflare-ddns` sidecar. Cloudflare proxy disabled -- the proxy strips the TS2021 upgrade header. Uses Tailscale's public DERP relays. |
+| Terraform execution host | `alakazam-deploy` (TrueNAS SCALE KVM VM, out-of-band) runs all Terraform workspaces. Intentionally outside Terraform management -- bootstrapped once via script. Operator laptop is break-glass fallback. |
 | Terraform state backend | Local file backend on Alakazam NFS (`/mnt/terraform-state`) for all workspaces. NFS mounted on the deploy VM at bootstrap; state files at `machamp/terraform.tfstate`, `diglett/terraform.tfstate`. |
 | Physical device management | Ansible push, same model as VMs. One-time bootstrap via `scripts/bootstrap-physical.sh` (installs Tailscale only). All further config pushed via `ansible-playbook ansible/physical.yml` from alakazam-deploy. |
 | Deployment automation | Manual. Operator SSHes to alakazam-deploy and runs `./scripts/deploy.sh`. No webhook, no CI. Simpler and sufficient for a personal homelab. |

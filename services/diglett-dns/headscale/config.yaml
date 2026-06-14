@@ -8,7 +8,7 @@ listen_addr: 0.0.0.0:443
 metrics_listen_addr: 127.0.0.1:9090
 
 # TLS-ALPN-01 validates over port 443 using a special TLS handshake extension.
-# No port 80 needed — port 443 (Eero port forward) is sufficient.
+# No port 80 needed -- port 443 (Eero port forward) is sufficient.
 tls_letsencrypt_cache_dir: /var/lib/headscale/cache
 tls_letsencrypt_challenge_type: TLS-ALPN-01
 acme_email: wesoohoo@gmail.com

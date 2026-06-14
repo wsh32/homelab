@@ -1,5 +1,5 @@
 ---
-# Base role — applied to every Ubuntu VM after first boot.
+# Base role -- applied to every Ubuntu VM after first boot.
 # cloud-init handles the initial package install and Tailscale auth;
 # this role handles ongoing configuration and day-2 concerns.
 

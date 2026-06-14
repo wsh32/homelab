@@ -1,10 +1,10 @@
 # Jellyfin media libraries to create on first run.
-# To add a library: append an entry here — no code changes needed.
+# To add a library: append an entry here -- no code changes needed.
 #
 # Fields:
-#   name            — display name in Jellyfin
-#   collection_type — jellyfin type: movies, tvshows, books, music, photos, homevideos, boxsets
-#   path            — path inside the Jellyfin container (/data maps to /mnt/nas/media)
+#   name            -- display name in Jellyfin
+#   collection_type -- jellyfin type: movies, tvshows, books, music, photos, homevideos, boxsets
+#   path            -- path inside the Jellyfin container (/data maps to /mnt/nas/media)
 
 jellyfin_libraries:
   - name: Movies

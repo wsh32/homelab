@@ -1,5 +1,5 @@
 ---
-# Network role — configures static IP on Proxmox nodes via /etc/network/interfaces.
+# Network role -- configures static IP on Proxmox nodes via /etc/network/interfaces.
 # Uses ifreload -a (ifupdown2) to apply changes without a full reboot.
 #
 # Required host variables (set in inventory):

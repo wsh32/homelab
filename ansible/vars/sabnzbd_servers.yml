@@ -6,14 +6,14 @@
 # username_var/password_var values to ansible/secrets.yml.
 #
 # Fields:
-#   name          — display name in SABnzbd
-#   host          — NNTP hostname
-#   port          — NNTP port (563 = SSL, 119 = plain)
-#   ssl           — 1 for SSL, 0 for plain
-#   connections   — max simultaneous connections (check your plan)
-#   priority      — 0 = highest; increase for backup providers
-#   username_var  — secrets.yml / Infisical key for the username
-#   password_var  — secrets.yml / Infisical key for the password
+#   name          -- display name in SABnzbd
+#   host          -- NNTP hostname
+#   port          -- NNTP port (563 = SSL, 119 = plain)
+#   ssl           -- 1 for SSL, 0 for plain
+#   connections   -- max simultaneous connections (check your plan)
+#   priority      -- 0 = highest; increase for backup providers
+#   username_var  -- secrets.yml / Infisical key for the username
+#   password_var  -- secrets.yml / Infisical key for the password
 
 sabnzbd_servers:
   - name: newshosting

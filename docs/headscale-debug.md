@@ -119,7 +119,7 @@ docker exec headscale headscale config check
 ## Database
 
 ```bash
-# SQLite — inspect directly (headscale must be stopped or use a copy)
+# SQLite -- inspect directly (headscale must be stopped or use a copy)
 docker exec headscale sqlite3 /var/lib/headscale/db.sqlite ".tables"
 docker exec headscale sqlite3 /var/lib/headscale/db.sqlite "SELECT * FROM nodes;"
 ```

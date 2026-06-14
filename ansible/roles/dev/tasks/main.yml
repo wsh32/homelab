@@ -1,5 +1,5 @@
 ---
-# Dev role — applied to VMs tagged with vm_role: dev in network.yml.
+# Dev role -- applied to VMs tagged with vm_role: dev in network.yml.
 # Installs developer tooling on top of the base role.
 
 - name: Install build essentials and dev CLI tools
@@ -73,7 +73,7 @@
     global: true
     state: present
 
-# oh-my-zsh — user-level install for ubuntu
+# oh-my-zsh -- user-level install for ubuntu
 - name: Check if oh-my-zsh is already installed
   stat:
     path: /home/ubuntu/.oh-my-zsh
@@ -94,7 +94,7 @@
     name: ubuntu
     shell: /usr/bin/zsh
 
-# base16-shell — terminal colorscheme framework
+# base16-shell -- terminal colorscheme framework
 - name: Clone base16-shell
   git:
     repo: https://github.com/tinted-theming/base16-shell.git
@@ -122,7 +122,7 @@
     owner: ubuntu
     group: ubuntu
 
-# rustup — user-level install for ubuntu
+# rustup -- user-level install for ubuntu
 - name: Check if rustup is already installed
   stat:
     path: /home/ubuntu/.cargo/bin/rustup

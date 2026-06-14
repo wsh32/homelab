@@ -1,6 +1,6 @@
 ---
 # Deploy the DNS stack (AdGuard Home + Headscale + Headplane + cloudflared) and
-# bootstrap Headscale. Run before machamp VMs exist — Authentik is not yet up.
+# bootstrap Headscale. Run before machamp VMs exist -- Authentik is not yet up.
 # For OIDC injection into Headplane, run ansible/oidc.yml after infra.yml.
 #
 # Prerequisites:
@@ -20,7 +20,7 @@
     nas_ip: "{{ network.nodes.alakazam.ip }}"
 
   pre_tasks:
-    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+    - name: Load local secrets file if present (ansible/secrets.yml -- gitignored)
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
@@ -252,7 +252,7 @@
 
     - name: Display headplane login key for Vaultwarden
       ansible.builtin.debug:
-        msg: "headplane login — navigate to :3001/admin and enter this API key: {{ headplane_api_key_nfs.content | b64decode | trim }}"
+        msg: "headplane login -- navigate to :3001/admin and enter this API key: {{ headplane_api_key_nfs.content | b64decode | trim }}"
       when: not _api_key_valid
 
 

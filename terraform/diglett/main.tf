@@ -3,7 +3,7 @@ locals {
   net  = yamldecode(file("${path.module}/../../network.yml"))
   vms  = local.net.nodes[local.node].vms
 
-  # Shared VM defaults — keep in sync with modules/proxmox-vm/main.tf
+  # Shared VM defaults -- keep in sync with modules/proxmox-vm/main.tf
   vm_defaults = {
     cpu_type  = "x86-64-v2-AES"
     bridge    = "vmbr0"
@@ -65,7 +65,7 @@ module "infra" {
   node_name     = local.node
   vm_id         = local.vms["diglett-infra"].vm_id
   name          = "diglett-infra"
-  description   = "Infra — Traefik, step-ca, Infisical, Vaultwarden, Authentik"
+  description   = "Infra -- Traefik, step-ca, Infisical, Vaultwarden, Authentik"
   tags          = ["diglett", "infra"]
   image_file_id = proxmox_download_file.ubuntu_2404.id
 

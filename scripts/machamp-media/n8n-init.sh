@@ -37,7 +37,7 @@ RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
   }")
 
 if [[ "$RESPONSE" == "200" ]] || [[ "$RESPONSE" == "400" ]]; then
-  echo "==> n8n init complete (HTTP $RESPONSE — 400 means owner already exists)."
+  echo "==> n8n init complete (HTTP $RESPONSE -- 400 means owner already exists)."
 else
   echo "Error: unexpected HTTP $RESPONSE"
   exit 1

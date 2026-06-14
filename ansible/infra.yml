@@ -2,7 +2,7 @@
 # Deploy the diglett-infra stack (Infisical + Vaultwarden + Authentik + Litestream)
 # and bootstrap Infisical with an admin account.
 #
-# Bootstrap is always attempted — --ignore-if-bootstrapped makes it idempotent.
+# Bootstrap is always attempted -- --ignore-if-bootstrapped makes it idempotent.
 # This avoids the sentinel-outlives-data problem (e.g. postgres wiped after a
 # failed deploy) that would otherwise prevent re-seeding.
 #
@@ -24,7 +24,7 @@
     nas_ip: "{{ network.nodes.alakazam.ip }}"
 
   pre_tasks:
-    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+    - name: Load local secrets file if present (ansible/secrets.yml -- gitignored)
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
@@ -42,7 +42,7 @@
   gather_facts: false
 
   tasks:
-    - name: Load local secrets file if present (ansible/secrets.yml — gitignored)
+    - name: Load local secrets file if present (ansible/secrets.yml -- gitignored)
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
@@ -164,7 +164,7 @@
 # ── Phase 2: Create machamp-media machine identity in Infisical ───────────
 #
 # Uses the bootstrap token from Phase 1 to create a project, machine identity,
-# and Universal Auth credentials via the Infisical REST API — no SRP user login
+# and Universal Auth credentials via the Infisical REST API -- no SRP user login
 # required.  Skipped on re-runs when credentials are already in secrets.yml.
 - name: Create machamp-media machine identity in Infisical
   hosts: localhost
@@ -194,7 +194,7 @@
           /var/lib/infisical/bootstrap.json not found on diglett-infra.
           Infisical was bootstrapped before credentials were captured.
           Options: (A) wipe the Infisical instance (docker compose down,
-          remove its volumes, docker compose up -d) and re-run infra.yml —
+          remove its volumes, docker compose up -d) and re-run infra.yml --
           Phase 1 will re-bootstrap and save credentials automatically.
           Or (B) create a machine identity manually in the Infisical UI and
           set infisical_project_id, infisical_client_id, and
@@ -474,7 +474,7 @@
         (pia_username | default('')) not in ['', 'REPLACE_ME'] and
         (pia_password | default('')) not in ['', 'REPLACE_ME']
 
-    - name: Fail — PIA credentials not set in secrets.yml
+    - name: Fail -- PIA credentials not set in secrets.yml
       ansible.builtin.fail:
         msg: >
           pia_username and pia_password must be set in ansible/secrets.yml.
