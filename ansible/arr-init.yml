@@ -996,6 +996,7 @@
               AdminRoles:
                 - admins
               Roles:
+                - users
                 - admins
               OidScopes:
                 - groups
@@ -1012,6 +1013,7 @@
              or (_sso_config_current.json.OidConfigs.authentik.DefaultProvider | default('false')) != 'true'
              or ('admins' not in (_sso_config_current.json.OidConfigs.authentik.AdminRoles | default([])))
              or ('admins' not in (_sso_config_current.json.OidConfigs.authentik.Roles | default([])))
+             or ('users' not in (_sso_config_current.json.OidConfigs.authentik.Roles | default([])))
              or (_sso_config_current.json.OidConfigs.authentik.RoleClaim | default('')) != 'groups'
              or (_sso_config_current.json.OidConfigs.authentik.OidClientId | default('')) != _jf_oidc_client_id)
 
@@ -1504,14 +1506,17 @@
         status_code: 201
       when: radarr_dlclients_check.json | selectattr('name', 'equalto', 'qBittorrent') | list | length == 0
 
-    - name: Add SABnzbd to Radarr
+    - name: Upsert SABnzbd in Radarr
+      vars:
+        _existing: "{{ radarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list }}"
       ansible.builtin.uri:
-        url: "{{ radarr_url }}/api/v3/downloadclient"
-        method: POST
+        url: "{{ radarr_url }}/api/v3/downloadclient{{ '/' ~ _existing[0].id if _existing | length > 0 else '' }}"
+        method: "{{ 'PUT' if _existing | length > 0 else 'POST' }}"
         headers:
           X-Api-Key: "{{ radarr_api_key }}"
         body_format: json
         body:
+          id: "{{ _existing[0].id | default(omit) }}"
           name: SABnzbd
           enable: true
           protocol: usenet
@@ -1531,8 +1536,7 @@
               value: -100
             - name: olderMoviePriority
               value: -100
-        status_code: 201
-      when: radarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list | length == 0
+        status_code: [201, 202]
 
     # ── Block 8: Sonarr -- add qBittorrent download client ───────────────────
 
@@ -1574,14 +1578,17 @@
         status_code: 201
       when: sonarr_dlclients_check.json | selectattr('name', 'equalto', 'qBittorrent') | list | length == 0
 
-    - name: Add SABnzbd to Sonarr
+    - name: Upsert SABnzbd in Sonarr
+      vars:
+        _existing: "{{ sonarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list }}"
       ansible.builtin.uri:
-        url: "{{ sonarr_url }}/api/v3/downloadclient"
-        method: POST
+        url: "{{ sonarr_url }}/api/v3/downloadclient{{ '/' ~ _existing[0].id if _existing | length > 0 else '' }}"
+        method: "{{ 'PUT' if _existing | length > 0 else 'POST' }}"
         headers:
           X-Api-Key: "{{ sonarr_api_key }}"
         body_format: json
         body:
+          id: "{{ _existing[0].id | default(omit) }}"
           name: SABnzbd
           enable: true
           protocol: usenet
@@ -1601,8 +1608,7 @@
               value: -100
             - name: olderTvPriority
               value: -100
-        status_code: 201
-      when: sonarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list | length == 0
+        status_code: [201, 202]
 
     # ── Block 9: Seerr initialization and configuration ─────────────────
     # Seerr's POST /api/v1/auth/jellyfin calls GET /Users without a token.

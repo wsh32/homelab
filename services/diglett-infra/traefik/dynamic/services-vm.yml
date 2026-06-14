@@ -266,6 +266,18 @@ http:
       tls:
         certResolver: step
 
+    # ── Proxmox ───────────────────────────────────────────────────────────────
+    proxmox-home:
+      rule: "Host(`proxmox.home`)"
+      entryPoints: [web]
+      service: proxmox-svc
+    proxmox-home-tls:
+      rule: "Host(`proxmox.home`)"
+      entryPoints: [websecure]
+      service: proxmox-svc
+      tls:
+        certResolver: step
+
   services:
     headplane-svc:
       loadBalancer:
@@ -340,3 +352,14 @@ http:
       loadBalancer:
         servers:
           - url: "http://192.168.0.30:3000"
+    proxmox-svc:
+      loadBalancer:
+        # Proxmox uses a self-signed cert; serversTransport skips verification.
+        serversTransport: insecureTransport
+        servers:
+          - url: "https://192.168.0.5:8006"   # machamp
+          - url: "https://192.168.0.6:8006"   # diglett
+
+  serversTransports:
+    insecureTransport:
+      insecureSkipVerify: true
