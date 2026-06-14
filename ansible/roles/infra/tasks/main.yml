@@ -894,15 +894,20 @@
     status_code: 200
   when: _hp_provider_exists
 
-- name: Look up headplane application PK (provider already existed)
+- name: List all Authentik applications to find headplane by slug
   ansible.builtin.uri:
-    url: "http://localhost:9000/api/v3/core/applications/?search=headplane"
+    url: "http://localhost:9000/api/v3/core/applications/?page_size=100"
     method: GET
     headers:
       Authorization: "Bearer {{ _authentik_token }}"
     status_code: 200
-  register: _hp_existing_app
+  register: _hp_all_apps
   when: _hp_provider_exists
+
+- name: Set headplane app PK fact from existing app
+  ansible.builtin.set_fact:
+    _hp_app_pk: "{{ (_hp_all_apps.json.results | selectattr('slug', 'equalto', 'headplane') | list)[0].pk }}"
+  when: _hp_provider_exists and (_hp_all_apps.json.results | selectattr('slug', 'equalto', 'headplane') | list | length) > 0
 
 - name: Create headplane application in Authentik (provider existed but app missing)
   ansible.builtin.uri:
@@ -919,17 +924,12 @@
       meta_launch_url: "{{ headplane_public_url }}/admin"
     status_code: 201
   register: _hp_recovered_app
-  when: _hp_provider_exists and (_hp_existing_app.json.results | selectattr('slug', 'equalto', 'headplane') | list | length) == 0
-
-- name: Set headplane app PK fact from existing app
-  ansible.builtin.set_fact:
-    _hp_app_pk: "{{ (_hp_existing_app.json.results | selectattr('slug', 'equalto', 'headplane') | list)[0].pk }}"
-  when: _hp_provider_exists and (_hp_existing_app.json.results | selectattr('slug', 'equalto', 'headplane') | list | length) > 0
+  when: _hp_provider_exists and (_hp_all_apps.json.results | selectattr('slug', 'equalto', 'headplane') | list | length) == 0
 
 - name: Set headplane app PK fact from recovered app
   ansible.builtin.set_fact:
     _hp_app_pk: "{{ _hp_recovered_app.json.pk }}"
-  when: _hp_provider_exists and (_hp_existing_app.json.results | selectattr('slug', 'equalto', 'headplane') | list | length) == 0
+  when: _hp_provider_exists and (_hp_all_apps.json.results | selectattr('slug', 'equalto', 'headplane') | list | length) == 0
 
 - name: Set headplane app PK fact from new app
   ansible.builtin.set_fact:
@@ -1492,56 +1492,22 @@
 # Syncs bindings to exactly match group_config.yml: deletes stale bindings,
 # creates missing ones. Skips apps not yet in Authentik (not yet OIDC-wired).
 
-- name: Look up application PKs for group bindings
+- name: Fetch all Authentik applications for binding sync
   ansible.builtin.uri:
-    url: "http://localhost:9000/api/v3/core/applications/?search={{ item.slug }}"
+    url: "http://localhost:9000/api/v3/core/applications/?page_size=100"
     method: GET
     headers:
       Authorization: "Bearer {{ _authentik_token }}"
     status_code: 200
-  register: _app_lookup_results
-  loop: "{{ authentik_app_bindings }}"
-
-- name: Write app lookup results to temp file
-  ansible.builtin.copy:
-    content: "{{ _app_lookup_results.results | to_json }}"
-    dest: /tmp/_authentik_app_lookup.json
-    mode: "0600"
-
-- name: Write app PK map script
-  ansible.builtin.copy:
-    dest: /tmp/_build_pk_map.py
-    mode: "0600"
-    content: |
-      import json, sys
-      with open('/tmp/_authentik_app_lookup.json') as f:
-          results = json.load(f)
-      pk_map = {}
-      for r in results:
-          slug = r['item']['slug']
-          app_results = [a for a in r.get('json', {}).get('results', []) if a['slug'] == slug]
-          if app_results:
-              pk_map[slug] = app_results[0]['pk']
-          else:
-              sys.stderr.write(f"skipping {slug}: not found in Authentik\n")
-      print(json.dumps(pk_map))
+  register: _all_apps_result
 
 - name: Build app slug → PK map
-  ansible.builtin.shell: python3 /tmp/_build_pk_map.py
-  register: _pk_map_raw
-  changed_when: false
-
-- name: Remove temp files
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: absent
-  loop:
-    - /tmp/_authentik_app_lookup.json
-    - /tmp/_build_pk_map.py
-
-- name: Set app PK map fact
   ansible.builtin.set_fact:
-    _app_pk_map: "{{ _pk_map_raw.stdout | from_json }}"
+    _app_pk_map: >-
+      {{
+        _all_apps_result.json.results
+        | items2dict(key_name='slug', value_name='pk')
+      }}
 
 - name: Write binding sync script
   ansible.builtin.copy:
