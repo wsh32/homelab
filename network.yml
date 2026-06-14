@@ -83,7 +83,7 @@ nodes:
     tailscale_ip: 100.64.1.5
     type: proxmox
     ansible_user: root
-    bridge_port: nic1
+    bridge_port: nic0
     pci_mappings:
       - id: quadro-p2200
         path: "0000:41:00.0"
