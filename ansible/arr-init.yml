@@ -1506,48 +1506,17 @@
         status_code: 201
       when: radarr_dlclients_check.json | selectattr('name', 'equalto', 'qBittorrent') | list | length == 0
 
-    - name: Add SABnzbd to Radarr
-      ansible.builtin.uri:
-        url: "{{ radarr_url }}/api/v3/downloadclient"
-        method: POST
-        headers:
-          X-Api-Key: "{{ radarr_api_key }}"
-        body_format: json
-        body:
-          name: SABnzbd
-          enable: true
-          protocol: usenet
-          priority: 1
-          implementation: Sabnzbd
-          configContract: SabnzbdSettings
-          fields:
-            - name: host
-              value: sabnzbd
-            - name: port
-              value: 8080
-            - name: apiKey
-              value: "{{ sabnzbd_api_key }}"
-            - name: movieCategory
-              value: movies
-            - name: recentMoviePriority
-              value: -100
-            - name: olderMoviePriority
-              value: -100
-        status_code: 201
-      when: radarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list | length == 0
-
-    - name: Update SABnzbd API key in Radarr
+    - name: Upsert SABnzbd in Radarr
       vars:
-        _radarr_sab: "{{ (radarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list)[0] }}"
-        _radarr_sab_key: "{{ (_radarr_sab.fields | selectattr('name', 'equalto', 'apiKey') | list)[0].value | default('') }}"
+        _existing: "{{ radarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list }}"
       ansible.builtin.uri:
-        url: "{{ radarr_url }}/api/v3/downloadclient/{{ _radarr_sab.id }}"
-        method: PUT
+        url: "{{ radarr_url }}/api/v3/downloadclient{{ '/' ~ _existing[0].id if _existing | length > 0 else '' }}"
+        method: "{{ 'PUT' if _existing | length > 0 else 'POST' }}"
         headers:
           X-Api-Key: "{{ radarr_api_key }}"
         body_format: json
         body:
-          id: "{{ _radarr_sab.id }}"
+          id: "{{ _existing[0].id | default(omit) }}"
           name: SABnzbd
           enable: true
           protocol: usenet
@@ -1567,10 +1536,7 @@
               value: -100
             - name: olderMoviePriority
               value: -100
-        status_code: 202
-      when:
-        - radarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list | length > 0
-        - _radarr_sab_key != sabnzbd_api_key
+        status_code: [201, 202]
 
     # ── Block 8: Sonarr -- add qBittorrent download client ───────────────────
 
@@ -1612,48 +1578,17 @@
         status_code: 201
       when: sonarr_dlclients_check.json | selectattr('name', 'equalto', 'qBittorrent') | list | length == 0
 
-    - name: Add SABnzbd to Sonarr
-      ansible.builtin.uri:
-        url: "{{ sonarr_url }}/api/v3/downloadclient"
-        method: POST
-        headers:
-          X-Api-Key: "{{ sonarr_api_key }}"
-        body_format: json
-        body:
-          name: SABnzbd
-          enable: true
-          protocol: usenet
-          priority: 1
-          implementation: Sabnzbd
-          configContract: SabnzbdSettings
-          fields:
-            - name: host
-              value: sabnzbd
-            - name: port
-              value: 8080
-            - name: apiKey
-              value: "{{ sabnzbd_api_key }}"
-            - name: tvCategory
-              value: tv
-            - name: recentTvPriority
-              value: -100
-            - name: olderTvPriority
-              value: -100
-        status_code: 201
-      when: sonarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list | length == 0
-
-    - name: Update SABnzbd API key in Sonarr
+    - name: Upsert SABnzbd in Sonarr
       vars:
-        _sonarr_sab: "{{ (sonarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list)[0] }}"
-        _sonarr_sab_key: "{{ (_sonarr_sab.fields | selectattr('name', 'equalto', 'apiKey') | list)[0].value | default('') }}"
+        _existing: "{{ sonarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list }}"
       ansible.builtin.uri:
-        url: "{{ sonarr_url }}/api/v3/downloadclient/{{ _sonarr_sab.id }}"
-        method: PUT
+        url: "{{ sonarr_url }}/api/v3/downloadclient{{ '/' ~ _existing[0].id if _existing | length > 0 else '' }}"
+        method: "{{ 'PUT' if _existing | length > 0 else 'POST' }}"
         headers:
           X-Api-Key: "{{ sonarr_api_key }}"
         body_format: json
         body:
-          id: "{{ _sonarr_sab.id }}"
+          id: "{{ _existing[0].id | default(omit) }}"
           name: SABnzbd
           enable: true
           protocol: usenet
@@ -1673,10 +1608,7 @@
               value: -100
             - name: olderTvPriority
               value: -100
-        status_code: 202
-      when:
-        - sonarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list | length > 0
-        - _sonarr_sab_key != sabnzbd_api_key
+        status_code: [201, 202]
 
     # ── Block 9: Seerr initialization and configuration ─────────────────
     # Seerr's POST /api/v1/auth/jellyfin calls GET /Users without a token.
