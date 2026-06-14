@@ -1,8 +1,7 @@
 # Authentik groups and application access bindings.
 #
-# Groups: define children on a group to have those children inherit its access.
-#   In Authentik, children inherit FROM their parent -- so listing admins as a
-#   child of users means admins members also get access to all user-tier apps.
+# Both groups are listed explicitly on user-tier apps rather than relying on
+# Authentik's group hierarchy to propagate admins → users access bindings.
 #
 # To add a group: add an entry under authentik_groups.
 # To add access: add the slug + groups to authentik_app_bindings.
@@ -11,8 +10,6 @@
 
 authentik_groups:
   - name: users
-    children:
-      - admins   # admins inherit user-tier app access
   - name: admins
 
 # slug must match the Authentik application slug.
@@ -44,10 +41,10 @@ authentik_app_bindings:
   - slug: jellyfin
     groups: [users, admins]
   - slug: seerr
-    groups: [users]
+    groups: [users, admins]
   - slug: photoprism
-    groups: [users]
+    groups: [users, admins]
   - slug: calibre-web
-    groups: [users]
+    groups: [users, admins]
   - slug: homepage
-    groups: [users]
+    groups: [users, admins]
