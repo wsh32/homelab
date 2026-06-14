@@ -165,8 +165,27 @@
       async: 120
       poll: 5
 
-    - name: Assign static Tailscale IP in headscale DB
+    - name: Check Tailscale IP in headscale DB
+      ansible.builtin.command: >-
+        sqlite3 /mnt/nas/docker/headscale/db.sqlite
+        "SELECT ipv4 FROM nodes WHERE hostname = '{{ inventory_hostname }}'"
+      become: true
+      delegate_to: diglett-dns
+      register: _current_ip
+      changed_when: false
       when: tailscale_ip is defined
+
+    - name: Stop headscale to release DB lock
+      community.docker.docker_container:
+        name: headscale
+        state: stopped
+      become: true
+      delegate_to: diglett-dns
+      when:
+        - tailscale_ip is defined
+        - _current_ip.stdout | trim != tailscale_ip
+
+    - name: Assign static Tailscale IP in headscale DB
       ansible.builtin.command: >-
         sqlite3 /mnt/nas/docker/headscale/db.sqlite
         "UPDATE nodes
@@ -176,19 +195,25 @@
       become: true
       delegate_to: diglett-dns
       register: _ip_assigned
+      when:
+        - tailscale_ip is defined
+        - _current_ip.stdout | trim != tailscale_ip
 
-    - name: Restart headscale to apply updated IP
+    - name: Start headscale after IP update
       community.docker.docker_container:
         name: headscale
         state: started
-        restart: true
       become: true
       delegate_to: diglett-dns
-      when: _ip_assigned.changed
+      when:
+        - tailscale_ip is defined
+        - _current_ip.stdout | trim != tailscale_ip
 
     - name: Restart tailscaled to pick up corrected Tailscale IP
       ansible.builtin.systemd:
         name: tailscaled
         state: restarted
       become: true
-      when: _ip_assigned.changed
+      when:
+        - tailscale_ip is defined
+        - _current_ip.stdout | trim != tailscale_ip
