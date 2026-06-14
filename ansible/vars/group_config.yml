@@ -42,7 +42,7 @@ authentik_app_bindings:
 
   # user tier -- all authenticated users
   - slug: jellyfin
-    groups: [users]
+    groups: [users, admins]
   - slug: seerr
     groups: [users]
   - slug: photoprism
