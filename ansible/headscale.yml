@@ -54,7 +54,7 @@
         headscale_preauth_key: "{{ (_new_key.stdout | from_json).key }}"
 
 - name: Join all hosts to Headscale
-  hosts: all:!localhost:!physical
+  hosts: all:!localhost:!physical:!alakazam-deploy
   gather_facts: false
   serial: 1
 
