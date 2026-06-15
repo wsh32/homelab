@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>162-0 | Build Your All-Time Baseball Lineup</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --green: #1a6b3c;
+            --green-dark: #0d3d22;
+            --green-mid: #155230;
+            --green-light: #2dab5e;
+            --red: #c41e3a;
+            --cream: #f5f0e8;
+            --tan: #c8b88a;
+            --dark: #08090d;
+            --panel: #10151e;
+            --card: #161e2a;
+            --card-hover: #1c2736;
+            --gold: #f0c040;
+            --gold-dim: #b08820;
+            --text: #ddd8cc;
+            --text-dim: #7a8a9e;
+            --border: #1e2e42;
+            --blue-accent: #2a4a7f;
+        }
+
+        body {
+            background: var(--dark);
+            color: var(--text);
+            font-family: 'Georgia', 'Times New Roman', serif;
+            min-height: 100vh;
+        }
+
+        /* ── Header ── */
+        header {
+            background: linear-gradient(160deg, #0a1a0f 0%, #0d1520 50%, var(--dark) 100%);
+            border-bottom: 2px solid var(--green-dark);
+            padding: 22px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '⚾';
+            position: absolute;
+            right: 32px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 120px;
+            opacity: 0.04;
+            user-select: none;
+        }
+
+        .logo {
+            font-size: 52px;
+            font-weight: bold;
+            color: var(--gold);
+            letter-spacing: -2px;
+            line-height: 1;
+            text-shadow: 0 2px 20px rgba(240, 192, 64, 0.3);
+        }
+        .logo span { color: var(--cream); }
+
+        .header-sub {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: var(--text-dim);
+            margin-top: 5px;
+        }
+
+        .header-right {
+            text-align: right;
+            z-index: 1;
+        }
+        .header-tagline {
+            font-size: 14px;
+            color: var(--text-dim);
+        }
+        .header-goal {
+            font-size: 20px;
+            color: var(--gold);
+            font-weight: bold;
+        }
+
+        /* ── Container ── */
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 28px 16px 48px;
+        }
+
+        /* ── Instructions ── */
+        .instructions {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--green);
+            border-radius: 6px;
+            padding: 14px 18px;
+            margin-bottom: 28px;
+            font-size: 13.5px;
+            color: var(--text-dim);
+            line-height: 1.65;
+        }
+        .instructions strong { color: var(--gold); }
+
+        /* ── Section titles ── */
+        .section-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: var(--text-dim);
+            padding: 0 2px 10px 10px;
+            border-left: 3px solid var(--green);
+        }
+
+        .position-section { margin-bottom: 20px; }
+
+        /* ── Grids ── */
+        .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+
+        /* ── Slot cards ── */
+        .slot-card {
+            background: var(--card);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 12px;
+            min-height: 148px;
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s, background 0.18s;
+            position: relative;
+        }
+
+        .slot-card:hover:not(.filled) {
+            border-color: var(--green);
+            background: var(--card-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(26, 107, 60, 0.25);
+        }
+
+        .slot-card.filled {
+            border-color: var(--green);
+            background: linear-gradient(140deg, #0f1e14 0%, var(--card) 100%);
+            cursor: default;
+        }
+
+        .pos-badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            padding: 3px 7px;
+            border-radius: 4px;
+            background: var(--green-dark);
+            color: var(--gold);
+            margin-bottom: 10px;
+            align-self: flex-start;
+        }
+
+        .slot-card.filled .pos-badge { background: var(--green-mid); }
+
+        /* Empty slot */
+        .slot-empty { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+
+        .slot-team {
+            font-size: 15px;
+            font-weight: bold;
+            color: var(--cream);
+            line-height: 1.25;
+            margin-bottom: 4px;
+        }
+
+        .slot-era {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-bottom: 10px;
+        }
+
+        .slot-reroll {
+            font-size: 10px;
+            color: var(--text-dim);
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 3px 8px;
+            cursor: pointer;
+            align-self: flex-start;
+            font-family: inherit;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .slot-reroll:hover { color: var(--cream); border-color: var(--text-dim); }
+
+        .slot-hint {
+            font-size: 11px;
+            color: var(--green-light);
+            text-align: center;
+            margin-top: auto;
+            padding-top: 8px;
+            opacity: 0.75;
+        }
+
+        /* Filled slot */
+        .slot-player { display: none; flex-direction: column; flex: 1; }
+        .slot-card.filled .slot-player { display: flex; }
+        .slot-card.filled .slot-empty { display: none; }
+        .slot-card.filled .slot-hint { display: none; }
+
+        .player-name {
+            font-size: 13.5px;
+            font-weight: bold;
+            color: var(--cream);
+            line-height: 1.2;
+            margin-bottom: 3px;
+        }
+
+        .player-ctx {
+            font-size: 10.5px;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+        }
+
+        .stat-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+
+        .stat-box {
+            background: rgba(0,0,0,0.35);
+            border-radius: 4px;
+            padding: 5px 3px;
+            text-align: center;
+        }
+
+        .stat-val {
+            font-size: 13px;
+            font-weight: bold;
+            color: var(--gold);
+            display: block;
+        }
+
+        .stat-lbl {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-dim);
+        }
+
+        .score-bar {
+            height: 3px;
+            background: var(--border);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: auto;
+        }
+
+        .score-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--green), var(--gold));
+            transition: width 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        /* ── Progress ── */
+        .progress-wrap {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin: 24px 0 20px;
+            justify-content: center;
+        }
+
+        .progress-label {
+            font-size: 13px;
+            color: var(--text-dim);
+            white-space: nowrap;
+        }
+
+        .progress-dots {
+            display: flex;
+            gap: 6px;
+        }
+
+        .progress-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--border);
+            transition: background 0.3s, transform 0.3s;
+        }
+
+        .progress-dot.on {
+            background: var(--green);
+            transform: scale(1.1);
+        }
+
+        /* ── Simulate button ── */
+        .simulate-wrap { text-align: center; margin: 4px 0 32px; }
+
+        .simulate-btn {
+            display: none;
+            background: linear-gradient(135deg, var(--green) 0%, var(--green-dark) 100%);
+            color: var(--gold);
+            border: 2px solid var(--gold);
+            padding: 15px 52px;
+            font-size: 18px;
+            font-family: 'Georgia', serif;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            transition: all 0.2s;
+        }
+
+        .simulate-btn.show { display: inline-block; animation: popIn 0.3s ease; }
+        .simulate-btn:hover { background: linear-gradient(135deg, var(--green-light) 0%, var(--green) 100%); transform: scale(1.02); box-shadow: 0 6px 24px rgba(240,192,64,0.25); }
+        .simulate-btn:disabled { opacity: 0.6; cursor: default; transform: none; }
+
+        @keyframes popIn {
+            from { transform: scale(0.85); opacity: 0; }
+            to   { transform: scale(1);    opacity: 1; }
+        }
+
+        /* ── Modal ── */
+        .modal-bg {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.82);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .modal-bg.open { display: flex; }
+
+        .modal {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            width: 100%;
+            max-width: 680px;
+            max-height: 86vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+        }
+
+        .modal-head {
+            padding: 18px 22px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-shrink: 0;
+        }
+
+        .modal-title { font-size: 20px; font-weight: bold; color: var(--cream); }
+        .modal-sub   { font-size: 12px; color: var(--text-dim); margin-top: 3px; }
+
+        .modal-x {
+            background: none; border: none; color: var(--text-dim);
+            font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px;
+        }
+        .modal-x:hover { color: var(--cream); }
+
+        .modal-body {
+            overflow-y: auto;
+            padding: 14px 22px 20px;
+            flex: 1;
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 0;
+            color: var(--text-dim);
+            gap: 14px;
+        }
+
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid var(--border);
+            border-top-color: var(--green-light);
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Player list */
+        .player-list { display: flex; flex-direction: column; gap: 7px; }
+
+        .p-row {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 14px;
+            cursor: pointer;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 12px;
+            align-items: center;
+            transition: border-color 0.12s, background 0.12s;
+        }
+
+        .p-row:hover {
+            border-color: var(--green);
+            background: #152010;
+        }
+
+        .p-name { font-size: 14.5px; font-weight: bold; color: var(--cream); }
+        .p-pos  { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+        .p-stats {
+            display: flex;
+            gap: 14px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .ps { text-align: center; min-width: 38px; }
+        .ps-val { font-size: 14px; font-weight: bold; color: var(--gold); display: block; }
+        .ps-lbl { font-size: 10px; color: var(--text-dim); text-transform: uppercase; }
+
+        .score-badge {
+            font-size: 20px;
+            font-weight: bold;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid;
+            text-align: center;
+            min-width: 56px;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 32px 16px;
+            color: var(--text-dim);
+        }
+        .empty-state .reroll-link {
+            color: var(--green-light);
+            cursor: pointer;
+            text-decoration: underline;
+            display: inline-block;
+            margin-top: 12px;
+        }
+
+        /* ── Result ── */
+        .result-wrap {
+            display: none;
+            background: linear-gradient(145deg, #0a1a0f 0%, #0d1520 60%, var(--dark) 100%);
+            border: 1px solid var(--green);
+            border-radius: 14px;
+            padding: 44px 32px;
+            text-align: center;
+            margin: 8px 0 32px;
+        }
+        .result-wrap.show { display: block; animation: fadeUp 0.5s ease; }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(14px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .result-record {
+            font-size: 76px;
+            font-weight: bold;
+            line-height: 1;
+            letter-spacing: -2px;
+            margin-bottom: 6px;
+        }
+
+        .result-record.tier-perfect  { color: var(--gold); animation: glow 2s ease-in-out infinite; }
+        .result-record.tier-great    { color: #6dd47a; }
+        .result-record.tier-good     { color: var(--cream); }
+        .result-record.tier-mediocre { color: var(--tan); }
+        .result-record.tier-bad      { color: #e06070; }
+
+        @keyframes glow {
+            0%, 100% { text-shadow: 0 0 20px rgba(240,192,64,0.4); }
+            50%       { text-shadow: 0 0 50px rgba(240,192,64,0.85); }
+        }
+
+        .result-season { font-size: 13px; text-transform: uppercase; letter-spacing: 3px; color: var(--text-dim); margin-bottom: 20px; }
+        .result-msg    { font-size: 21px; color: var(--cream); font-style: italic; margin-bottom: 30px; }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 28px;
+        }
+
+        .result-box {
+            background: rgba(0,0,0,0.35);
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .result-box-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); margin-bottom: 4px; }
+        .result-box-val { font-size: 26px; font-weight: bold; color: var(--gold); }
+
+        .play-again {
+            background: none;
+            border: 2px solid var(--cream);
+            color: var(--cream);
+            padding: 11px 30px;
+            font-size: 14px;
+            font-family: 'Georgia', serif;
+            border-radius: 7px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.2s;
+        }
+        .play-again:hover { background: var(--cream); color: var(--dark); }
+
+        /* ── Responsive ── */
+        @media (max-width: 860px) {
+            .grid-5 { grid-template-columns: repeat(3, 1fr); }
+            .grid-4 { grid-template-columns: repeat(2, 1fr); }
+            .result-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 560px) {
+            .grid-5 { grid-template-columns: repeat(2, 1fr); }
+            .grid-2 { grid-template-columns: 1fr; }
+            .logo   { font-size: 40px; }
+            header  { padding: 16px 18px; }
+            .result-record { font-size: 56px; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div>
+        <div class="logo">162<span>-0</span></div>
+        <div class="header-sub">All-Time Baseball Lineup Builder</div>
+    </div>
+    <div class="header-right">
+        <div class="header-tagline">Can you build a team that goes</div>
+        <div class="header-goal">162 – 0?</div>
+    </div>
+</header>
+
+<div class="container">
+
+    <div class="instructions">
+        <strong>How to play:</strong> Each position has been randomly assigned a team and season. Click a slot to see eligible players from that team in that year — pick the best one. Fill all 11 spots, then <strong>Run the Season</strong> to find out if your all-time lineup can go <strong>162-0</strong>. Stats pulled live from the MLB Stats API.
+        <br>Can't work with a slot? Hit <strong>↻</strong> to reroll its team and season.
+    </div>
+
+    <div class="position-section">
+        <div class="section-label">Infield</div>
+        <div class="grid-5" id="grid-infield"></div>
+    </div>
+
+    <div class="position-section" style="margin-top: 14px;">
+        <div class="section-label">Outfield &amp; DH</div>
+        <div class="grid-4" id="grid-outfield"></div>
+    </div>
+
+    <div class="position-section" style="margin-top: 14px;">
+        <div class="section-label">Pitching</div>
+        <div class="grid-2" id="grid-pitching"></div>
+    </div>
+
+    <div class="progress-wrap">
+        <div class="progress-label" id="prog-label">0 / 11 filled</div>
+        <div class="progress-dots" id="prog-dots"></div>
+    </div>
+
+    <div class="simulate-wrap">
+        <button class="simulate-btn" id="sim-btn" onclick="runSeason()">⚾ Run the Season</button>
+    </div>
+
+    <div class="result-wrap" id="result"></div>
+
+</div>
+
+<!-- Modal -->
+<div class="modal-bg" id="modal-bg" onclick="bgClick(event)">
+    <div class="modal">
+        <div class="modal-head">
+            <div>
+                <div class="modal-title" id="modal-title">Pick a Player</div>
+                <div class="modal-sub"   id="modal-sub"></div>
+            </div>
+            <button class="modal-x" onclick="closeModal()">×</button>
+        </div>
+        <div class="modal-body" id="modal-body">
+            <div class="loading"><div class="spinner"></div><div>Loading roster…</div></div>
+        </div>
+    </div>
+</div>
+
+<script>
+/* ─────────────────────────────────────────────
+   Config
+───────────────────────────────────────────── */
+const API = 'https://statsapi.mlb.com/api/v1';
+
+const TEAMS = [
+    { id: 108, city: 'Los Angeles', name: 'Angels',      since: 1961 },
+    { id: 109, city: 'Arizona',     name: 'Diamondbacks', since: 1998 },
+    { id: 110, city: 'Baltimore',   name: 'Orioles',      since: 1954 },
+    { id: 111, city: 'Boston',      name: 'Red Sox',      since: 1901 },
+    { id: 112, city: 'Chicago',     name: 'Cubs',         since: 1876 },
+    { id: 113, city: 'Cincinnati',  name: 'Reds',         since: 1882 },
+    { id: 114, city: 'Cleveland',   name: 'Guardians',    since: 1901 },
+    { id: 115, city: 'Colorado',    name: 'Rockies',      since: 1993 },
+    { id: 116, city: 'Detroit',     name: 'Tigers',       since: 1901 },
+    { id: 117, city: 'Houston',     name: 'Astros',       since: 1962 },
+    { id: 118, city: 'Kansas City', name: 'Royals',       since: 1969 },
+    { id: 119, city: 'Los Angeles', name: 'Dodgers',      since: 1883 },
+    { id: 120, city: 'Washington',  name: 'Nationals',    since: 2005 },
+    { id: 121, city: 'New York',    name: 'Mets',         since: 1962 },
+    { id: 133, city: 'Oakland',     name: 'Athletics',    since: 1901 },
+    { id: 134, city: 'Pittsburgh',  name: 'Pirates',      since: 1882 },
+    { id: 135, city: 'San Diego',   name: 'Padres',       since: 1969 },
+    { id: 136, city: 'Seattle',     name: 'Mariners',     since: 1977 },
+    { id: 137, city: 'San Francisco', name: 'Giants',     since: 1883 },
+    { id: 138, city: 'St. Louis',   name: 'Cardinals',    since: 1882 },
+    { id: 139, city: 'Tampa Bay',   name: 'Rays',         since: 1998 },
+    { id: 140, city: 'Texas',       name: 'Rangers',      since: 1972 },
+    { id: 141, city: 'Toronto',     name: 'Blue Jays',    since: 1977 },
+    { id: 142, city: 'Minnesota',   name: 'Twins',        since: 1901 },
+    { id: 143, city: 'Philadelphia', name: 'Phillies',    since: 1883 },
+    { id: 144, city: 'Atlanta',     name: 'Braves',       since: 1876 },
+    { id: 145, city: 'Chicago',     name: 'White Sox',    since: 1901 },
+    { id: 146, city: 'Miami',       name: 'Marlins',      since: 1993 },
+    { id: 147, city: 'New York',    name: 'Yankees',      since: 1903 },
+    { id: 158, city: 'Milwaukee',   name: 'Brewers',      since: 1969 },
+];
+
+// NL teams that didn't have DH before 2022
+const NL_IDS = new Set([112,113,115,119,120,121,134,135,137,138,143,144,146,158]);
+
+const ERAS = [
+    { label: '1980s', start: 1980, end: 1989 },
+    { label: '1990s', start: 1990, end: 1999 },
+    { label: '2000s', start: 2000, end: 2009 },
+    { label: '2010s', start: 2010, end: 2019 },
+    { label: '2020s', start: 2020, end: 2023 },
+];
+
+const POSITIONS = [
+    { key: 'C',  label: 'Catcher',            grp: 'infield',  codes: ['C'],                               pitching: false },
+    { key: '1B', label: 'First Base',          grp: 'infield',  codes: ['1B'],                              pitching: false },
+    { key: '2B', label: 'Second Base',         grp: 'infield',  codes: ['2B'],                              pitching: false },
+    { key: '3B', label: 'Third Base',          grp: 'infield',  codes: ['3B'],                              pitching: false },
+    { key: 'SS', label: 'Shortstop',           grp: 'infield',  codes: ['SS'],                              pitching: false },
+    { key: 'LF', label: 'Left Field',          grp: 'outfield', codes: ['LF','OF'],                         pitching: false },
+    { key: 'CF', label: 'Center Field',        grp: 'outfield', codes: ['CF','OF'],                         pitching: false },
+    { key: 'RF', label: 'Right Field',         grp: 'outfield', codes: ['RF','OF'],                         pitching: false },
+    { key: 'DH', label: 'Designated Hitter',   grp: 'outfield', codes: ['DH','1B','2B','3B','SS','LF','CF','RF','OF','C'], pitching: false },
+    { key: 'SP', label: 'Starting Pitcher',    grp: 'pitching', codes: ['P','SP','TWP'],                    pitching: true  },
+    { key: 'RP', label: 'Relief Pitcher',      grp: 'pitching', codes: ['P','RP','TWP'],                    pitching: true  },
+];
+
+/* ─────────────────────────────────────────────
+   State
+───────────────────────────────────────────── */
+let slots = [];
+let activeSlot = null;
+let modalPlayers = [];
+
+/* ─────────────────────────────────────────────
+   Init
+───────────────────────────────────────────── */
+function init() {
+    document.getElementById('result').classList.remove('show');
+    document.getElementById('result').innerHTML = '';
+
+    slots = POSITIONS.map((pos, i) => ({
+        i, pos,
+        ...pickTeamEra(pos),
+        player: null,
+        score: 0,
+    }));
+    render();
+    updateProgress();
+}
+
+function pickTeamEra(pos) {
+    let team, era, season;
+    let tries = 0;
+    do {
+        team = TEAMS[Math.floor(Math.random() * TEAMS.length)];
+        era  = ERAS[Math.floor(Math.random() * ERAS.length)];
+        const lo = Math.max(era.start, team.since);
+        const hi = era.end;
+        if (lo > hi) continue;
+        // For DH: NL teams before 2022 can't really provide DH data — reroll
+        if (pos.key === 'DH' && NL_IDS.has(team.id) && hi < 2022) continue;
+        season = lo + Math.floor(Math.random() * (hi - lo + 1));
+    } while (!season && ++tries < 50);
+    return { team, era, season };
+}
+
+function rerollSlot(i, e) {
+    e.stopPropagation();
+    if (slots[i].player) return;
+    Object.assign(slots[i], pickTeamEra(slots[i].pos));
+    render();
+}
+
+/* ─────────────────────────────────────────────
+   Render
+───────────────────────────────────────────── */
+function render() {
+    const byGrp = { infield: [], outfield: [], pitching: [] };
+    for (const s of slots) byGrp[s.pos.grp].push(s);
+
+    document.getElementById('grid-infield').innerHTML  = byGrp.infield.map(slotHTML).join('');
+    document.getElementById('grid-outfield').innerHTML = byGrp.outfield.map(slotHTML).join('');
+    document.getElementById('grid-pitching').innerHTML = byGrp.pitching.map(slotHTML).join('');
+}
+
+function slotHTML(slot) {
+    const { i, pos, team, season, player, score } = slot;
+
+    if (player) {
+        const s = player.stats;
+        let statsHtml = '';
+
+        if (!pos.pitching) {
+            statsHtml = `
+                <div class="stat-box"><span class="stat-val">${fmt(s.avg,3)}</span><span class="stat-lbl">AVG</span></div>
+                <div class="stat-box"><span class="stat-val">${s.homeRuns ?? '–'}</span><span class="stat-lbl">HR</span></div>
+                <div class="stat-box"><span class="stat-val">${fmt(s.ops,3)}</span><span class="stat-lbl">OPS</span></div>`;
+        } else if (pos.key === 'SP') {
+            statsHtml = `
+                <div class="stat-box"><span class="stat-val">${fmtD(s.era)}</span><span class="stat-lbl">ERA</span></div>
+                <div class="stat-box"><span class="stat-val">${s.wins??'–'}–${s.losses??'–'}</span><span class="stat-lbl">W–L</span></div>
+                <div class="stat-box"><span class="stat-val">${fmtD(s.whip)}</span><span class="stat-lbl">WHIP</span></div>`;
+        } else {
+            statsHtml = `
+                <div class="stat-box"><span class="stat-val">${fmtD(s.era)}</span><span class="stat-lbl">ERA</span></div>
+                <div class="stat-box"><span class="stat-val">${s.saves??'–'}</span><span class="stat-lbl">SV</span></div>
+                <div class="stat-box"><span class="stat-val">${fmtD(s.whip)}</span><span class="stat-lbl">WHIP</span></div>`;
+        }
+
+        const pct = (score / 10 * 100).toFixed(0);
+        return `
+        <div class="slot-card filled">
+            <div class="pos-badge">${pos.key}</div>
+            <div class="slot-player">
+                <div class="player-name">${esc(player.name)}</div>
+                <div class="player-ctx">${team.city} ${team.name} · ${season}</div>
+                <div class="stat-row">${statsHtml}</div>
+                <div class="score-bar"><div class="score-fill" style="width:${pct}%"></div></div>
+            </div>
+        </div>`;
+    }
+
+    return `
+    <div class="slot-card" onclick="openModal(${i})">
+        <div class="pos-badge">${pos.key}</div>
+        <div class="slot-empty">
+            <div class="slot-team">${team.city}<br>${team.name}</div>
+            <div class="slot-era">${era_label(slot)} · ${season}</div>
+            <button class="slot-reroll" onclick="rerollSlot(${i}, event)">↻ reroll</button>
+        </div>
+        <div class="slot-hint">▼ tap to pick</div>
+    </div>`;
+}
+
+function era_label(slot) {
+    // Compute decade label from season
+    const decade = Math.floor(slot.season / 10) * 10;
+    return `${decade}s`;
+}
+
+/* ─────────────────────────────────────────────
+   Progress
+───────────────────────────────────────────── */
+function updateProgress() {
+    const n = slots.filter(s => s.player).length;
+    document.getElementById('prog-label').textContent = `${n} / ${slots.length} filled`;
+    document.getElementById('prog-dots').innerHTML = slots.map(s =>
+        `<div class="progress-dot${s.player ? ' on' : ''}"></div>`
+    ).join('');
+    const btn = document.getElementById('sim-btn');
+    btn.classList.toggle('show', n === slots.length);
+}
+
+/* ─────────────────────────────────────────────
+   Modal
+───────────────────────────────────────────── */
+async function openModal(i) {
+    activeSlot = i;
+    const slot = slots[i];
+
+    document.getElementById('modal-title').textContent = `Pick a ${slot.pos.label}`;
+    document.getElementById('modal-sub').textContent   = `${slot.team.city} ${slot.team.name} · ${slot.season}`;
+    document.getElementById('modal-body').innerHTML    = `<div class="loading"><div class="spinner"></div><div>Fetching ${slot.season} roster…</div></div>`;
+    document.getElementById('modal-bg').classList.add('open');
+
+    try {
+        const players = await fetchPlayers(slot);
+        modalPlayers = players;
+        renderModal(players, slot);
+    } catch (err) {
+        document.getElementById('modal-body').innerHTML = `
+            <div class="empty-state">
+                <div>⚠ ${esc(err.message)}</div>
+                <span class="reroll-link" onclick="closeModal(); rerollSlot(${i},{stopPropagation:()=>{}})">Try a different team/season</span>
+            </div>`;
+    }
+}
+
+function closeModal() {
+    document.getElementById('modal-bg').classList.remove('open');
+    activeSlot = null;
+    modalPlayers = [];
+}
+
+function bgClick(e) {
+    if (e.target === document.getElementById('modal-bg')) closeModal();
+}
+
+/* ─────────────────────────────────────────────
+   API fetching
+───────────────────────────────────────────── */
+async function fetchPlayers(slot) {
+    const { team, season, pos } = slot;
+    const group = pos.pitching ? 'pitching' : 'hitting';
+
+    const [rosterResp, statsResp] = await Promise.all([
+        fetch(`${API}/teams/${team.id}/roster?season=${season}&rosterType=fullRoster`),
+        fetch(`${API}/stats?stats=season&group=${group}&gameType=R&season=${season}&teamId=${team.id}&playerPool=All&limit=80`),
+    ]);
+
+    if (!rosterResp.ok) throw new Error(`Roster API returned ${rosterResp.status}`);
+
+    const rosterData = await rosterResp.json();
+    const statsData  = await statsResp.json();
+
+    // Map player ID → stats
+    const statMap = {};
+    for (const split of (statsData.stats?.[0]?.splits ?? [])) {
+        if (split.player?.id) statMap[split.player.id] = split.stat;
+    }
+
+    // Filter roster to relevant position codes
+    let roster = (rosterData.roster ?? []).filter(p => {
+        const code = p.position?.abbreviation ?? '';
+        return pos.codes.includes(code);
+    });
+
+    // DH: broaden to any batter if too few
+    if (pos.key === 'DH' && roster.length < 4) {
+        roster = (rosterData.roster ?? []).filter(p =>
+            p.position?.type !== 'Pitcher'
+        );
+    }
+
+    // OF generalization: include generic OF
+    if (['LF','CF','RF'].includes(pos.key)) {
+        const extra = (rosterData.roster ?? []).filter(p =>
+            p.position?.abbreviation === 'OF' && !roster.find(r => r.person.id === p.person.id)
+        );
+        roster = [...roster, ...extra];
+    }
+
+    // Attach stats
+    let players = roster
+        .map(p => ({ id: p.person.id, name: p.person.fullName, posCode: p.position?.abbreviation ?? '', stats: statMap[p.person.id] ?? null }))
+        .filter(p => p.stats);
+
+    // SP vs RP split
+    if (pos.key === 'SP') {
+        players = players.filter(p => {
+            const gs = p.stats.gamesStarted ?? 0;
+            const g  = p.stats.gamesPlayed  ?? p.stats.gamesPitched ?? 1;
+            return gs >= 5 && (g === 0 || gs / g >= 0.35);
+        });
+    } else if (pos.key === 'RP') {
+        players = players.filter(p => {
+            const gs = p.stats.gamesStarted ?? 0;
+            const g  = p.stats.gamesPlayed  ?? p.stats.gamesPitched ?? 1;
+            const apps = g - gs;
+            return apps >= 8 && (g === 0 || gs / g < 0.35);
+        });
+    }
+
+    // Score and sort
+    players = players.map(p => ({ ...p, score: calcScore(p, pos.key) }));
+    players.sort((a, b) => b.score - a.score);
+
+    // Deduplicate
+    const seen = new Set();
+    players = players.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; });
+
+    if (players.length === 0) {
+        throw new Error(`No eligible ${pos.label.toLowerCase()}s found for ${slot.team.city} ${slot.team.name} in ${season}.`);
+    }
+
+    return players;
+}
+
+/* ─────────────────────────────────────────────
+   Scoring
+───────────────────────────────────────────── */
+function calcScore(player, posKey) {
+    const s = player.stats;
+
+    if (!['SP','RP'].includes(posKey)) {
+        const ops = parseFloat(s.ops) || 0;
+        const hr  = s.homeRuns || 0;
+        const avg = parseFloat(s.avg) || 0;
+        const pa  = s.plateAppearances || s.atBats || 500;
+        // Normalize: OPS 1.1=perfect, HR 50=perfect, AVG 0.350=perfect
+        const opsS = clamp(ops / 1.1) * 5;
+        const hrS  = clamp(hr / 50) * 2.5;
+        const avgS = clamp(avg / 0.35) * 2.5;
+        return round1(opsS + hrS + avgS);
+    }
+
+    if (posKey === 'SP') {
+        const era  = parseFloat(s.era)  || 9.99;
+        const whip = parseFloat(s.whip) || 3;
+        const ip   = parseFloat(s.inningsPitched) || 1;
+        const k9   = ((s.strikeOuts || 0) / ip) * 9;
+        // ERA 1.5=perfect, WHIP 1.0=perfect, K/9 14=perfect
+        const eraS  = clamp((5 - era)  / 3.5) * 5;
+        const whipS = clamp((1.8 - whip) / 0.8) * 3;
+        const k9S   = clamp(k9 / 14) * 2;
+        return round1(eraS + whipS + k9S);
+    }
+
+    if (posKey === 'RP') {
+        const era  = parseFloat(s.era)  || 9.99;
+        const whip = parseFloat(s.whip) || 3;
+        const sv   = s.saves || 0;
+        // ERA 1.5=perfect, WHIP 0.85=perfect, SV 50=perfect
+        const eraS  = clamp((4 - era)  / 2.5) * 4;
+        const whipS = clamp((1.6 - whip) / 0.75) * 3;
+        const svS   = clamp(sv / 50) * 3;
+        return round1(eraS + whipS + svS);
+    }
+
+    return 5;
+}
+
+function clamp(x) { return Math.max(0, Math.min(1, x)); }
+function round1(x) { return Math.round(x * 10) / 10; }
+
+/* ─────────────────────────────────────────────
+   Modal rendering
+───────────────────────────────────────────── */
+function renderModal(players, slot) {
+    const isBatter = !slot.pos.pitching;
+    const isSP     = slot.pos.key === 'SP';
+
+    const rows = players.map(p => {
+        const s = p.stats;
+        let statsHtml = '';
+
+        if (isBatter) {
+            statsHtml = `
+                <div class="ps"><span class="ps-val">${fmt(s.avg,3)}</span><span class="ps-lbl">AVG</span></div>
+                <div class="ps"><span class="ps-val">${fmt(s.obp,3)}</span><span class="ps-lbl">OBP</span></div>
+                <div class="ps"><span class="ps-val">${fmt(s.slg,3)}</span><span class="ps-lbl">SLG</span></div>
+                <div class="ps"><span class="ps-val">${s.homeRuns??'–'}</span><span class="ps-lbl">HR</span></div>
+                <div class="ps"><span class="ps-val">${s.rbi??'–'}</span><span class="ps-lbl">RBI</span></div>`;
+        } else if (isSP) {
+            statsHtml = `
+                <div class="ps"><span class="ps-val">${fmtD(s.era)}</span><span class="ps-lbl">ERA</span></div>
+                <div class="ps"><span class="ps-val">${fmtD(s.whip)}</span><span class="ps-lbl">WHIP</span></div>
+                <div class="ps"><span class="ps-val">${s.wins??'–'}–${s.losses??'–'}</span><span class="ps-lbl">W–L</span></div>
+                <div class="ps"><span class="ps-val">${s.strikeOuts??'–'}</span><span class="ps-lbl">K</span></div>
+                <div class="ps"><span class="ps-val">${s.inningsPitched??'–'}</span><span class="ps-lbl">IP</span></div>`;
+        } else {
+            statsHtml = `
+                <div class="ps"><span class="ps-val">${fmtD(s.era)}</span><span class="ps-lbl">ERA</span></div>
+                <div class="ps"><span class="ps-val">${fmtD(s.whip)}</span><span class="ps-lbl">WHIP</span></div>
+                <div class="ps"><span class="ps-val">${s.saves??'–'}</span><span class="ps-lbl">SV</span></div>
+                <div class="ps"><span class="ps-val">${s.strikeOuts??'–'}</span><span class="ps-lbl">K</span></div>
+                <div class="ps"><span class="ps-val">${s.gamesPlayed??s.gamesPitched??'–'}</span><span class="ps-lbl">G</span></div>`;
+        }
+
+        const scoreColor = p.score >= 7.5 ? '#6dd47a' : p.score >= 5 ? '#f0c040' : '#9aacbe';
+
+        return `
+        <div class="p-row" onclick="pick(${p.id})">
+            <div>
+                <div class="p-name">${esc(p.name)}</div>
+                <div class="p-pos">${p.posCode}</div>
+                <div class="p-stats">${statsHtml}</div>
+            </div>
+            <div class="score-badge" style="color:${scoreColor};border-color:${scoreColor};">${p.score.toFixed(1)}</div>
+        </div>`;
+    });
+
+    document.getElementById('modal-body').innerHTML =
+        `<div class="player-list">${rows.join('')}</div>`;
+}
+
+function pick(playerId) {
+    const player = modalPlayers.find(p => p.id === playerId);
+    if (!player || activeSlot === null) return;
+
+    slots[activeSlot].player = player;
+    slots[activeSlot].score  = player.score;
+
+    closeModal();
+    render();
+    updateProgress();
+}
+
+/* ─────────────────────────────────────────────
+   Simulation
+───────────────────────────────────────────── */
+function runSeason() {
+    const btn = document.getElementById('sim-btn');
+    btn.disabled = true;
+    btn.textContent = '⚾ Simulating…';
+
+    setTimeout(() => {
+        const res = simulate();
+        showResult(res);
+        btn.disabled = false;
+        btn.textContent = '⚾ Run the Season';
+    }, 1400);
+}
+
+function simulate() {
+    const batters  = slots.filter(s => !s.pos.pitching);
+    const sp       = slots.find(s => s.pos.key === 'SP');
+    const rp       = slots.find(s => s.pos.key === 'RP');
+
+    const offAvg   = avg(batters.map(s => s.score));
+    const pitchAvg = avg([sp?.score ?? 0, rp?.score ?? 0]);
+    const combined = offAvg * 0.6 + pitchAvg * 0.4;
+
+    // Small luck factor
+    const jitter = (Math.random() - 0.5) * 0.6;
+    const final  = clamp((combined + jitter) / 10) * 10;
+
+    // Win curve: score 10 → 162, score 5 → ~95, score 0 → ~50
+    const wins   = Math.round(50 + final * 11.2);
+    const goes162 = final >= 8.5;
+
+    return {
+        offAvg:    offAvg.toFixed(1),
+        pitchAvg:  pitchAvg.toFixed(1),
+        combined:  final.toFixed(1),
+        wins:      goes162 ? 162 : Math.min(wins, 161),
+        losses:    goes162 ? 0 : Math.max(162 - wins, 1),
+        goes162,
+    };
+}
+
+function avg(arr) { return arr.reduce((a, b) => a + b, 0) / (arr.length || 1); }
+
+/* ─────────────────────────────────────────────
+   Result
+───────────────────────────────────────────── */
+function showResult(r) {
+    let tier, msg;
+    const w = r.wins;
+
+    if (r.goes162)  { tier = 'perfect';  msg = '🏆 Untouchable. History will remember this lineup forever.'; }
+    else if (w >= 150) { tier = 'perfect';  msg = 'Near-perfection. One of the greatest assemblies of talent ever.'; }
+    else if (w >= 135) { tier = 'great';    msg = 'Dominant. This team would run away with the pennant.'; }
+    else if (w >= 115) { tier = 'good';     msg = 'A genuine powerhouse. Deep October run guaranteed.'; }
+    else if (w >= 95)  { tier = 'good';     msg = 'Solid playoff contender. Sneaky dangerous come October.'; }
+    else if (w >= 82)  { tier = 'mediocre'; msg = 'Respectable, but nothing special. Bubble team at best.'; }
+    else if (w >= 70)  { tier = 'mediocre'; msg = 'Struggling. Some glaring holes in this roster.'; }
+    else               { tier = 'bad';      msg = 'Rough. The fans are booing. Fire the GM.'; }
+
+    const box = document.getElementById('result');
+    box.innerHTML = `
+        <div class="result-record tier-${tier}">${r.wins}–${r.losses}</div>
+        <div class="result-season">Season Record</div>
+        <div class="result-msg">${msg}</div>
+        <div class="result-grid">
+            <div class="result-box">
+                <div class="result-box-lbl">Offense Rating</div>
+                <div class="result-box-val">${r.offAvg}<span style="font-size:14px;color:var(--text-dim)">/10</span></div>
+            </div>
+            <div class="result-box">
+                <div class="result-box-lbl">Pitching Rating</div>
+                <div class="result-box-val">${r.pitchAvg}<span style="font-size:14px;color:var(--text-dim)">/10</span></div>
+            </div>
+            <div class="result-box">
+                <div class="result-box-lbl">Combined Score</div>
+                <div class="result-box-val">${r.combined}<span style="font-size:14px;color:var(--text-dim)">/10</span></div>
+            </div>
+            <div class="result-box">
+                <div class="result-box-lbl">Projected Wins</div>
+                <div class="result-box-val">${r.wins}</div>
+            </div>
+        </div>
+        <button class="play-again" onclick="resetGame()">↺ Play Again</button>
+    `;
+    box.classList.add('show');
+    box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function resetGame() {
+    document.getElementById('result').classList.remove('show');
+    init();
+    window.scrollTo({ behavior: 'smooth', top: 0 });
+}
+
+/* ─────────────────────────────────────────────
+   Helpers
+───────────────────────────────────────────── */
+// Format batting avg / OBP / SLG → always show leading dot
+function fmt(val, decimals) {
+    if (val === undefined || val === null) return '–';
+    const n = parseFloat(val);
+    if (isNaN(n)) return String(val);
+    return n.toFixed(decimals);
+}
+
+// Format ERA / WHIP
+function fmtD(val) {
+    if (val === undefined || val === null) return '–';
+    const n = parseFloat(val);
+    if (isNaN(n)) return String(val);
+    return n.toFixed(2);
+}
+
+function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── Start ── */
+init();
+</script>
+</body>
+</html>
