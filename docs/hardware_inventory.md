@@ -18,7 +18,7 @@ What hardware do I own that is part of my homelab?
     * Role: Always on infra node
     * OS: Proxmox
     * CPU: AMD Ryzen 9 7940HS (8c/16t)
-    * NIC: Realtek RTL8125BG 2.5GbE
+    * NIC: Realtek RTL8125BG 2.5GbE (Proxmox names it nic0)
     * RAM: 32GB DDR5
     * Boot drive: 512GB NVMe SSD
 

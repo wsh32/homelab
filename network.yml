@@ -60,7 +60,7 @@ nodes:
     tailscale_ip: 100.64.1.6
     type: proxmox
     ansible_user: root
-    bridge_port: enp2s0  # Realtek RTL8125BG on Minisforum UM790 — verify with: ip link show
+    bridge_port: nic0  # Proxmox renames NICs to nic0, nic1, etc. on UM790
     vms:
       diglett-dns:
         ip: 192.168.0.2
