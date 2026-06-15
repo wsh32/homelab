@@ -56,6 +56,7 @@
 - name: Join all hosts to Headscale
   hosts: all:!localhost:!physical
   gather_facts: false
+  serial: 1
 
   vars:
     headscale_preauth_key: "{{ hostvars['diglett-dns'].headscale_preauth_key }}"
@@ -236,6 +237,7 @@
 - name: Join physical nodes to Headscale (no --reset, safe for Proxmox cluster)
   hosts: physical
   gather_facts: false
+  serial: 1
 
   vars:
     headscale_preauth_key: "{{ hostvars['diglett-dns'].headscale_preauth_key }}"
