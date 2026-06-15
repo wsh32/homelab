@@ -160,13 +160,13 @@ filtering:
   safebrowsing_block_host: standard-block.dns.adguard.com
   rewrites:
     # DNS rewrites — two-domain architecture:
-    #   *.wsh  → Traefik on diglett-infra (192.168.0.20). Works on LAN directly;
-    #            remote Tailscale clients reach it via advertised subnet route.
-    #            Using a direct A record (not a MagicDNS CNAME) so step-ca can
-    #            resolve the domain for HTTP-01 ACME challenge validation.
-    #   *.home → same Traefik endpoint, LAN-only convention
+    #   *.wsh  → Traefik on diglett-infra via Tailscale IP (100.64.1.20).
+    #            Requires Tailscale to be connected. Direct peer-to-peer,
+    #            no subnet routing. step-ca HTTP-01 works because diglett-infra
+    #            can reach its own Tailscale IP locally.
+    #   *.home → LAN IP of diglett-infra, LAN-only
     - domain: '*.wsh'
-      answer: 192.168.0.20
+      answer: 100.64.1.20
       enabled: true
     - domain: '*.home'
       answer: 192.168.0.20

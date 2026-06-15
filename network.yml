@@ -73,7 +73,6 @@ nodes:
         tailscale_ip: 100.64.1.20
         vm_id: 201
         vm_roles: [services]
-        tailscale_advertise_routes: [192.168.0.0/24]  # subnet route so remote Tailscale clients can reach LAN services
       diglett-haos:
         ip: 192.168.0.21
         vm_id: 202
