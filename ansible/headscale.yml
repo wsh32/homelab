@@ -156,7 +156,6 @@
         tailscale up
         --login-server={{ headscale_server_url }}
         --auth-key={{ headscale_preauth_key }}
-        --accept-routes
         {{ '--advertise-exit-node' if tailscale_exit_node | default(false) else '' }}
         {{ '--advertise-routes=' + (tailscale_advertise_routes | join(',')) if tailscale_advertise_routes | default([]) | length > 0 else '' }}
         --hostname={{ inventory_hostname }}
@@ -276,7 +275,6 @@
         tailscale up
         --login-server={{ headscale_server_url }}
         --auth-key={{ headscale_preauth_key }}
-        --accept-routes
         --hostname={{ inventory_hostname }}
         --force-reauth
       become: true
