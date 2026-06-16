@@ -62,7 +62,7 @@ sonarr:
           - name: WEBRip-1080p
             enabled: true
           - name: Bluray-1080p
-            enabled: true
+            enabled: false
           - name: WEBDL-720p
             enabled: true
           - name: WEBRip-720p
