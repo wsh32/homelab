@@ -1280,7 +1280,7 @@
         url: "https://jellyfin.wsh/sso/OID/redirect/authentik"
   when: >
     _jf_provider_exists and
-    (_jf_existing_provider.redirect_uris | default([]) | sort) != (_jf_desired_uris | sort)
+    (_jf_existing_provider.redirect_uris | default([]) | map(attribute='url') | sort | list) != (_jf_desired_uris | map(attribute='url') | sort | list)
 
 - name: Disable PKCE requirement on Jellyfin OIDC provider (plugin 4.x lacks PKCE support)
   ansible.builtin.uri:
