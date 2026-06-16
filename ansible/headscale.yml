@@ -287,6 +287,7 @@
         tailscale up
         --login-server={{ headscale_server_url }}
         --auth-key={{ headscale_preauth_key }}
+        --accept-routes=false
         --hostname={{ inventory_hostname }}
         --force-reauth
       become: true
