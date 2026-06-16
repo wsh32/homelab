@@ -1,6 +1,6 @@
 # File-provider routes for off-host backends.
 # Infra services (Infisical, Vaultwarden, Authentik) are handled by Docker labels.
-# All services are LAN (.home) only until Tailscale is wired up -- see TODOS.md.
+# Each service has both .home (LAN) and .wsh (Tailscale) routers sharing the same backend.
 http:
   middlewares:
     # Redirect Jellyfin web UI to Authentik SSO via jellyfin-plugin-sso.
@@ -8,6 +8,11 @@ http:
       redirectRegex:
         regex: "^https://jellyfin\\.home(/web.*|/?)$"
         replacement: "https://jellyfin.home/SSO/OID/start/authentik"
+        permanent: false
+    jellyfin-sso-wsh:
+      redirectRegex:
+        regex: "^https://jellyfin\\.wsh(/web.*|/?)$"
+        replacement: "https://jellyfin.wsh/SSO/OID/start/authentik-public"
         permanent: false
 
     # Authentik forward auth -- all arr/media services require authentication.
@@ -41,6 +46,12 @@ http:
       service: api@internal
       tls:
         certResolver: step
+    traefik-wsh-tls:
+      rule: "Host(`traefik.wsh`)"
+      entryPoints: [websecure]
+      service: api@internal
+      tls:
+        certResolver: step
 
     # ── diglett-dns services ──────────────────────────────────────────────────
     headplane-home:
@@ -53,12 +64,24 @@ http:
       service: headplane-svc
       tls:
         certResolver: step
+    headplane-wsh-tls:
+      rule: "Host(`headplane.wsh`)"
+      entryPoints: [websecure]
+      service: headplane-svc
+      tls:
+        certResolver: step
     adguard-home:
       rule: "Host(`adguard.home`)"
       entryPoints: [web]
       service: adguard-svc
     adguard-home-tls:
       rule: "Host(`adguard.home`)"
+      entryPoints: [websecure]
+      service: adguard-svc
+      tls:
+        certResolver: step
+    adguard-wsh-tls:
+      rule: "Host(`adguard.wsh`)"
       entryPoints: [websecure]
       service: adguard-svc
       tls:
@@ -75,12 +98,25 @@ http:
       service: jellyfin-svc
       tls:
         certResolver: step
+    jellyfin-sso-redirect-wsh:
+      rule: "Host(`jellyfin.wsh`) && Path(`/`)"
+      entryPoints: [websecure]
+      middlewares: [jellyfin-sso-wsh]
+      service: jellyfin-svc
+      tls:
+        certResolver: step
     jellyfin-home:
       rule: "Host(`jellyfin.home`)"
       entryPoints: [web]
       service: jellyfin-svc
     jellyfin-home-tls:
       rule: "Host(`jellyfin.home`)"
+      entryPoints: [websecure]
+      service: jellyfin-svc
+      tls:
+        certResolver: step
+    jellyfin-wsh-tls:
+      rule: "Host(`jellyfin.wsh`)"
       entryPoints: [websecure]
       service: jellyfin-svc
       tls:
@@ -99,6 +135,13 @@ http:
       middlewares: [authentik]
       tls:
         certResolver: step
+    prowlarr-wsh-tls:
+      rule: "Host(`prowlarr.wsh`)"
+      entryPoints: [websecure]
+      service: prowlarr-svc
+      middlewares: [authentik]
+      tls:
+        certResolver: step
     radarr-home:
       rule: "Host(`radarr.home`)"
       entryPoints: [web]
@@ -106,6 +149,13 @@ http:
       middlewares: [authentik]
     radarr-home-tls:
       rule: "Host(`radarr.home`)"
+      entryPoints: [websecure]
+      service: radarr-svc
+      middlewares: [authentik]
+      tls:
+        certResolver: step
+    radarr-wsh-tls:
+      rule: "Host(`radarr.wsh`)"
       entryPoints: [websecure]
       service: radarr-svc
       middlewares: [authentik]
@@ -123,6 +173,13 @@ http:
       middlewares: [authentik]
       tls:
         certResolver: step
+    sonarr-wsh-tls:
+      rule: "Host(`sonarr.wsh`)"
+      entryPoints: [websecure]
+      service: sonarr-svc
+      middlewares: [authentik]
+      tls:
+        certResolver: step
     sabnzbd-home:
       rule: "Host(`sabnzbd.home`)"
       entryPoints: [web]
@@ -130,6 +187,13 @@ http:
       middlewares: [authentik]
     sabnzbd-home-tls:
       rule: "Host(`sabnzbd.home`)"
+      entryPoints: [websecure]
+      service: sabnzbd-svc
+      middlewares: [authentik]
+      tls:
+        certResolver: step
+    sabnzbd-wsh-tls:
+      rule: "Host(`sabnzbd.wsh`)"
       entryPoints: [websecure]
       service: sabnzbd-svc
       middlewares: [authentik]
@@ -147,6 +211,13 @@ http:
       middlewares: [authentik]
       tls:
         certResolver: step
+    bazarr-wsh-tls:
+      rule: "Host(`bazarr.wsh`)"
+      entryPoints: [websecure]
+      service: bazarr-svc
+      middlewares: [authentik]
+      tls:
+        certResolver: step
     qbittorrent-home:
       rule: "Host(`qbittorrent.home`)"
       entryPoints: [web]
@@ -159,12 +230,25 @@ http:
       middlewares: [authentik]
       tls:
         certResolver: step
+    qbittorrent-wsh-tls:
+      rule: "Host(`qbittorrent.wsh`)"
+      entryPoints: [websecure]
+      service: qbittorrent-svc
+      middlewares: [authentik]
+      tls:
+        certResolver: step
     seerr-home:
       rule: "Host(`seerr.home`)"
       entryPoints: [web]
       service: seerr-svc
     seerr-home-tls:
       rule: "Host(`seerr.home`)"
+      entryPoints: [websecure]
+      service: seerr-svc
+      tls:
+        certResolver: step
+    seerr-wsh-tls:
+      rule: "Host(`seerr.wsh`)"
       entryPoints: [websecure]
       service: seerr-svc
       tls:
@@ -181,6 +265,12 @@ http:
       service: photos-svc
       tls:
         certResolver: step
+    photos-wsh-tls:
+      rule: "Host(`photos.wsh`)"
+      entryPoints: [websecure]
+      service: photos-svc
+      tls:
+        certResolver: step
 
     # ── Calibre-Web ───────────────────────────────────────────────────────────
     books-home:
@@ -189,6 +279,12 @@ http:
       service: books-svc
     books-home-tls:
       rule: "Host(`books.home`)"
+      entryPoints: [websecure]
+      service: books-svc
+      tls:
+        certResolver: step
+    books-wsh-tls:
+      rule: "Host(`books.wsh`)"
       entryPoints: [websecure]
       service: books-svc
       tls:
@@ -205,6 +301,12 @@ http:
       service: n8n-svc
       tls:
         certResolver: step
+    n8n-wsh-tls:
+      rule: "Host(`n8n.wsh`)"
+      entryPoints: [websecure]
+      service: n8n-svc
+      tls:
+        certResolver: step
 
     # ── CouchDB ───────────────────────────────────────────────────────────────
     couchdb-home:
@@ -213,6 +315,12 @@ http:
       service: couchdb-svc
     couchdb-home-tls:
       rule: "Host(`couchdb.home`)"
+      entryPoints: [websecure]
+      service: couchdb-svc
+      tls:
+        certResolver: step
+    couchdb-wsh-tls:
+      rule: "Host(`couchdb.wsh`)"
       entryPoints: [websecure]
       service: couchdb-svc
       tls:
@@ -229,6 +337,12 @@ http:
       service: notes-svc
       tls:
         certResolver: step
+    notes-wsh-tls:
+      rule: "Host(`notes.wsh`)"
+      entryPoints: [websecure]
+      service: notes-svc
+      tls:
+        certResolver: step
 
     # ── Homepage ──────────────────────────────────────────────────────────────
     home-home:
@@ -237,6 +351,12 @@ http:
       service: home-svc
     home-home-tls:
       rule: "Host(`home.home`)"
+      entryPoints: [websecure]
+      service: home-svc
+      tls:
+        certResolver: step
+    home-wsh-tls:
+      rule: "Host(`home.wsh`)"
       entryPoints: [websecure]
       service: home-svc
       tls:
@@ -253,6 +373,12 @@ http:
       service: prometheus-svc
       tls:
         certResolver: step
+    prometheus-wsh-tls:
+      rule: "Host(`prometheus.wsh`)"
+      entryPoints: [websecure]
+      service: prometheus-svc
+      tls:
+        certResolver: step
 
     # ── Grafana ───────────────────────────────────────────────────────────────
     grafana-home:
@@ -261,6 +387,12 @@ http:
       service: grafana-svc
     grafana-home-tls:
       rule: "Host(`grafana.home`)"
+      entryPoints: [websecure]
+      service: grafana-svc
+      tls:
+        certResolver: step
+    grafana-wsh-tls:
+      rule: "Host(`grafana.wsh`)"
       entryPoints: [websecure]
       service: grafana-svc
       tls:

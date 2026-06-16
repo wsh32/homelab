@@ -4,10 +4,10 @@
   },
   "autoApprovers": {
     "routes": {
-      "0.0.0.0/0": ["wesoohoo@gmail.com", "tag:infra"],
-      "::/0":       ["wesoohoo@gmail.com", "tag:infra"]
+      "0.0.0.0/0": ["tag:infra"],
+      "::/0":       ["tag:infra"]
     },
-    "exitNode": ["wesoohoo@gmail.com", "tag:infra"]
+    "exitNode": ["tag:infra"]
   },
   "acls": [
     {

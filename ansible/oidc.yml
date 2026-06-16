@@ -80,6 +80,10 @@
         marker: "# {mark} OIDC -- managed by Ansible"
         block: |
           oidc:
+            # headplane only supports a single static issuer (no per-domain
+            # discovery like Jellyfin/Seerr), so it's pinned to the public
+            # auth.wesleysoohoo.me URL -- reachable from LAN, remote internet,
+            # and Tailscale alike, so OIDC login works from either hostname.
             issuer: "{{ authentik_public_url }}/application/o/headplane/"
             client_id: "{{ _hp_oidc_client_id }}"
             client_secret: "{{ _hp_oidc_client_secret }}"
@@ -235,27 +239,40 @@
         except FileNotFoundError:
             d = {}
 
-        desired = {
-            'slug': 'authentik',
-            'name': 'Authentik',
-            'issuerUrl': '{{ authentik_public_url }}/application/o/seerr/',
-            'clientId': '{{ _seerr_oidc_client_id }}',
-            'clientSecret': '{{ _seerr_oidc_client_secret }}',
-            'scopes': 'openid profile email',
-            'requiredClaims': '',
-            'newUserLogin': True,
-        }
+        # Discovered via authentik_public_url (auth.wesleysoohoo.me, reachable
+        # from LAN, remote internet, and Tailscale alike) so seerr.home and
+        # seerr.wsh share a single OIDC provider and login button.
+        desired_providers = [
+            {
+                'slug': 'authentik',
+                'name': 'Authentik',
+                'issuerUrl': '{{ authentik_public_url }}/application/o/seerr/',
+                'clientId': '{{ _seerr_oidc_client_id }}',
+                'clientSecret': '{{ _seerr_oidc_client_secret }}',
+                'scopes': 'openid profile email',
+                'requiredClaims': '',
+                'newUserLogin': True,
+            },
+        ]
 
         providers = d.setdefault('oidc', {}).setdefault('providers', [])
-        existing = next((p for p in providers if p['slug'] == 'authentik'), None)
-        if existing == desired and d.get('main', {}).get('oidcLogin') == True:
+        desired_slugs = {p['slug'] for p in desired_providers}
+        all_match = d.get('main', {}).get('oidcLogin') == True
+        if len(providers) != len(desired_providers):
+            all_match = False
+        providers[:] = [p for p in providers if p['slug'] in desired_slugs]
+        for desired in desired_providers:
+            existing = next((p for p in providers if p['slug'] == desired['slug']), None)
+            if existing != desired:
+                all_match = False
+            if existing:
+                existing.update(desired)
+            else:
+                providers.append(desired)
+
+        if all_match:
             print('no-change')
             sys.exit(0)
-
-        if existing:
-            existing.update(desired)
-        else:
-            providers.append(desired)
 
         d.setdefault('main', {})['oidcLogin'] = True
 

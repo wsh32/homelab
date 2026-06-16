@@ -139,17 +139,17 @@ and breaks `.home` domain resolution.
 
 ## Tailscale `.wsh` Routing + LAN Access Lockdown
 
-**What:** Re-add `.wsh` Traefik routers once Tailscale is fully up, and add IP allowlist middleware to restrict sensitive services on the LAN.
+**Status:** `.wsh` routers are live. Remaining hardening below.
 
-**Why:** All services are currently exposed on `.home` (LAN, no auth) for simplicity during bring-up. Tailscale routing and per-service IP allowlists are the next layer.
+**Done:**
+- `*.wsh` DNS rewrite → `192.168.0.32` (direct A record — works on LAN + enables step-ca HTTP-01 ACME challenge)
+- `tailscale_advertise_routes: [192.168.0.0/24]` on machamp-infra so remote Tailscale clients reach LAN services via subnet route
+- All services have `-wsh-tls` routers in `services-vm.yml`
+- Authentik proxy providers created for `.wsh` variants of auth-gated arr services
+- To deploy: `ansible-playbook ansible/headscale.yml` (subnet route), `ansible-playbook ansible/infra.yml` (Traefik + Authentik)
 
-**Work:**
-1. Wire up Tailscale (diglett-dns joining headscale, subnet router, DNS)
-2. Restore `*.wsh` AdGuard rewrite to `machamp-infra.ts.home` and add `.wsh` routers in `services-vm.yml` and docker-compose labels for each service
-3. Add Traefik IP allowlist middleware (source range `192.168.0.0/24`) for sensitive services that should never be publicly reachable even over Tailscale: `traefik.home`, `prometheus.home`, `couchdb.home`, `infisical.home`
-4. Consider moving Servarr (.home only, no .wsh) since they don't need remote access
-
-**Depends on:** Tailscale fully operational.
+**Remaining:**
+- Add Traefik IP allowlist middleware restricting `traefik.wsh`, `prometheus.wsh`, `couchdb.wsh` to `100.64.0.0/10` (Tailscale CGNAT only — no open LAN exposure)
 
 ---
 

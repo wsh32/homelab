@@ -13,14 +13,14 @@ What hardware do I own that is part of my homelab?
     * Boot drive: 500GB SATA SSD
     * NVMe storage: 2x 2TB NVMe SSD
 
-* NUC (Diglett)
+* Minisforum UM790 (Diglett)
     * Nickname: diglett
     * Role: Always on infra node
     * OS: Proxmox
-    * CPU: i3-8109U
-    * RAM: 16GB
-    * Boot drive: 256GB NVME SSD
-    * SSD: 1TB SATA SSD
+    * CPU: AMD Ryzen 9 7940HS (8c/16t)
+    * NIC: Realtek RTL8125BG 2.5GbE (Proxmox names it nic0)
+    * RAM: 32GB DDR5
+    * Boot drive: 512GB NVMe SSD
 
 * AOOSTAR WTR Pro
     * Nickname: alakazam
