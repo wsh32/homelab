@@ -980,7 +980,7 @@
         body:
           SamlConfigs: {}
           OidConfigs:
-            authentik: &jf_oidc_provider_base
+            authentik:
               OidEndpoint: "https://auth.home/application/o/jellyfin/"
               OidClientId: "{{ _jf_oidc_client_id }}"
               OidSecret: "{{ _jf_oidc_client_secret }}"
@@ -1006,9 +1006,27 @@
             # auth.wsh instead of auth.home so the OAuth2 authorize redirect
             # stays on a host reachable off-LAN over Tailscale.
             authentik-wsh:
-              <<: *jf_oidc_provider_base
               OidEndpoint: "https://auth.wsh/application/o/jellyfin/"
+              OidClientId: "{{ _jf_oidc_client_id }}"
+              OidSecret: "{{ _jf_oidc_client_secret }}"
+              Enabled: true
+              EnableAuthorization: true
+              EnableAllFolders: true
+              EnableFolderRoles: false
               DefaultProvider: "false"
+              SchemeOverride: "https"
+              LibraryOptions: []
+              FolderRoleMapping: []
+              AdminRoles:
+                - admins
+              Roles:
+                - users
+                - admins
+              OidScopes:
+                - groups
+              RoleClaim: "groups"
+              DoNotValidateEndpoints: true
+              DoNotValidateIssuerName: true
         status_code: 204
       no_log: true
       when: >
