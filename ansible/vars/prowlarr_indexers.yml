@@ -9,6 +9,7 @@
 #   (torrent indexers are looked up by name in Prowlarr's schema endpoint)
 #   api_key_var   -- Infisical/secrets.yml key name (omit for public indexers)
 #   privacy       -- "public", "semiPublic", or "private" (default: private)
+#   priority      -- Prowlarr indexer priority, 1 (highest) to 50 (default: 25)
 #   categories    -- Newznab category IDs to enable
 
 prowlarr_indexers:
