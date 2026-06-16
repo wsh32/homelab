@@ -9,6 +9,8 @@
 - name: Generate Headscale pre-auth key
   hosts: diglett-dns
   gather_facts: false
+  vars:
+    ansible_pipelining: false
 
   tasks:
     - name: Read headscale server URL
