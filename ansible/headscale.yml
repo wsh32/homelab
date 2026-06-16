@@ -225,15 +225,6 @@
       delegate_to: diglett-dns
       run_once: true
 
-    - name: Wait for headscale to be ready after restart
-      ansible.builtin.wait_for:
-        host: 127.0.0.1
-        port: 443
-        timeout: 60
-      become: true
-      delegate_to: diglett-dns
-      run_once: true
-
     - name: Restart tailscaled to pick up corrected Tailscale IP
       ansible.builtin.systemd:
         name: tailscaled
@@ -369,15 +360,6 @@
       community.docker.docker_container:
         name: headscale
         state: started
-      become: true
-      delegate_to: diglett-dns
-      run_once: true
-
-    - name: Wait for headscale to be ready after restart
-      ansible.builtin.wait_for:
-        host: 127.0.0.1
-        port: 443
-        timeout: 60
       become: true
       delegate_to: diglett-dns
       run_once: true
