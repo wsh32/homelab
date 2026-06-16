@@ -12,7 +12,7 @@ http:
     jellyfin-sso-wsh:
       redirectRegex:
         regex: "^https://jellyfin\\.wsh(/web.*|/?)$"
-        replacement: "https://jellyfin.wsh/SSO/OID/start/authentik-wsh"
+        replacement: "https://jellyfin.wsh/SSO/OID/start/authentik-public"
         permanent: false
 
     # Authentik forward auth -- all arr/media services require authentication.

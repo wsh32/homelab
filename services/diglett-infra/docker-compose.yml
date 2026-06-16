@@ -176,10 +176,6 @@ services:
       - "traefik.http.routers.auth-home-tls.entrypoints=websecure"
       - "traefik.http.routers.auth-home-tls.tls=true"
       - "traefik.http.routers.auth-home-tls.tls.certresolver=step"
-      - "traefik.http.routers.auth-wsh-tls.rule=Host(`auth.wsh`)"
-      - "traefik.http.routers.auth-wsh-tls.entrypoints=websecure"
-      - "traefik.http.routers.auth-wsh-tls.tls=true"
-      - "traefik.http.routers.auth-wsh-tls.tls.certresolver=step"
       - "traefik.http.services.auth-svc.loadbalancer.server.port=9000"
 
   authentik-worker:

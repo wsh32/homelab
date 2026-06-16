@@ -980,6 +980,9 @@
         body:
           SamlConfigs: {}
           OidConfigs:
+            # Pinned to auth.home (not authentik_public_url) so jellyfin.home
+            # SSO keeps working on LAN even if the internet/Cloudflare Tunnel
+            # is down -- this is the one service kept LAN-resilient.
             authentik:
               OidEndpoint: "https://auth.home/application/o/jellyfin/"
               OidClientId: "{{ _jf_oidc_client_id }}"
@@ -1003,10 +1006,10 @@
               DoNotValidateEndpoints: true
               DoNotValidateIssuerName: true
             # Same Authentik application as "authentik" above, discovered via
-            # auth.wsh instead of auth.home so the OAuth2 authorize redirect
-            # stays on a host reachable off-LAN over Tailscale.
-            authentik-wsh:
-              OidEndpoint: "https://auth.wsh/application/o/jellyfin/"
+            # the public auth.wesleysoohoo.me URL so jellyfin.wsh works from
+            # anywhere Tailscale reaches (no LAN/.home dependency).
+            authentik-public:
+              OidEndpoint: "{{ authentik_public_url }}/application/o/jellyfin/"
               OidClientId: "{{ _jf_oidc_client_id }}"
               OidSecret: "{{ _jf_oidc_client_secret }}"
               Enabled: true
@@ -1034,14 +1037,16 @@
         and jellyfin_api_key != ''
         and _sso_config_current is not skipped
         and (('authentik' not in (_sso_config_current.json.OidConfigs | default({})))
-             or ('authentik-wsh' not in (_sso_config_current.json.OidConfigs | default({})))
+             or ('authentik-public' not in (_sso_config_current.json.OidConfigs | default({})))
+             or (_sso_config_current.json.OidConfigs.authentik.OidEndpoint | default('')) != 'https://auth.home/application/o/jellyfin/'
+             or (_sso_config_current.json.OidConfigs['authentik-public'].OidEndpoint | default('')) != (authentik_public_url + '/application/o/jellyfin/')
              or (_sso_config_current.json.OidConfigs.authentik.DefaultProvider | default('false')) != 'true'
              or ('admins' not in (_sso_config_current.json.OidConfigs.authentik.AdminRoles | default([])))
              or ('admins' not in (_sso_config_current.json.OidConfigs.authentik.Roles | default([])))
              or ('users' not in (_sso_config_current.json.OidConfigs.authentik.Roles | default([])))
              or (_sso_config_current.json.OidConfigs.authentik.RoleClaim | default('')) != 'groups'
              or (_sso_config_current.json.OidConfigs.authentik.OidClientId | default('')) != _jf_oidc_client_id
-             or (_sso_config_current.json.OidConfigs['authentik-wsh'].OidClientId | default('')) != _jf_oidc_client_id)
+             or (_sso_config_current.json.OidConfigs['authentik-public'].OidClientId | default('')) != _jf_oidc_client_id)
 
     # ── Block 3b.5: Jellyfin encoding settings ───────────────────────────────
 

@@ -81,10 +81,10 @@
         block: |
           oidc:
             # headplane only supports a single static issuer (no per-domain
-            # discovery like Jellyfin/Seerr), so it's pinned to auth.wsh.
-            # headplane.home login won't work without Tailscale -- use the
-            # API key fallback for LAN-only access.
-            issuer: "https://auth.wsh/application/o/headplane/"
+            # discovery like Jellyfin/Seerr), so it's pinned to the public
+            # auth.wesleysoohoo.me URL -- reachable from LAN, remote internet,
+            # and Tailscale alike, so OIDC login works from either hostname.
+            issuer: "{{ authentik_public_url }}/application/o/headplane/"
             client_id: "{{ _hp_oidc_client_id }}"
             client_secret: "{{ _hp_oidc_client_secret }}"
             headscale_api_key: "{{ _hp_api_key_raw.content | b64decode | trim if _hp_api_key_stat.stat.exists else '' }}"
@@ -239,10 +239,9 @@
         except FileNotFoundError:
             d = {}
 
-        # Two entries for the same Authentik application: 'authentik' is
-        # discovered via auth.home (LAN), 'authentik-wsh' via auth.wsh
-        # (Tailscale) -- so the OAuth2 authorize redirect stays on a host
-        # reachable from wherever seerr itself was reached.
+        # Discovered via authentik_public_url (auth.wesleysoohoo.me, reachable
+        # from LAN, remote internet, and Tailscale alike) so seerr.home and
+        # seerr.wsh share a single OIDC provider and login button.
         desired_providers = [
             {
                 'slug': 'authentik',
@@ -254,20 +253,14 @@
                 'requiredClaims': '',
                 'newUserLogin': True,
             },
-            {
-                'slug': 'authentik-wsh',
-                'name': 'Authentik (Tailscale)',
-                'issuerUrl': 'https://auth.wsh/application/o/seerr/',
-                'clientId': '{{ _seerr_oidc_client_id }}',
-                'clientSecret': '{{ _seerr_oidc_client_secret }}',
-                'scopes': 'openid profile email',
-                'requiredClaims': '',
-                'newUserLogin': True,
-            },
         ]
 
         providers = d.setdefault('oidc', {}).setdefault('providers', [])
+        desired_slugs = {p['slug'] for p in desired_providers}
         all_match = d.get('main', {}).get('oidcLogin') == True
+        if len(providers) != len(desired_providers):
+            all_match = False
+        providers[:] = [p for p in providers if p['slug'] in desired_slugs]
         for desired in desired_providers:
             existing = next((p for p in providers if p['slug'] == desired['slug']), None)
             if existing != desired:
