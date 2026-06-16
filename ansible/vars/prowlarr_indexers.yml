@@ -19,6 +19,13 @@ prowlarr_indexers:
     privacy: private
     categories: [2000, 2010, 2020, 2030, 2040, 2045, 2050, 5000, 5010, 5020, 5030, 5040, 5045, 5050, 5060, 5070, 5080, 5090]
 
+  - name: NZBGeek
+    protocol: usenet
+    url: https://api.nzbgeek.info
+    api_key_var: NZBGEEK_API_KEY
+    privacy: private
+    categories: [2000, 2010, 2020, 2030, 2040, 2045, 2050, 5000, 5010, 5020, 5030, 5040, 5045, 5050, 5060, 5070, 5080, 5090]
+
   - name: The Pirate Bay
     protocol: torrent
     url: https://thepiratebay.org
