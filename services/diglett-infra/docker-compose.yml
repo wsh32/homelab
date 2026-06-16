@@ -220,6 +220,10 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.ca-home.rule=Host(`ca.home`)"
       - "traefik.http.routers.ca-home.entrypoints=web"
+      - "traefik.http.routers.ca-home-tls.rule=Host(`ca.home`)"
+      - "traefik.http.routers.ca-home-tls.entrypoints=websecure"
+      - "traefik.http.routers.ca-home-tls.tls=true"
+      - "traefik.http.routers.ca-home-tls.tls.certresolver=step"
       - "traefik.http.services.ca-svc.loadbalancer.server.port=80"
 
   # ── Cloudflare Tunnel ─────────────────────────────────────────────────────
