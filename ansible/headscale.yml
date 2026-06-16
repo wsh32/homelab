@@ -122,6 +122,9 @@
       register: _nodes_list
       become: true
       delegate_to: diglett-dns
+      until: _nodes_list is succeeded
+      retries: 5
+      delay: 3
 
     - name: Delete existing headscale node for this host
       community.docker.docker_container_exec:
@@ -279,6 +282,9 @@
       register: _nodes_list
       become: true
       delegate_to: diglett-dns
+      until: _nodes_list is succeeded
+      retries: 5
+      delay: 3
 
     - name: Delete existing headscale node for this host
       community.docker.docker_container_exec:
