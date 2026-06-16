@@ -224,6 +224,10 @@ services:
       - "traefik.http.routers.ca-home-tls.entrypoints=websecure"
       - "traefik.http.routers.ca-home-tls.tls=true"
       - "traefik.http.routers.ca-home-tls.tls.certresolver=step"
+      - "traefik.http.routers.ca-wsh-tls.rule=Host(`ca.wsh`)"
+      - "traefik.http.routers.ca-wsh-tls.entrypoints=websecure"
+      - "traefik.http.routers.ca-wsh-tls.tls=true"
+      - "traefik.http.routers.ca-wsh-tls.tls.certresolver=step"
       - "traefik.http.services.ca-svc.loadbalancer.server.port=80"
 
   # ── Cloudflare Tunnel ─────────────────────────────────────────────────────
