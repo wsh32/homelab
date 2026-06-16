@@ -140,7 +140,7 @@
       loop: >-
         {{
           _nodes_list.stdout | from_json
-          | selectattr('given_name', 'equalto', inventory_hostname)
+          | selectattr('given_name', 'match', '^' + inventory_hostname + '(-[a-z0-9]+)?$')
           | map(attribute='id') | list
         }}
       become: true
