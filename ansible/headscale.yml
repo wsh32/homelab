@@ -104,7 +104,7 @@
       loop: >-
         {{
           _nodes_list.stdout | from_json
-          | selectattr('given_name', 'match', '^' + inventory_hostname + '(-[a-z0-9]+)?$')
+          | selectattr('given_name', 'match', '^' + inventory_hostname + '(-[a-z0-9]{8})?$')
           | map(attribute='id') | list
         }}
       become: true
@@ -261,7 +261,7 @@
       loop: >-
         {{
           _nodes_list.stdout | from_json
-          | selectattr('given_name', 'match', '^' + inventory_hostname + '(-[a-z0-9]+)?$')
+          | selectattr('given_name', 'match', '^' + inventory_hostname + '(-[a-z0-9]{8})?$')
           | map(attribute='id') | list
         }}
       become: true
