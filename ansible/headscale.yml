@@ -59,6 +59,25 @@
         state: present
       become: true
 
+    - name: List existing headscale nodes
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale nodes list --output json
+      register: _all_nodes
+      become: true
+
+    - name: Delete duplicate-suffixed headscale nodes for managed hosts
+      community.docker.docker_container_exec:
+        container: headscale
+        command: "headscale nodes delete --identifier {{ item }} --force"
+      loop: >-
+        {{
+          _all_nodes.stdout | from_json
+          | selectattr('given_name', 'match', '^(' + (groups['all'] | difference(['localhost']) | join('|')) + ')-[a-z0-9]{8}$')
+          | map(attribute='id') | list
+        }}
+      become: true
+
 - name: Join all hosts to Headscale
   hosts: all:!localhost:!physical:!alakazam-deploy
   gather_facts: false
@@ -104,7 +123,7 @@
       loop: >-
         {{
           _nodes_list.stdout | from_json
-          | selectattr('given_name', 'match', '^' + inventory_hostname + '(-[a-z0-9]{8})?$')
+          | selectattr('given_name', 'equalto', inventory_hostname)
           | map(attribute='id') | list
         }}
       become: true
@@ -261,7 +280,7 @@
       loop: >-
         {{
           _nodes_list.stdout | from_json
-          | selectattr('given_name', 'match', '^' + inventory_hostname + '(-[a-z0-9]{8})?$')
+          | selectattr('given_name', 'equalto', inventory_hostname)
           | map(attribute='id') | list
         }}
       become: true
