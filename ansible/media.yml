@@ -246,7 +246,7 @@
           username =
           password =
           url_base = /
-          host_whitelist = sabnzbd,sabnzbd:8080,sabnzbd.home,localhost,127.0.0.1
+          host_whitelist = sabnzbd,sabnzbd:8080,sabnzbd.home,sabnzbd.wsh,localhost,127.0.0.1
           local_ranges = 172.16.0.0/12,192.168.0.0/16
 
           [servers]
