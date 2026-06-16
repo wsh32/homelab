@@ -245,7 +245,7 @@
         - _current_ip.stdout | trim != tailscale_ip
 
 - name: Join physical nodes to Headscale (no --reset, safe for Proxmox cluster)
-  hosts: physical
+  hosts: physical:!alakazam-deploy
   gather_facts: false
   serial: 1
 
