@@ -49,8 +49,12 @@ dns:
   base_domain: ts.home
   nameservers:
     global:
+      # AdGuard (100.64.1.2) is the only nameserver pushed to Tailscale
+      # clients. It forwards everything not matching *.wsh/*.home to
+      # 8.8.8.8/8.8.4.4 itself -- exposing 8.8.8.8 directly here too would
+      # let clients intermittently pick it for *.wsh queries, which it
+      # can't resolve (NXDOMAIN / ERR_NAME_NOT_RESOLVED).
       - 100.64.1.2  # diglett-dns static Tailscale IP
-      - 8.8.8.8
 
 oidc:
   only_start_if_oidc_is_available: false
