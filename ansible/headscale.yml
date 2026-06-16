@@ -59,10 +59,17 @@
         state: present
       become: true
 
+    - name: Stop headscale before database integrity check
+      community.docker.docker_container:
+        name: headscale
+        state: stopped
+      become: true
+
     - name: Recover headscale SQLite database if malformed
       ansible.builtin.shell: |
         set -e
         DB=/mnt/nas/docker/headscale/db.sqlite
+        sqlite3 "$DB" "PRAGMA wal_checkpoint(TRUNCATE);"
         sqlite3 "$DB" "PRAGMA integrity_check;" 2>&1 | grep -q '^ok$' && exit 0
         sqlite3 "$DB" ".recover" | sqlite3 "${DB}.recovered"
         mv "$DB" "${DB}.bak"
@@ -73,13 +80,11 @@
       changed_when: "'ok' not in _db_recover.stdout"
       become: true
 
-    - name: Restart headscale after database recovery
+    - name: Start headscale after database check
       community.docker.docker_container:
         name: headscale
         state: started
-        restart: true
       become: true
-      when: _db_recover.changed
 
     - name: Wait for headscale to be ready after restart
       ansible.builtin.wait_for:
@@ -87,7 +92,6 @@
         port: 443
         timeout: 60
       become: true
-      when: _db_recover.changed
 
 - name: Join all hosts to Headscale
   hosts: all:!localhost:!physical:!alakazam-deploy
