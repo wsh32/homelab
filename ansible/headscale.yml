@@ -11,6 +11,13 @@
   gather_facts: false
 
   tasks:
+    - name: Wait for headscale to be ready
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 443
+        timeout: 60
+      become: true
+
     - name: Read headscale server URL
       ansible.builtin.slurp:
         src: /etc/headscale.env
