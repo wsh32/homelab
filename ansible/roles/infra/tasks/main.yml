@@ -1388,6 +1388,10 @@
           url: "https://seerr.home/login"
         - matching_mode: "strict"
           url: "https://seerr.home/profile/settings/linked-accounts"
+        - matching_mode: "strict"
+          url: "https://seerr.wsh/login"
+        - matching_mode: "strict"
+          url: "https://seerr.wsh/profile/settings/linked-accounts"
       sub_mode: "user_email"
       signing_key: "{{ _signing_key_pk }}"
       property_mappings: "{{ _seerr_scope_pks }}"
@@ -1423,6 +1427,31 @@
     _seerr_oidc_client_id: "{{ _seerr_new_provider.json.client_id }}"
     _seerr_oidc_client_secret: "{{ _seerr_new_provider.json.client_secret }}"
   when: not _seerr_provider_exists
+
+- name: Fix Seerr OIDC provider redirect URIs to include .wsh
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/providers/oauth2/{{ _seerr_existing_provider.pk }}/"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      redirect_uris: "{{ _seerr_desired_uris }}"
+    status_code: 200
+  vars:
+    _seerr_desired_uris:
+      - matching_mode: "strict"
+        url: "https://seerr.home/login"
+      - matching_mode: "strict"
+        url: "https://seerr.home/profile/settings/linked-accounts"
+      - matching_mode: "strict"
+        url: "https://seerr.wsh/login"
+      - matching_mode: "strict"
+        url: "https://seerr.wsh/profile/settings/linked-accounts"
+  when: >
+    _seerr_provider_exists and
+    (_seerr_existing_provider.redirect_uris | default([]) | map(attribute='url') | sort | list) != (_seerr_desired_uris | map(attribute='url') | sort | list)
 
 - name: Set Seerr OIDC credentials from existing provider
   ansible.builtin.set_fact:

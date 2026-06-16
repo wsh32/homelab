@@ -235,27 +235,47 @@
         except FileNotFoundError:
             d = {}
 
-        desired = {
-            'slug': 'authentik',
-            'name': 'Authentik',
-            'issuerUrl': '{{ authentik_public_url }}/application/o/seerr/',
-            'clientId': '{{ _seerr_oidc_client_id }}',
-            'clientSecret': '{{ _seerr_oidc_client_secret }}',
-            'scopes': 'openid profile email',
-            'requiredClaims': '',
-            'newUserLogin': True,
-        }
+        # Two entries for the same Authentik application: 'authentik' is
+        # discovered via auth.home (LAN), 'authentik-wsh' via auth.wsh
+        # (Tailscale) -- so the OAuth2 authorize redirect stays on a host
+        # reachable from wherever seerr itself was reached.
+        desired_providers = [
+            {
+                'slug': 'authentik',
+                'name': 'Authentik',
+                'issuerUrl': '{{ authentik_public_url }}/application/o/seerr/',
+                'clientId': '{{ _seerr_oidc_client_id }}',
+                'clientSecret': '{{ _seerr_oidc_client_secret }}',
+                'scopes': 'openid profile email',
+                'requiredClaims': '',
+                'newUserLogin': True,
+            },
+            {
+                'slug': 'authentik-wsh',
+                'name': 'Authentik (Tailscale)',
+                'issuerUrl': 'https://auth.wsh/application/o/seerr/',
+                'clientId': '{{ _seerr_oidc_client_id }}',
+                'clientSecret': '{{ _seerr_oidc_client_secret }}',
+                'scopes': 'openid profile email',
+                'requiredClaims': '',
+                'newUserLogin': True,
+            },
+        ]
 
         providers = d.setdefault('oidc', {}).setdefault('providers', [])
-        existing = next((p for p in providers if p['slug'] == 'authentik'), None)
-        if existing == desired and d.get('main', {}).get('oidcLogin') == True:
+        all_match = d.get('main', {}).get('oidcLogin') == True
+        for desired in desired_providers:
+            existing = next((p for p in providers if p['slug'] == desired['slug']), None)
+            if existing != desired:
+                all_match = False
+            if existing:
+                existing.update(desired)
+            else:
+                providers.append(desired)
+
+        if all_match:
             print('no-change')
             sys.exit(0)
-
-        if existing:
-            existing.update(desired)
-        else:
-            providers.append(desired)
 
         d.setdefault('main', {})['oidcLogin'] = True
 
