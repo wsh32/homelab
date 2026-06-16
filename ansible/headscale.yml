@@ -24,23 +24,28 @@
              | regex_search('(?m)^HEADSCALE_SERVER_URL=(.+)$', '\1') | first }}
 
     - name: List existing pre-auth keys
-      ansible.builtin.command: timeout 30 docker exec headscale headscale preauthkeys list --output json
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale preauthkeys list --output json
       register: _existing_keys
       become: true
-      changed_when: false
 
     - name: Expire all existing pre-auth keys
-      ansible.builtin.command: "timeout 30 docker exec headscale headscale preauthkeys expire --id {{ item }}"
+      community.docker.docker_container_exec:
+        container: headscale
+        command: "headscale preauthkeys expire --id {{ item }}"
       loop: "{{ _existing_keys.stdout | from_json | map(attribute='id') | list }}"
       become: true
 
     - name: Generate fresh pre-auth key (1h expiry, reusable, tag:infra)
-      ansible.builtin.command: >-
-        timeout 30 docker exec headscale headscale preauthkeys create
-        --reusable
-        --expiration 1h
-        --tags tag:infra
-        --output json
+      community.docker.docker_container_exec:
+        container: headscale
+        command: >-
+          headscale preauthkeys create
+          --reusable
+          --expiration 1h
+          --tags tag:infra
+          --output json
       register: _new_key
       become: true
 
@@ -101,35 +106,37 @@
       delegate_to: diglett-dns
 
     - name: Restart headscale after database recovery
-      ansible.builtin.command: docker restart headscale
+      community.docker.docker_container:
+        name: headscale
+        state: started
+        restart: true
       become: true
       run_once: true
       delegate_to: diglett-dns
       when: _db_recover.changed
-      changed_when: true
 
-    - name: Wait for headscale gRPC to be ready after restart
-      ansible.builtin.command: timeout 10 docker exec headscale headscale nodes list --output json
+    - name: Wait for headscale to be ready after restart
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 443
+        timeout: 60
       become: true
       delegate_to: diglett-dns
       run_once: true
-      register: _headscale_ready
-      until: _headscale_ready.rc == 0
-      retries: 12
-      delay: 5
-      changed_when: false
       when: _db_recover.changed
 
     - name: Look up existing headscale node by hostname
-      ansible.builtin.command: timeout 30 docker exec headscale headscale nodes list --output json
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale nodes list --output json
       register: _nodes_list
       become: true
       delegate_to: diglett-dns
-      changed_when: false
 
     - name: Delete existing headscale node for this host
-      ansible.builtin.command: >-
-        timeout 30 docker exec headscale headscale nodes delete --identifier {{ item }} --force
+      community.docker.docker_container_exec:
+        container: headscale
+        command: "headscale nodes delete --identifier {{ item }} --force"
       loop: >-
         {{
           _nodes_list.stdout | from_json
