@@ -1220,6 +1220,8 @@
           url: "https://jellyfin.home/sso/OID/redirect/authentik"
         - matching_mode: "strict"
           url: "https://jellyfin.wsh/sso/OID/redirect/authentik"
+        - matching_mode: "strict"
+          url: "https://jellyfin.wsh/sso/OID/redirect/authentik-wsh"
       sub_mode: "user_email"
       signing_key: "{{ _signing_key_pk }}"
       property_mappings: "{{ _jf_scope_pks }}"
@@ -1278,6 +1280,8 @@
         url: "https://jellyfin.home/sso/OID/redirect/authentik"
       - matching_mode: "strict"
         url: "https://jellyfin.wsh/sso/OID/redirect/authentik"
+      - matching_mode: "strict"
+        url: "https://jellyfin.wsh/sso/OID/redirect/authentik-wsh"
   when: >
     _jf_provider_exists and
     (_jf_existing_provider.redirect_uris | default([]) | map(attribute='url') | sort | list) != (_jf_desired_uris | map(attribute='url') | sort | list)

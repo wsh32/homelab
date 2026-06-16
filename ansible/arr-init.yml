@@ -980,7 +980,7 @@
         body:
           SamlConfigs: {}
           OidConfigs:
-            authentik:
+            authentik: &jf_oidc_provider_base
               OidEndpoint: "https://auth.home/application/o/jellyfin/"
               OidClientId: "{{ _jf_oidc_client_id }}"
               OidSecret: "{{ _jf_oidc_client_secret }}"
@@ -1002,6 +1002,13 @@
               RoleClaim: "groups"
               DoNotValidateEndpoints: true
               DoNotValidateIssuerName: true
+            # Same Authentik application as "authentik" above, discovered via
+            # auth.wsh instead of auth.home so the OAuth2 authorize redirect
+            # stays on a host reachable off-LAN over Tailscale.
+            authentik-wsh:
+              <<: *jf_oidc_provider_base
+              OidEndpoint: "https://auth.wsh/application/o/jellyfin/"
+              DefaultProvider: "false"
         status_code: 204
       no_log: true
       when: >
@@ -1009,12 +1016,14 @@
         and jellyfin_api_key != ''
         and _sso_config_current is not skipped
         and (('authentik' not in (_sso_config_current.json.OidConfigs | default({})))
+             or ('authentik-wsh' not in (_sso_config_current.json.OidConfigs | default({})))
              or (_sso_config_current.json.OidConfigs.authentik.DefaultProvider | default('false')) != 'true'
              or ('admins' not in (_sso_config_current.json.OidConfigs.authentik.AdminRoles | default([])))
              or ('admins' not in (_sso_config_current.json.OidConfigs.authentik.Roles | default([])))
              or ('users' not in (_sso_config_current.json.OidConfigs.authentik.Roles | default([])))
              or (_sso_config_current.json.OidConfigs.authentik.RoleClaim | default('')) != 'groups'
-             or (_sso_config_current.json.OidConfigs.authentik.OidClientId | default('')) != _jf_oidc_client_id)
+             or (_sso_config_current.json.OidConfigs.authentik.OidClientId | default('')) != _jf_oidc_client_id
+             or (_sso_config_current.json.OidConfigs['authentik-wsh'].OidClientId | default('')) != _jf_oidc_client_id)
 
     # ── Block 3b.5: Jellyfin encoding settings ───────────────────────────────
 
