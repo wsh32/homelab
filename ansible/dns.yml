@@ -83,11 +83,25 @@
             print('invalid')
             sys.exit(0)
         exp = match.get('expiration', '')
-        if not exp or exp.startswith('0001-'):
+        if not exp:
             print('valid')
             sys.exit(0)
-        exp_dt = datetime.fromisoformat(exp.replace('Z', '+00:00'))
-        print('valid' if exp_dt > datetime.now(timezone.utc) else 'invalid')
+        if isinstance(exp, dict):
+            # protobuf timestamp format: {seconds: N, nanos: N}
+            exp_ts = exp.get('seconds', 0)
+            if exp_ts == 0:
+                print('valid')
+                sys.exit(0)
+            exp_dt = datetime.fromtimestamp(exp_ts, tz=timezone.utc)
+        else:
+            # ISO string format
+            if exp.startswith('0001-'):
+                print('valid')
+                sys.exit(0)
+            exp_dt = datetime.fromisoformat(exp.replace('Z', '+00:00'))
+        now = datetime.now(timezone.utc)
+        # Key must expire strictly in the future (not at creation time = expiration 0 bug)
+        print('valid' if exp_dt > now else 'invalid')
         " "$key"
       args:
         executable: /bin/bash
@@ -110,7 +124,7 @@
     - name: Generate reusable pre-auth key (no expiry)
       community.docker.docker_container_exec:
         container: headscale
-        command: "headscale preauthkeys create --user {{ headscale_user_id }} --reusable --expiration 0 --output json"
+        command: "headscale preauthkeys create --user {{ headscale_user_id }} --reusable --expiration 876000h --output json"
       register: preauthkey_result
       become: true
       when: not _cached_key_valid
