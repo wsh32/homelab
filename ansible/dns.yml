@@ -78,7 +78,9 @@
         from datetime import datetime, timezone
         keys = json.load(sys.stdin)
         key = sys.argv[1]
-        match = next((k for k in keys if k['key'] == key), None)
+        # headscale redacts keys in list output (hskey-auth-prefix-***)
+        # match by prefix: strip trailing *** and check if cached key starts with it
+        match = next((k for k in keys if key.startswith(k['key'].replace('***', ''))), None)
         if not match:
             print('invalid')
             sys.exit(0)
@@ -87,20 +89,17 @@
             print('valid')
             sys.exit(0)
         if isinstance(exp, dict):
-            # protobuf timestamp format: {seconds: N, nanos: N}
             exp_ts = exp.get('seconds', 0)
             if exp_ts == 0:
                 print('valid')
                 sys.exit(0)
             exp_dt = datetime.fromtimestamp(exp_ts, tz=timezone.utc)
         else:
-            # ISO string format
             if exp.startswith('0001-'):
                 print('valid')
                 sys.exit(0)
             exp_dt = datetime.fromisoformat(exp.replace('Z', '+00:00'))
         now = datetime.now(timezone.utc)
-        # Key must expire strictly in the future (not at creation time = expiration 0 bug)
         print('valid' if exp_dt > now else 'invalid')
         " "$key"
       args:
