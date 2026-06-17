@@ -29,8 +29,7 @@ certificatesResolvers:
       email: admin@team.rocket
       storage: /acme/acme.json
       caServer: https://step-ca:9000/acme/acme/directory
-      httpChallenge:
-        entryPoint: web
+      tlsChallenge: {}
 
 log:
   level: INFO
