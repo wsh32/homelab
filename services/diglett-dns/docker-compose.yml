@@ -26,6 +26,11 @@ services:
       - ./headscale:/etc/headscale
       - /mnt/nas/docker/headscale:/var/lib/headscale
     env_file: /etc/headscale.env  # provides HEADSCALE_SERVER_URL, HEADSCALE_TLS_LETSENCRYPT_HOSTNAME
+    # AdGuard runs on host network and takes port 53, breaking Docker's internal DNS (127.0.0.11).
+    # Use public resolvers directly so OIDC issuer lookup (auth.wesleysoohoo.me) succeeds.
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     command: serve
 
   headplane:
@@ -40,6 +45,9 @@ services:
       - ./headplane:/etc/headplane:ro
       - ./headscale:/etc/headscale:ro
       - /mnt/nas/docker/headplane:/var/lib/headplane
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
 
   cloudflare-ddns:
     image: favonia/cloudflare-ddns:1.16.2

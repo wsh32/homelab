@@ -70,27 +70,60 @@
       become: true
       when: tailscale_auth_key_stat.stat.exists
 
-    - name: List pre-auth keys in headscale DB
-      community.docker.docker_container_exec:
-        container: headscale
-        command: "headscale preauthkeys list --output json"
-      register: preauthkeys_list
+    - name: Check if cached pre-auth key is present and unexpired in headscale
+      ansible.builtin.shell: |
+        key=$(tr -d '\n' < /etc/tailscale-auth.key)
+        docker exec headscale headscale preauthkeys list --output json | python3 -c "
+        import json, sys
+        from datetime import datetime, timezone
+        keys = json.load(sys.stdin)
+        key = sys.argv[1]
+        # headscale redacts keys in list output (hskey-auth-prefix-***)
+        # match by prefix: strip trailing *** and check if cached key starts with it
+        match = next((k for k in keys if key.startswith(k['key'].replace('***', ''))), None)
+        if not match:
+            print('invalid')
+            sys.exit(0)
+        exp = match.get('expiration', '')
+        if not exp:
+            print('valid')
+            sys.exit(0)
+        if isinstance(exp, dict):
+            exp_ts = exp.get('seconds', 0)
+            if exp_ts == 0:
+                print('valid')
+                sys.exit(0)
+            exp_dt = datetime.fromtimestamp(exp_ts, tz=timezone.utc)
+        else:
+            if exp.startswith('0001-'):
+                print('valid')
+                sys.exit(0)
+            exp_dt = datetime.fromisoformat(exp.replace('Z', '+00:00'))
+        now = datetime.now(timezone.utc)
+        print('valid' if exp_dt > now else 'invalid')
+        " "$key"
+      args:
+        executable: /bin/bash
+      register: _key_validity_check
+      changed_when: false
       become: true
       when: tailscale_auth_key_stat.stat.exists
 
-    - name: Determine if cached key is still valid in headscale DB
+    - name: Set cached key validity fact
       ansible.builtin.set_fact:
-        _cached_key_valid: >-
-          {{
-            tailscale_auth_key_stat.stat.exists and
-            (tailscale_auth_key_raw.content | default('') | b64decode | trim) in
-            (preauthkeys_list.stdout | default('[]') | from_json | map(attribute='key') | list)
-          }}
+        _cached_key_valid: "{{ tailscale_auth_key_stat.stat.exists and (_key_validity_check.stdout | default('invalid')) == 'valid' }}"
 
-    - name: Generate reusable pre-auth key (1 year expiry)
+    - name: Remove invalid cached pre-auth key
+      ansible.builtin.file:
+        path: /etc/tailscale-auth.key
+        state: absent
+      become: true
+      when: tailscale_auth_key_stat.stat.exists and not _cached_key_valid
+
+    - name: Generate reusable pre-auth key (no expiry)
       community.docker.docker_container_exec:
         container: headscale
-        command: "headscale preauthkeys create --user {{ headscale_user_id }} --reusable --expiration 8760h --output json"
+        command: "headscale preauthkeys create --user infra --reusable --expiration 876000h --output json"
       register: preauthkey_result
       become: true
       when: not _cached_key_valid
@@ -125,6 +158,24 @@
       become: true
       when: not _cached_key_valid
 
+    - name: Check if tailscale is already registered with headscale
+      ansible.builtin.command: tailscale status --json
+      register: _ts_status
+      failed_when: false
+      changed_when: false
+      become: true
+
+    - name: Set tailscale registration state fact
+      ansible.builtin.set_fact:
+        _ts_registered: "{{ (_ts_status.stdout | from_json).BackendState | default('') == 'Running' }}"
+
+    - name: Register with headscale using pre-auth key (first boot only)
+      ansible.builtin.shell: |
+        . /etc/headscale.env
+        tailscale up --login-server=$HEADSCALE_SERVER_URL --auth-key=$(cat /etc/tailscale-auth.key) --advertise-exit-node --hostname=diglett-dns
+      become: true
+      when: not _ts_registered
+
     - name: Install tailscale-join-headscale systemd service
       ansible.builtin.copy:
         dest: /etc/systemd/system/tailscale-join-headscale.service
@@ -143,7 +194,7 @@
           TimeoutStartSec=300
           ExecStartPre=/bin/bash -c 'until nc -z localhost 443; do sleep 2; done'
           ExecStartPre=ethtool -K eth0 rx-udp-gro-forwarding on rx-gro-list off
-          ExecStart=/bin/bash -c '. /etc/headscale.env && tailscale up --login-server=$HEADSCALE_SERVER_URL --auth-key=$(cat /etc/tailscale-auth.key) --advertise-exit-node --hostname=diglett-dns --force-reauth'
+          ExecStart=/bin/bash -c '. /etc/headscale.env && tailscale up --login-server=$HEADSCALE_SERVER_URL --advertise-exit-node --hostname=diglett-dns'
 
           [Install]
           WantedBy=multi-user.target
