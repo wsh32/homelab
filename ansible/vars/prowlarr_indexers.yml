@@ -9,6 +9,7 @@
 #   (torrent indexers are looked up by name in Prowlarr's schema endpoint)
 #   api_key_var   -- Infisical/secrets.yml key name (omit for public indexers)
 #   privacy       -- "public", "semiPublic", or "private" (default: private)
+#   priority      -- Prowlarr indexer priority, 1 (highest) to 50 (default: 25)
 #   categories    -- Newznab category IDs to enable
 
 prowlarr_indexers:
@@ -17,10 +18,20 @@ prowlarr_indexers:
     url: https://api.nzbplanet.net
     api_key_var: NZBPLANET_API_KEY
     privacy: private
+    priority: 10
+    categories: [2000, 2010, 2020, 2030, 2040, 2045, 2050, 5000, 5010, 5020, 5030, 5040, 5045, 5050, 5060, 5070, 5080, 5090]
+
+  - name: NZBGeek
+    protocol: usenet
+    url: https://api.nzbgeek.info
+    api_key_var: NZBGEEK_API_KEY
+    privacy: private
+    priority: 10
     categories: [2000, 2010, 2020, 2030, 2040, 2045, 2050, 5000, 5010, 5020, 5030, 5040, 5045, 5050, 5060, 5070, 5080, 5090]
 
   - name: The Pirate Bay
     protocol: torrent
     url: https://thepiratebay.org
     privacy: public
+    priority: 50
     categories: [2000, 2010, 2020, 2030, 2040, 2045, 2050, 5000, 5010, 5020, 5030, 5040, 5045, 5050, 5060, 5070, 5080, 5090]
