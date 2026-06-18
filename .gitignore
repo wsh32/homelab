@@ -23,3 +23,6 @@ services/anton/traefik/acme/
 
 # OS
 .DS_Store
+
+# Claude Code internal state
+.claude/
