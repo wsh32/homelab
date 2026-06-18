@@ -60,7 +60,8 @@ locations:
             tailscale_exit_node: true
             services:
               - name: adguardhome
-                port: 3000
+                hostname: adguard
+                port: 3000       # network_mode: host; host port == container port
                 nfs_data: docker/adguardhome
                 authentik: none
               - name: headscale
@@ -81,6 +82,9 @@ locations:
             tailscale_ip: 100.64.1.20
             vm_id: 201
             vm_roles: [services]
+            nfs_mounts:
+              - export: docker
+                mount: /mnt/nas/docker
             services:
               - name: traefik
                 port: 80
@@ -88,10 +92,9 @@ locations:
                 traefik: false   # traefik itself; co-located services use Docker labels
               - name: step-ca
                 hostname: ca
-                port: 9000
+                port: 80         # ca-page container serves the UI on port 80
                 nfs_data: docker/step-ca
                 authentik: none
-                traefik: false   # internal CA, no public Traefik route
               - name: postgres
                 port: 5432
                 authentik: none

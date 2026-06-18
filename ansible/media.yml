@@ -24,7 +24,7 @@
 
   vars:
     network: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
-    nas_ip: "{{ network.nodes.alakazam.ip }}"
+    nas_ip: "{{ network.locations.bryant.nodes.alakazam.ip }}"
 
   pre_tasks:
     - name: Load local secrets file if present (ansible/secrets.yml -- gitignored)
