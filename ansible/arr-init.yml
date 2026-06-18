@@ -51,6 +51,10 @@
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/vars/sabnzbd_servers.yml"
 
+    - name: Load media quality profile config
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/vars/media_config.yml"
+
     # ── Load Infisical push credentials from the target ──────────────────────
 
     - name: Load /etc/infisical.env (push credentials)
@@ -2150,10 +2154,10 @@
         return_content: true
       register: radarr_quality_profiles
 
-    - name: Set Radarr 4K WEB Movies profile facts
+    - name: Set Radarr default profile facts
       ansible.builtin.set_fact:
-        radarr_4k_profile_id: "{{ radarr_quality_profiles.json | selectattr('name', 'equalto', '4K WEB Movies') | map(attribute='id') | list | first | default(1) }}"
-        radarr_4k_profile_name: "{{ radarr_quality_profiles.json | selectattr('name', 'equalto', '4K WEB Movies') | map(attribute='name') | list | first | default('Any') }}"
+        radarr_4k_profile_id: "{{ radarr_quality_profiles.json | selectattr('name', 'equalto', seerr_radarr_default_profile) | map(attribute='id') | list | first | default(1) }}"
+        radarr_4k_profile_name: "{{ radarr_quality_profiles.json | selectattr('name', 'equalto', seerr_radarr_default_profile) | map(attribute='name') | list | first | default('Any') }}"
 
     - name: Get existing Radarr instances in Seerr (for profile update)
       ansible.builtin.uri:
@@ -2164,7 +2168,7 @@
       register: seerr_radarr_for_update
       when: seerr_api_key != '' and seerr_api_key != 'placeholder'
 
-    - name: Update Seerr Radarr instance to use 4K WEB Movies profile
+    - name: Update Seerr Radarr instance to use WEB-4K profile
       vars:
         _instance: "{{ seerr_radarr_for_update.json | selectattr('name', 'equalto', 'Radarr') | list | first | default({}) }}"
         _body: "{{ _instance | combine({'activeProfileId': radarr_4k_profile_id | int, 'activeProfileName': radarr_4k_profile_name}) | dict2items | rejectattr('key', 'equalto', 'id') | items2dict }}"
@@ -2190,10 +2194,10 @@
         return_content: true
       register: sonarr_quality_profiles
 
-    - name: Set Sonarr WEB-1080p profile facts
+    - name: Set Sonarr default profile facts
       ansible.builtin.set_fact:
-        sonarr_web1080p_profile_id: "{{ sonarr_quality_profiles.json | selectattr('name', 'equalto', 'WEB-1080p') | map(attribute='id') | list | first | default(1) }}"
-        sonarr_web1080p_profile_name: "{{ sonarr_quality_profiles.json | selectattr('name', 'equalto', 'WEB-1080p') | map(attribute='name') | list | first | default('Any') }}"
+        sonarr_web1080p_profile_id: "{{ sonarr_quality_profiles.json | selectattr('name', 'equalto', seerr_sonarr_default_profile) | map(attribute='id') | list | first | default(1) }}"
+        sonarr_web1080p_profile_name: "{{ sonarr_quality_profiles.json | selectattr('name', 'equalto', seerr_sonarr_default_profile) | map(attribute='name') | list | first | default('Any') }}"
 
     - name: Get existing Sonarr instances in Seerr (for profile update)
       ansible.builtin.uri:
