@@ -1,0 +1,3 @@
+---
+jellyfin_url: "http://localhost:8096"
+jellyfin_sso_plugin_version: "4.0.0.4"

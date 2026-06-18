@@ -1,0 +1,234 @@
+---
+# Idempotent initialization playbook for the machamp arr/media stack.
+# Replaces scripts/servarr-init.sh and scripts/jellyfin-init.sh.
+#
+# Imported by site.yml after media.yml has started the compose stack.
+#
+# On first run: reads Infisical push credentials from /etc/infisical.env,
+# auto-generates any missing secrets, harvests arr API keys from service
+# config files, and pushes everything back to Infisical.
+# Only PIA_USERNAME and PIA_PASSWORD must be seeded manually.
+#
+# Subsequent runs: all keys already in homelab.env; no Infisical writes occur.
+
+- name: Initialize arr and media stack on machamp-media
+  hosts: machamp-media
+  gather_facts: false
+
+  pre_tasks:
+
+    - name: Wait for Infisical to be reachable
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/status"
+        status_code: 200
+      register: _inf_ready
+      until: _inf_ready.status == 200
+      retries: 30
+      delay: 10
+      delegate_to: localhost
+
+    # Allow infisical_host override from secrets.yml on the control node
+    - name: Load local secrets file if present
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      failed_when: false
+
+    - name: Load Prowlarr indexer definitions
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/vars/prowlarr_indexers.yml"
+
+    - name: Load Bazarr provider definitions
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/vars/bazarr_providers.yml"
+
+    - name: Load Jellyfin library definitions
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/vars/jellyfin_libraries.yml"
+
+    - name: Load SABnzbd server definitions
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/vars/sabnzbd_servers.yml"
+
+    # ── Load Infisical push credentials from the target ──────────────────────
+
+    - name: Load /etc/infisical.env (push credentials)
+      ansible.builtin.slurp:
+        src: /etc/infisical.env
+      register: _infisical_env_raw
+      become: true
+
+    - name: Set Infisical push credentials
+      ansible.builtin.set_fact:
+        _inf_client_id: "{{ _inf | regex_search('(?m)^INFISICAL_CLIENT_ID=(.+)$', '\\1') | first }}"
+        _inf_client_secret: "{{ _inf | regex_search('(?m)^INFISICAL_CLIENT_SECRET=(.+)$', '\\1') | first }}"
+        _inf_project_id: "{{ _inf | regex_search('(?m)^INFISICAL_PROJECT_ID=(.+)$', '\\1') | first }}"
+        _inf_environment: "{{ (_inf | regex_search('(?m)^INFISICAL_ENVIRONMENT=(.+)$', '\\1') or ['prod']) | first }}"
+      vars:
+        _inf: "{{ _infisical_env_raw.content | b64decode }}"
+
+    - name: Get Infisical access token via Universal Auth
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v1/auth/universal-auth/login"
+        method: POST
+        body_format: json
+        body:
+          clientId: "{{ _inf_client_id }}"
+          clientSecret: "{{ _inf_client_secret }}"
+        status_code: 200
+      register: _inf_token
+      no_log: true
+
+    # ── Load current secrets (default '' for keys not yet in Infisical) ──────
+
+    - name: Load secrets from /etc/homelab.env
+      ansible.builtin.slurp:
+        src: /etc/homelab.env
+      register: _homelab_env_raw
+      become: true
+
+    - name: Set API key facts from homelab.env
+      ansible.builtin.set_fact:
+        _env: "{{ _homelab_env_raw.content | b64decode }}"
+        prowlarr_api_key: "{{ (_homelab_env_raw.content | b64decode | regex_search('(?m)^PROWLARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        radarr_api_key: "{{ (_homelab_env_raw.content | b64decode | regex_search('(?m)^RADARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        sonarr_api_key: "{{ (_homelab_env_raw.content | b64decode | regex_search('(?m)^SONARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        bazarr_api_key: "{{ (_homelab_env_raw.content | b64decode | regex_search('(?m)^BAZARR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        seerr_api_key: "{{ (_homelab_env_raw.content | b64decode | regex_search('(?m)^SEERR_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        jellyfin_admin_password: "{{ (_homelab_env_raw.content | b64decode | regex_search('(?m)^JELLYFIN_ADMIN_PASSWORD=(.+)$', '\\1') or ['']) | first }}"
+        jellyfin_api_key: "{{ (_homelab_env_raw.content | b64decode | regex_search('(?m)^JELLYFIN_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+        sabnzbd_api_key: "{{ (_homelab_env_raw.content | b64decode | regex_search('(?m)^SABNZBD_API_KEY=(.+)$', '\\1') or ['']) | first }}"
+
+    # ── Generate secrets we control (only if absent) ─────────────────────────
+
+    - name: Record which secrets need generation
+      ansible.builtin.set_fact:
+        _jellyfin_password_new: "{{ jellyfin_admin_password == '' }}"
+        _bazarr_key_new: "{{ bazarr_api_key == '' }}"
+        _seerr_key_new: "{{ seerr_api_key == '' }}"
+        _sabnzbd_key_new: "{{ sabnzbd_api_key == '' }}"
+
+    - name: Generate Jellyfin admin password
+      ansible.builtin.set_fact:
+        jellyfin_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=24, chars=['ascii_letters', 'digits']) }}"
+      when: _jellyfin_password_new
+
+    - name: Generate Bazarr API key
+      ansible.builtin.set_fact:
+        bazarr_api_key: "{{ lookup('ansible.builtin.password', '/dev/null', length=32, chars=['0123456789abcdef']) }}"
+      when: _bazarr_key_new
+
+    - name: Set Seerr API key placeholder
+      ansible.builtin.set_fact:
+        seerr_api_key: "placeholder"
+      when: _seerr_key_new
+
+    - name: Upsert JELLYFIN_ADMIN_PASSWORD in Infisical
+      ansible.builtin.include_tasks: tasks/infisical-upsert.yml
+      vars:
+        _inf_upsert_name: JELLYFIN_ADMIN_PASSWORD
+        _inf_upsert_value: "{{ jellyfin_admin_password }}"
+      when: _jellyfin_password_new
+
+    - name: Upsert BAZARR_API_KEY in Infisical
+      ansible.builtin.include_tasks: tasks/infisical-upsert.yml
+      vars:
+        _inf_upsert_name: BAZARR_API_KEY
+        _inf_upsert_value: "{{ bazarr_api_key }}"
+      when: _bazarr_key_new
+
+    - name: Generate SABnzbd API key
+      ansible.builtin.set_fact:
+        sabnzbd_api_key: "{{ lookup('ansible.builtin.password', '/dev/null', length=32, chars=['0123456789abcdef']) }}"
+      when: _sabnzbd_key_new
+
+    - name: Upsert SABNZBD_API_KEY in Infisical
+      ansible.builtin.include_tasks: tasks/infisical-upsert.yml
+      vars:
+        _inf_upsert_name: SABNZBD_API_KEY
+        _inf_upsert_value: "{{ sabnzbd_api_key }}"
+      when: _sabnzbd_key_new
+
+    - name: Upsert news server credentials in Infisical
+      ansible.builtin.include_tasks: tasks/infisical-upsert.yml
+      vars:
+        _inf_upsert_name: "{{ cred_item }}"
+        _inf_upsert_value: "{{ lookup('vars', cred_item | lower, default='') }}"
+      loop: "{{ sabnzbd_servers | map(attribute='username_var') | list + sabnzbd_servers | map(attribute='password_var') | list }}"
+      loop_control:
+        loop_var: cred_item
+      when: (lookup('vars', cred_item | lower, default='')) not in ['', 'REPLACE_ME']
+
+    - name: Upsert indexer API keys in Infisical
+      ansible.builtin.include_tasks: tasks/infisical-upsert.yml
+      vars:
+        _inf_upsert_name: "{{ idx_item.api_key_var }}"
+        _inf_upsert_value: "{{ lookup('vars', idx_item.api_key_var | lower, default='') }}"
+      loop: "{{ prowlarr_indexers | selectattr('api_key_var', 'defined') | list }}"
+      loop_control:
+        loop_var: idx_item
+      when: (lookup('vars', idx_item.api_key_var | lower, default='')) not in ['', 'REPLACE_ME']
+
+    - name: Fetch all secrets from Infisical after generating keys
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        status_code: 200
+      register: _infisical_refreshed
+      no_log: true
+      when: _jellyfin_password_new or _bazarr_key_new or _sabnzbd_key_new
+
+    - name: Write refreshed /etc/homelab.env after generating keys
+      ansible.builtin.copy:
+        dest: /etc/homelab.env
+        mode: "0600"
+        owner: root
+        group: root
+        content: |
+          {% for s in _infisical_refreshed.json.secrets %}
+          {{ s.secretKey }}={{ s.secretValue }}
+          {% endfor %}
+      become: true
+      no_log: true
+      when: _jellyfin_password_new or _bazarr_key_new or _sabnzbd_key_new
+
+  tasks:
+
+    - name: Initialize qBittorrent
+      ansible.builtin.include_role:
+        name: qbittorrent-init
+
+    - name: Initialize SABnzbd
+      ansible.builtin.include_role:
+        name: sabnzbd-init
+
+    - name: Initialize Jellyfin
+      ansible.builtin.include_role:
+        name: jellyfin-init
+
+    - name: Initialize Radarr
+      ansible.builtin.include_role:
+        name: radarr-init
+
+    - name: Initialize Sonarr
+      ansible.builtin.include_role:
+        name: sonarr-init
+
+    - name: Initialize Prowlarr
+      ansible.builtin.include_role:
+        name: prowlarr-init
+
+    - name: Initialize Bazarr
+      ansible.builtin.include_role:
+        name: bazarr-init
+
+    - name: Initialize Seerr
+      ansible.builtin.include_role:
+        name: seerr-init
+
+    - name: Run Recyclarr sync
+      ansible.builtin.include_role:
+        name: recyclarr-init
+
+    - name: Update Seerr quality profiles after Recyclarr sync
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/roles/seerr-init/tasks/update-quality-profiles.yml"

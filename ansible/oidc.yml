@@ -1,0 +1,186 @@
+---
+# Inject Authentik OIDC credentials into all services that need them.
+# Run after infra.yml has bootstrapped Authentik and written per-service
+# credential files to NFS under /mnt/nas/docker/<service>-oidc.env.
+#
+# Prerequisites:
+#   - ansible-playbook ansible/infra.yml must have completed successfully
+#   - Target VMs must be up and NFS must be mounted
+#
+# Usage:
+#   ansible-playbook ansible/oidc.yml
+
+- name: Inject OIDC credentials into Headplane (diglett-dns)
+  hosts: diglett-dns
+  gather_facts: false
+
+  vars:
+    network: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
+    nas_ip: "{{ network.locations.bryant.nodes.alakazam.ip }}"
+
+  pre_tasks:
+    - name: Load secrets.yml if present
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      failed_when: false
+
+  tasks:
+    - name: Mount NFS share
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/nfs-mount.yml"
+      vars:
+        nfs_mount_path: /mnt/nas/docker
+        nfs_source_path: "{{ nas_ip }}:/mnt/apps/docker"
+
+    - name: Check if headplane OIDC credentials are available on NFS
+      ansible.builtin.stat:
+        path: /mnt/nas/docker/headplane-oidc.env
+      register: _hp_oidc_env_stat
+      become: true
+
+    - name: Fail if headplane OIDC env not yet written by infra.yml
+      ansible.builtin.fail:
+        msg: >
+          /mnt/nas/docker/headplane-oidc.env not found.
+          Run ansible-playbook ansible/infra.yml first.
+      when: not _hp_oidc_env_stat.stat.exists
+
+    - name: Read headplane OIDC credentials from NFS
+      ansible.builtin.slurp:
+        src: /mnt/nas/docker/headplane-oidc.env
+      register: _hp_oidc_env_raw
+      become: true
+
+    - name: Parse headplane OIDC credentials
+      ansible.builtin.set_fact:
+        _hp_oidc_client_id: "{{ (_hp_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADPLANE_OIDC_CLIENT_ID=(.+)$', '\\1') | first }}"
+        _hp_oidc_client_secret: "{{ (_hp_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADPLANE_OIDC_CLIENT_SECRET=(.+)$', '\\1') | first }}"
+
+    - name: Check if headplane API key is provisioned
+      ansible.builtin.stat:
+        path: /mnt/nas/docker/headplane/api.key
+      register: _hp_api_key_stat
+      become: true
+
+    - name: Read headplane API key
+      ansible.builtin.slurp:
+        src: /mnt/nas/docker/headplane/api.key
+      register: _hp_api_key_raw
+      become: true
+      when: _hp_api_key_stat.stat.exists
+
+    - name: Remove any existing OIDC blocks from headplane config
+      ansible.builtin.shell: |
+        sed -i '/^# BEGIN OIDC/,/^# END OIDC/d' \
+          /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
+      changed_when: false
+
+    - name: Inject OIDC block into headplane config
+      ansible.builtin.blockinfile:
+        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
+        marker: "# {mark} OIDC -- managed by Ansible"
+        block: |
+          oidc:
+            # headplane only supports a single static issuer (no per-domain
+            # discovery like Jellyfin/Seerr), so it's pinned to the public
+            # auth.wesleysoohoo.me URL -- reachable from LAN, remote internet,
+            # and Tailscale alike, so OIDC login works from either hostname.
+            issuer: "{{ authentik_public_url }}/application/o/headplane/"
+            client_id: "{{ _hp_oidc_client_id }}"
+            client_secret: "{{ _hp_oidc_client_secret }}"
+            headscale_api_key: "{{ _hp_api_key_raw.content | b64decode | trim if _hp_api_key_stat.stat.exists else '' }}"
+            disable_api_key_login: false
+            use_pkce: true
+      notify: Restart headplane
+
+  handlers:
+    - name: Restart headplane
+      community.docker.docker_container:
+        name: headplane
+        state: started
+        restart: true
+      become: true
+
+- name: Inject OIDC credentials into Headscale (diglett-dns)
+  hosts: diglett-dns
+  gather_facts: false
+
+  vars:
+    network: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
+    nas_ip: "{{ network.locations.bryant.nodes.alakazam.ip }}"
+
+  pre_tasks:
+    - name: Load secrets.yml if present
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      failed_when: false
+
+  tasks:
+    - name: Mount NFS share
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/nfs-mount.yml"
+      vars:
+        nfs_mount_path: /mnt/nas/docker
+        nfs_source_path: "{{ nas_ip }}:/mnt/apps/docker"
+
+
+    - name: Check if headscale OIDC credentials are available on NFS
+      ansible.builtin.stat:
+        path: /mnt/nas/docker/headscale-oidc.env
+      register: _hs_oidc_env_stat
+      become: true
+
+    - name: Fail if headscale OIDC env not yet written by infra.yml
+      ansible.builtin.fail:
+        msg: >
+          /mnt/nas/docker/headscale-oidc.env not found.
+          Run ansible-playbook ansible/infra.yml first.
+      when: not _hs_oidc_env_stat.stat.exists
+
+    - name: Read headscale OIDC credentials from NFS
+      ansible.builtin.slurp:
+        src: /mnt/nas/docker/headscale-oidc.env
+      register: _hs_oidc_env_raw
+      become: true
+
+    - name: Parse headscale OIDC credentials
+      ansible.builtin.set_fact:
+        _hs_oidc_client_id: "{{ (_hs_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADSCALE_OIDC_CLIENT_ID=(.+)$', '\\1') | first }}"
+        _hs_oidc_client_secret: "{{ (_hs_oidc_env_raw.content | b64decode) | regex_search('(?m)^HEADSCALE_OIDC_CLIENT_SECRET=(.+)$', '\\1') | first }}"
+
+    - name: Inject OIDC issuer into headscale config
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headscale/config.yaml
+        regexp: '^\s+issuer:'
+        line: "  issuer: \"{{ authentik_public_url }}/application/o/headscale/\""
+      notify: Restart headscale
+
+    - name: Inject OIDC client ID into headscale config
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headscale/config.yaml
+        regexp: '^\s+client_id:'
+        line: "  client_id: \"{{ _hs_oidc_client_id }}\""
+      notify: Restart headscale
+
+    - name: Inject OIDC client secret into headscale config
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headscale/config.yaml
+        regexp: '^\s+client_secret:'
+        line: "  client_secret: \"{{ _hs_oidc_client_secret }}\""
+      notify: Restart headscale
+
+    - name: Enable only_start_if_oidc_is_available now that Authentik is up
+      ansible.builtin.lineinfile:
+        path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headscale/config.yaml
+        regexp: '^\s+only_start_if_oidc_is_available:'
+        line: "  only_start_if_oidc_is_available: true"
+      notify: Restart headscale
+
+  handlers:
+    - name: Restart headscale
+      community.docker.docker_container:
+        name: headscale
+        state: started
+        restart: true
+      become: true
+
+# Add a play here for each additional host that needs OIDC injection.
+# Pattern: read /mnt/nas/docker/<service>-oidc.env, inject into service config.
