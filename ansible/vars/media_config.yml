@@ -1,0 +1,6 @@
+# Default quality profiles assigned to Radarr/Sonarr instances in Seerr.
+# Must match profile names defined in services/machamp-media/config/recyclarr/recyclarr.yml.
+# Users can still override per-request in the Seerr UI.
+
+seerr_radarr_default_profile: WEB-4K
+seerr_sonarr_default_profile: WEB-1080p
