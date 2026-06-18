@@ -1,6 +1,6 @@
 # Recyclarr configuration -- syncs TRaSH Guide quality profiles to Radarr and Sonarr.
 # API keys are read from environment variables (injected by Infisical at runtime).
-# Profile: Option B -- 4K WEB movies, 1080p WEB TV (default) + 4K WEB TV (selectable), no Remux.
+# Profiles: WEB-4K (default for movies) + WEB-1080p, across both Radarr and Sonarr. No Remux.
 
 radarr:
   radarr-main:
@@ -9,7 +9,7 @@ radarr:
     include:
       - template: radarr-quality-definition-movie
     quality_profiles:
-      - name: 4K WEB Movies
+      - name: WEB-4K
         upgrade:
           allowed: true
           until_quality: WEBDL-2160p
@@ -35,11 +35,39 @@ radarr:
             enabled: false
           - name: Remux-1080p
             enabled: false
+      - name: WEB-1080p
+        upgrade:
+          allowed: true
+          until_quality: WEBDL-1080p
+          until_score: 10000
+        min_format_score: 0
+        score_set: default
+        qualities:
+          - name: WEBDL-1080p
+            enabled: true
+          - name: WEBRip-1080p
+            enabled: true
+          - name: Bluray-1080p
+            enabled: true
+          - name: WEBDL-720p
+            enabled: true
+          - name: Remux-1080p
+            enabled: false
+          - name: WEBDL-2160p
+            enabled: false
+          - name: WEBRip-2160p
+            enabled: false
+          - name: Bluray-2160p
+            enabled: false
+          - name: Remux-2160p
+            enabled: false
     custom_formats:
       - trash_ids:
           - b8cd450cbfa689c0259a01d9e29ba3d6  # 3D
         assign_scores_to:
-          - name: 4K WEB Movies
+          - name: WEB-4K
+            score: -10000
+          - name: WEB-1080p
             score: -10000
 
 sonarr:
@@ -71,7 +99,7 @@ sonarr:
             enabled: false
           - name: WEBRip-2160p
             enabled: false
-      - name: WEB-4K TV
+      - name: WEB-4K
         upgrade:
           allowed: true
           until_quality: WEBDL-2160p
@@ -105,5 +133,5 @@ sonarr:
         assign_scores_to:
           - name: WEB-1080p
             score: -10000
-          - name: WEB-4K TV
+          - name: WEB-4K
             score: -10000
