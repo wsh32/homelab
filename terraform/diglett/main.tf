@@ -1,7 +1,8 @@
 locals {
   node = "diglett"
   net  = yamldecode(file("${path.module}/../../network.yml"))
-  vms  = local.net.nodes[local.node].vms
+  loc  = local.net.locations.bryant
+  vms  = local.loc.nodes[local.node].vms
 
   # Shared VM defaults -- keep in sync with modules/proxmox-vm/main.tf
   vm_defaults = {
@@ -41,8 +42,8 @@ module "dns" {
   swap_size_gb = 1
 
   ip_address         = "${local.vms["diglett-dns"].ip}/24"
-  gateway            = local.net.gateway
-  dns_servers        = local.net.dns
+  gateway            = local.loc.gateway
+  dns_servers        = [local.loc.dns.primary, local.loc.dns.fallback]
   ssh_public_key     = var.ssh_public_key
   vm_password        = var.vm_password
   timezone           = var.timezone
@@ -75,8 +76,8 @@ module "infra" {
   swap_size_gb = 2
 
   ip_address         = "${local.vms["diglett-infra"].ip}/24"
-  gateway            = local.net.gateway
-  dns_servers        = local.net.dns
+  gateway            = local.loc.gateway
+  dns_servers        = [local.loc.dns.primary, local.loc.dns.fallback]
   ssh_public_key     = var.ssh_public_key
   vm_password        = var.vm_password
   timezone           = var.timezone
