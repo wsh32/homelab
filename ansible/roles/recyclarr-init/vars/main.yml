@@ -1,2 +1,6 @@
 ---
-# No URL needed -- recyclarr communicates via Docker network using radarr/sonarr hostnames
+_svc: "{{ dict(services | default([]) | map(attribute='name') | zip(services | default([]))) }}"
+radarr_port: "{{ (_svc['radarr'] | default({})).port | default(7878) }}"
+radarr_url: "http://localhost:{{ radarr_port }}"
+sonarr_port: "{{ (_svc['sonarr'] | default({})).port | default(8989) }}"
+sonarr_url: "http://localhost:{{ sonarr_port }}"

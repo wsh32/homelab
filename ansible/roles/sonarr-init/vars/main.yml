@@ -1,2 +1,6 @@
 ---
-sonarr_url: "http://localhost:8989"
+_svc: "{{ dict(services | default([]) | map(attribute='name') | zip(services | default([]))) }}"
+sonarr_port: "{{ (_svc['sonarr'] | default({})).port | default(8989) }}"
+sonarr_url: "http://localhost:{{ sonarr_port }}"
+sabnzbd_port: "{{ (_svc['sabnzbd'] | default({})).host_port | default((_svc['sabnzbd'] | default({})).port) | default(8085) }}"
+sabnzbd_url: "http://localhost:{{ sabnzbd_port }}"
