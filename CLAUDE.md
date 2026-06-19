@@ -13,12 +13,12 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
   - Machine-consumed secrets (service API keys, inter-service tokens) → Infisical. Fetched at VM boot via `infisical export` to generate an ephemeral `.env` file. Seeded by each service's Ansible role at bring-up time. Never hardcoded, never in `terraform.tfvars`.
   - Human-consumed secrets (web UI admin passwords) → Vaultwarden. Stored by each service's Ansible role after configuration. Never in Infisical.
   - Infrastructure credentials (Proxmox API tokens, SSH key, Cloudflare API token) → `var.*` from `terraform.tfvars`, gitignored. Lives on the deploy VM.
-  - Infisical bootstrap secrets (MongoDB password, auth/encryption keys, Vaultwarden token, Authentik keys) → `/etc/homelab.env` on machamp-infra (root:root, 0600). Generated once by the `infra` Ansible role; NFS-persisted at `/mnt/nas/docker/infisical-backups/.secrets.env` for rebuild safety. Deploy + bootstrap: `INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`.
+  - Infisical bootstrap secrets (MongoDB password, auth/encryption keys, Vaultwarden token, Authentik keys) → `/etc/homelab.env` on diglett-infra (root:root, 0600). Generated once by the `infra` Ansible role; NFS-persisted at `/mnt/nas/docker/infisical-backups/.secrets.env` for rebuild safety. Deploy + bootstrap: `INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`.
   - Developer API keys (Claude, Codex, GitHub) → Infisical, entered manually via UI, accessed via `infisical run --` on the operator laptop.
 - **VM IDs**: Diglett VMs use 200–299, Machamp VMs use 100–199.
-- **IP addresses**: physical nodes use 192.168.0.4–19 (`.7` = alakazam-deploy), diglett-dns VM is special-cased at `.2`, Diglett VMs use 192.168.0.21–29, Machamp VMs use 192.168.0.30–49.
+- **IP addresses**: physical nodes use 192.168.0.4–19 (`.7` = alakazam-deploy), diglett-dns VM is special-cased at `.2`, Diglett VMs use 192.168.0.20–29, Machamp VMs use 192.168.0.30–49.
 - **Docker Compose**: persistent data always mounts to `/mnt/nas/<dataset>/<service>` (Alakazam NFS). Never use named volumes for stateful data -- it must survive VM recreation.
-- **Traefik routing**: Traefik runs on `machamp-infra` (192.168.0.32). Services co-located on machamp-infra use Docker Compose labels. Services on other VMs are declared as external backends in `services/machamp-infra/traefik/dynamic/services-vm.yml`. `.wsh` Tailscale routing is planned but not yet active -- see TODOS.md. Current label pattern for co-located services:
+- **Traefik routing**: Traefik runs on `diglett-infra` (192.168.0.20). Services co-located on diglett-infra use Docker Compose labels. Services on other VMs are declared as external backends via `ansible/roles/infra/templates/services-vm.yml.j2` — rendered by Ansible from `network.yml` at deploy time. Do not edit the rendered file on the VM directly. Both `.home` (LAN) and `.wsh` (Tailscale) routers are generated for each service. Current label pattern for co-located services:
   ```yaml
   - "traefik.http.routers.<name>-home.rule=Host(`<name>.home`)"
   - "traefik.http.routers.<name>-home.entrypoints=web"
@@ -40,7 +40,7 @@ terraform/modules/proxmox-vm/  -- shared VM module, edit here for VM-level chang
 terraform/diglett/             -- Diglett VMs (DNS, HAOS)
 terraform/machamp/             -- Machamp VMs (Infra, Services, Dev)
 services/diglett-dns/          -- AdGuard Home + Headscale + cloudflared
-services/machamp-infra/        -- Infisical + Vaultwarden + Authentik + Litestream
+services/diglett-infra/        -- Infisical + Vaultwarden + Authentik + Litestream + Traefik
 services/machamp-media/     -- all Docker Compose services (Jellyfin, Grafana, etc.)
 scripts/                       -- bootstrap and init scripts (headless service setup)
 ansible/                       -- push-only config management for VMs and physical devices
@@ -49,12 +49,20 @@ docs/                          -- architecture docs, plan, TODOs
 
 ## Adding a new service
 
-1. Add it to the appropriate `services/<node>/docker-compose.yml`
-2. Add Traefik labels
-3. Mount persistent data to `/mnt/nas/docker/<service>`
-4. Add any machine-consumed secrets (API keys, tokens) to Infisical
-5. Add any web UI admin passwords to Vaultwarden manually after first boot
-6. If the service requires first-boot setup, add a headless init script under `scripts/`
+1. Add a service entry to `network.yml` under the appropriate VM's `services:` list:
+   ```yaml
+   - name: myservice
+     port: 1234
+     nfs_data: docker/myservice   # NFS mount path under /mnt/nas/
+     authentik: proxy             # none | proxy (forwardAuth) | oidc
+   ```
+2. Add the container definition to `services/<vm>/docker-compose.yml`
+3. Add any machine-consumed secrets (API keys, tokens) to Infisical
+4. Add any web UI admin passwords to Vaultwarden manually after first boot
+5. If the service requires first-boot setup, add an Ansible init role under `ansible/roles/<service>-init/`
+
+Traefik routing (`.home` and `.wsh` routers + backend) is automatically generated from
+`network.yml` when `ansible/infra.yml` runs. No manual edits to `services-vm.yml`.
 
 ## Adding a new VM
 
