@@ -14,7 +14,7 @@
   delay: 10
 
 - name: Check SABnzbd host_whitelist config
-  ansible.builtin.shell: grep -c "^url_base = /" /mnt/nas/docker/sabnzbd/sabnzbd.ini || true
+  ansible.builtin.shell: grep -c "^host_whitelist = sabnzbd" /mnt/nas/docker/sabnzbd/sabnzbd.ini || true
   register: _sabnzbd_whitelist_check
   changed_when: false
   become: true
