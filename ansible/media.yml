@@ -314,6 +314,50 @@
           Downloads\PreAllocation=false
       become: true
 
+    # ── Jellyfin local database directory ──────────────────────────────────────
+    # Jellyfin's SQLite databases must live on local disk, not NFS -- SQLite
+    # advisory file locking is unreliable over NFS and causes "database is locked"
+    # hangs under concurrent library scans. Litestream replicates to NFS for
+    # persistence across VM rebuilds.
+
+    - name: Create Jellyfin local data directory
+      ansible.builtin.file:
+        path: /var/lib/jellyfin-data
+        state: directory
+        mode: "0755"
+      become: true
+
+    - name: Create Jellyfin litestream backup directory on NFS
+      ansible.builtin.file:
+        path: /mnt/nas/docker/jellyfin-backup
+        state: directory
+      become: true
+
+    - name: Check if Jellyfin database exists locally
+      ansible.builtin.stat:
+        path: /var/lib/jellyfin-data/jellyfin.db
+      register: jellyfin_db_check
+      become: true
+
+    - name: Check if Jellyfin litestream backup exists on NFS
+      ansible.builtin.stat:
+        path: /mnt/nas/docker/jellyfin-backup/jellyfin.db
+      register: jellyfin_backup_check
+      become: true
+
+    - name: Restore Jellyfin database from litestream backup (db missing, backup present)
+      ansible.builtin.shell: |
+        docker run --rm \
+          -v /var/lib/jellyfin-data:/data \
+          -v /mnt/nas/docker/jellyfin-backup:/backup \
+          -v /home/{{ ansible_user }}/homelab/services/machamp-media/config/jellyfin-litestream.yml:/etc/litestream.yml:ro \
+          litestream/litestream:0.5.11 \
+          restore -config /etc/litestream.yml /data/jellyfin.db
+      become: true
+      when:
+        - not jellyfin_db_check.stat.exists
+        - jellyfin_backup_check.stat.exists
+
     - name: Start machamp-media compose stack
       community.docker.docker_compose_v2:
         project_src: /home/{{ ansible_user }}/homelab/services/machamp-media

@@ -1,0 +1,4 @@
+dbs:
+  - path: /data/jellyfin.db
+    replicas:
+      - path: /backup/jellyfin.db

@@ -10,6 +10,7 @@ services:
     entrypoint: ["/bin/sh", "-c", "cp /step-ca-root.crt /usr/local/share/ca-certificates/step-ca.crt && update-ca-certificates -f 2>/dev/null; exec /jellyfin/jellyfin"]
     volumes:
       - /mnt/nas/docker/jellyfin:/config
+      - /var/lib/jellyfin-data:/config/data  # local disk -- SQLite databases must not live on NFS
       - /mnt/nas/media:/data:ro
       - ./config/jellyfin-encoding.xml:/config/config/encoding.xml
       - /mnt/nas/docker/step-ca/certs/root_ca.crt:/step-ca-root.crt:ro
@@ -17,6 +18,18 @@ services:
       JELLYFIN_PublishedServerUrl: https://jellyfin.home
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,video,utility
+
+  jellyfin-litestream:
+    image: litestream/litestream:0.5.11
+    container_name: jellyfin-litestream
+    restart: unless-stopped
+    depends_on:
+      - jellyfin
+    volumes:
+      - /var/lib/jellyfin-data:/data:ro
+      - /mnt/nas/docker/jellyfin-backup:/backup
+      - ./config/jellyfin-litestream.yml:/etc/litestream.yml:ro
+    command: replicate
 
   # ── Servarr ────────────────────────────────────────────────────────────────
   prowlarr:
