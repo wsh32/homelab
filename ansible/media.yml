@@ -345,6 +345,12 @@
       register: jellyfin_backup_check
       become: true
 
+    - name: Check if Jellyfin database exists at old NFS location (pre-litestream)
+      ansible.builtin.stat:
+        path: /mnt/nas/docker/jellyfin/data/jellyfin.db
+      register: jellyfin_old_db_check
+      become: true
+
     - name: Restore Jellyfin database from litestream backup (db missing, backup present)
       ansible.builtin.shell: |
         docker run --rm \
@@ -357,6 +363,17 @@
       when:
         - not jellyfin_db_check.stat.exists
         - jellyfin_backup_check.stat.exists
+
+    - name: Copy Jellyfin database from old NFS location (one-time migration)
+      ansible.builtin.copy:
+        src: /mnt/nas/docker/jellyfin/data/jellyfin.db
+        dest: /var/lib/jellyfin-data/jellyfin.db
+        remote_src: true
+      become: true
+      when:
+        - not jellyfin_db_check.stat.exists
+        - not jellyfin_backup_check.stat.exists
+        - jellyfin_old_db_check.stat.exists
 
     - name: Start machamp-media compose stack
       community.docker.docker_compose_v2:
