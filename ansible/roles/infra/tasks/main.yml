@@ -975,45 +975,16 @@
 # registers them all with the embedded outpost so the Traefik forwardAuth
 # middleware (services-vm.yml) can enforce authentication.
 
-- name: Define arr proxy services
+- name: Derive arr proxy services from network.yml
   ansible.builtin.set_fact:
-    _arr_proxy_services:
-      - name: prowlarr
-        slug: prowlarr
-        external_host: "https://prowlarr.home"
-      - name: prowlarr-wsh
-        slug: prowlarr-wsh
-        external_host: "https://prowlarr.wsh"
-      - name: radarr
-        slug: radarr
-        external_host: "https://radarr.home"
-      - name: radarr-wsh
-        slug: radarr-wsh
-        external_host: "https://radarr.wsh"
-      - name: sonarr
-        slug: sonarr
-        external_host: "https://sonarr.home"
-      - name: sonarr-wsh
-        slug: sonarr-wsh
-        external_host: "https://sonarr.wsh"
-      - name: bazarr
-        slug: bazarr
-        external_host: "https://bazarr.home"
-      - name: bazarr-wsh
-        slug: bazarr-wsh
-        external_host: "https://bazarr.wsh"
-      - name: qbittorrent
-        slug: qbittorrent
-        external_host: "https://qbittorrent.home"
-      - name: qbittorrent-wsh
-        slug: qbittorrent-wsh
-        external_host: "https://qbittorrent.wsh"
-      - name: sabnzbd
-        slug: sabnzbd
-        external_host: "https://sabnzbd.home"
-      - name: sabnzbd-wsh
-        slug: sabnzbd-wsh
-        external_host: "https://sabnzbd.wsh"
+    _arr_proxy_services: >-
+      {%- set result = [] -%}
+      {%- for svc in all_location_services | selectattr('authentik', 'equalto', 'proxy') -%}
+        {%- set h = svc.hostname | default(svc.name) -%}
+        {%- set _ = result.append({'name': svc.name, 'slug': svc.name, 'external_host': 'https://' ~ h ~ '.home'}) -%}
+        {%- set _ = result.append({'name': svc.name ~ '-wsh', 'slug': svc.name ~ '-wsh', 'external_host': 'https://' ~ h ~ '.wsh'}) -%}
+      {%- endfor -%}
+      {{ result }}
 
 - name: Check which arr proxy providers already exist
   ansible.builtin.uri:
