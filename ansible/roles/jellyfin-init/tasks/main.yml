@@ -1,0 +1,502 @@
+---
+# Jellyfin initialization role.
+# - Deploys encoding.xml config
+# - Runs the startup wizard (first run only)
+# - Creates API key, stores in Infisical
+# - Installs jellyfin-plugin-sso and configures Authentik OIDC
+# - Enables tonemapping
+# - Creates media libraries
+
+# ── Encoding config ──────────────────────────────────────────────────────────
+
+- name: Create Jellyfin config directory on NFS
+  ansible.builtin.file:
+    path: /mnt/nas/docker/jellyfin/config
+    state: directory
+  become: true
+
+- name: Deploy Jellyfin encoding.xml
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../services/machamp-media/config/jellyfin-encoding.xml"
+    dest: /mnt/nas/docker/jellyfin/config/encoding.xml
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  register: _jellyfin_encoding_xml
+
+- name: Restart Jellyfin if encoding.xml changed
+  community.docker.docker_container:
+    name: jellyfin
+    state: started
+    restart: true
+  when: _jellyfin_encoding_xml.changed
+  become: true
+
+# ── Startup wizard ───────────────────────────────────────────────────────────
+# In Jellyfin 10.11+, POST /Startup/User was removed. The wizard auto-
+# creates a "root" admin user with no password. After completing the wizard
+# we authenticate as root (empty password) and set jellyfin_admin_password.
+
+- name: Wait for Jellyfin to be ready
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/health"
+    status_code: 200
+  register: _jf_health
+  until: _jf_health.status == 200
+  retries: 40
+  delay: 10
+
+- name: Check Jellyfin wizard status
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Startup/Configuration"
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
+    status_code: [200, 400, 401, 403, 404]
+    return_content: true
+  register: jellyfin_wizard
+
+- name: Set Jellyfin locale
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Startup/Configuration"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
+    body_format: json
+    body:
+      ServerName: TeamRocket
+      UICulture: en-US
+      MetadataCountryCode: US
+      PreferredMetadataLanguage: en
+    status_code: 204
+  when: jellyfin_wizard.status == 200
+
+- name: Configure Jellyfin remote access
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Startup/RemoteAccess"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
+    body_format: json
+    body:
+      EnableRemoteAccess: true
+      EnableAutomaticPortMapping: false
+    status_code: 204
+  when: jellyfin_wizard.status == 200
+
+- name: Trigger Jellyfin initial user creation via GET /Startup/User
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Startup/User"
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
+    status_code: 200
+    return_content: true
+  register: _jf_startup_user
+  when: jellyfin_wizard.status == 200
+
+- name: Set Jellyfin initial user credentials via POST /Startup/User
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Startup/User"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
+    body_format: json
+    body:
+      name: "{{ jellyfin_admin_username | default('admin') }}"
+      password: "{{ jellyfin_admin_password }}"
+    status_code: 204
+  no_log: true
+  when: jellyfin_wizard.status == 200 and _jf_startup_user is not skipped
+
+- name: Complete Jellyfin wizard
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Startup/Complete"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
+    status_code: 204
+  when: jellyfin_wizard.status == 200
+
+- name: Authenticate as Jellyfin admin user
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Users/AuthenticateByName"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
+    body_format: json
+    body:
+      Username: "{{ jellyfin_admin_username | default('admin') }}"
+      Pw: "{{ jellyfin_admin_password }}"
+    status_code: 200
+    return_content: true
+  register: _jf_root_auth
+  no_log: true
+  when: jellyfin_wizard.status == 200
+
+- name: Create Jellyfin API key
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Auth/Keys?app=ansible-automation"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ _jf_root_auth.json.AccessToken }}"'
+    status_code: [200, 204]
+    return_content: true
+  register: _jf_api_key_create
+  no_log: true
+  when: jellyfin_wizard.status == 200 and _jf_root_auth is not skipped
+
+- name: List Jellyfin API keys
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Auth/Keys"
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ _jf_root_auth.json.AccessToken }}"'
+    status_code: 200
+    return_content: true
+  register: _jf_api_keys
+  no_log: true
+  when: jellyfin_wizard.status == 200 and _jf_root_auth is not skipped
+
+- name: Store Jellyfin automation API key and root user ID
+  ansible.builtin.set_fact:
+    jellyfin_api_key: >-
+      {{ (_jf_api_keys.json.Items
+          | selectattr('AppName', 'equalto', 'ansible-automation')
+          | list | last).AccessToken }}
+    _jellyfin_root_user_id: "{{ _jf_root_auth.json.User.Id }}"
+    _jellyfin_api_key_new: true
+  no_log: true
+  when: jellyfin_wizard.status == 200 and _jf_root_auth is not skipped
+
+- name: Check if JELLYFIN_API_KEY exists in Infisical
+  ansible.builtin.uri:
+    url: "{{ infisical_host }}/api/v3/secrets/raw/JELLYFIN_API_KEY?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
+    headers:
+      Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+    status_code: [200, 404]
+  register: _jf_key_in_infisical
+  no_log: true
+  when: _jellyfin_api_key_new | default(false)
+
+- name: Push Jellyfin API key to Infisical
+  ansible.builtin.uri:
+    url: "{{ infisical_host }}/api/v3/secrets/raw/JELLYFIN_API_KEY"
+    method: "{{ 'PATCH' if _jf_key_in_infisical.status == 200 else 'POST' }}"
+    headers:
+      Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+    body_format: json
+    body:
+      workspaceId: "{{ _inf_project_id }}"
+      environment: "{{ _inf_environment }}"
+      secretPath: "/"
+      secretValue: "{{ jellyfin_api_key }}"
+      type: shared
+    status_code: [200, 201]
+  no_log: true
+  when: _jellyfin_api_key_new | default(false)
+
+- name: Set Jellyfin root user password
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Users/{{ _jellyfin_root_user_id }}/Password"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ jellyfin_api_key }}"'
+    body_format: json
+    body:
+      CurrentPw: ""
+      NewPw: "{{ jellyfin_admin_password }}"
+    status_code: 204
+  no_log: true
+  when: jellyfin_wizard.status == 200 and _jellyfin_api_key_new | default(false)
+
+# ── API key recovery ─────────────────────────────────────────────────────────
+# Wizard already completed on a prior partial run but API key was never saved.
+
+- name: Authenticate as Jellyfin admin (recovery -- wizard already done)
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Users/AuthenticateByName"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0"'
+    body_format: json
+    body:
+      Username: "{{ jellyfin_admin_username | default('admin') }}"
+      Pw: "{{ jellyfin_admin_password }}"
+    status_code: 200
+    return_content: true
+  register: _jf_recovery_auth
+  no_log: true
+  when:
+    - jellyfin_wizard.status != 200
+    - jellyfin_api_key == ''
+    - jellyfin_admin_password != ''
+
+- name: Create Jellyfin API key (recovery)
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Auth/Keys?app=ansible-automation"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ _jf_recovery_auth.json.AccessToken }}"'
+    status_code: [200, 204]
+  no_log: true
+  when: _jf_recovery_auth is not skipped
+
+- name: List Jellyfin API keys to retrieve value (recovery)
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Auth/Keys"
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ _jf_recovery_auth.json.AccessToken }}"'
+    status_code: 200
+    return_content: true
+  register: _jf_recovery_keys
+  no_log: true
+  when: _jf_recovery_auth is not skipped
+
+- name: Store recovered Jellyfin API key
+  ansible.builtin.set_fact:
+    jellyfin_api_key: >-
+      {{ (_jf_recovery_keys.json.Items
+          | selectattr('AppName', 'equalto', 'ansible-automation')
+          | list | last).AccessToken }}
+    _jellyfin_api_key_new: true
+  no_log: true
+  when: _jf_recovery_auth is not skipped and _jf_recovery_keys is not skipped
+
+- name: Upsert recovered JELLYFIN_API_KEY in Infisical
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/infisical-upsert.yml"
+  vars:
+    _inf_upsert_name: JELLYFIN_API_KEY
+    _inf_upsert_value: "{{ jellyfin_api_key }}"
+  when: _jf_recovery_auth is not skipped and jellyfin_api_key != ''
+
+# ── SSO plugin (jellyfin-plugin-sso) ────────────────────────────────────────
+# Installs the SSO plugin and configures Authentik as the OIDC provider.
+# Credentials come from /mnt/nas/docker/jellyfin-oidc.env written by infra.yml.
+
+- name: Check if Jellyfin OIDC credentials are available on NFS
+  ansible.builtin.stat:
+    path: /mnt/nas/docker/jellyfin-oidc.env
+  register: _jf_oidc_env_stat
+  become: true
+
+- name: Read Jellyfin OIDC credentials from NFS
+  ansible.builtin.slurp:
+    src: /mnt/nas/docker/jellyfin-oidc.env
+  register: _jf_oidc_env_raw
+  become: true
+  when: _jf_oidc_env_stat.stat.exists
+
+- name: Parse Jellyfin OIDC credentials
+  ansible.builtin.set_fact:
+    _jf_oidc_client_id: "{{ (_jf_oidc_env_raw.content | b64decode) | regex_search('(?m)^JELLYFIN_OIDC_CLIENT_ID=(.+)$', '\\1') | first }}"
+    _jf_oidc_client_secret: "{{ (_jf_oidc_env_raw.content | b64decode) | regex_search('(?m)^JELLYFIN_OIDC_CLIENT_SECRET=(.+)$', '\\1') | first }}"
+  when: _jf_oidc_env_stat.stat.exists
+
+- name: Check if SSO plugin DLL is already installed
+  ansible.builtin.stat:
+    path: "/mnt/nas/docker/jellyfin/plugins/SSO-Auth_{{ jellyfin_sso_plugin_version }}/SSO-Auth.dll"
+  register: _sso_dll_stat
+  when: _jf_oidc_env_stat.stat.exists
+
+- name: Install jellyfin-plugin-sso
+  when:
+    - _jf_oidc_env_stat.stat.exists
+    - not _sso_dll_stat.stat.exists
+  block:
+    - name: Create SSO plugin directory
+      ansible.builtin.file:
+        path: "/mnt/nas/docker/jellyfin/plugins/SSO-Auth_{{ jellyfin_sso_plugin_version }}"
+        state: directory
+        mode: "0755"
+      become: true
+
+    - name: Download jellyfin-plugin-sso zip
+      ansible.builtin.get_url:
+        url: "https://github.com/9p4/jellyfin-plugin-sso/releases/download/v{{ jellyfin_sso_plugin_version }}/sso-authentication_{{ jellyfin_sso_plugin_version }}.zip"
+        dest: "/tmp/jellyfin-sso-{{ jellyfin_sso_plugin_version }}.zip"
+        mode: "0644"
+
+    - name: Extract SSO plugin
+      ansible.builtin.unarchive:
+        src: "/tmp/jellyfin-sso-{{ jellyfin_sso_plugin_version }}.zip"
+        dest: "/mnt/nas/docker/jellyfin/plugins/SSO-Auth_{{ jellyfin_sso_plugin_version }}"
+        remote_src: true
+      become: true
+
+    - name: Remove plugin zip
+      ansible.builtin.file:
+        path: "/tmp/jellyfin-sso-{{ jellyfin_sso_plugin_version }}.zip"
+        state: absent
+
+- name: Restart Jellyfin to load SSO plugin
+  ansible.builtin.command: docker restart jellyfin
+  become: true
+  changed_when: true
+  when:
+    - _jf_oidc_env_stat.stat.exists
+    - _sso_dll_stat is not skipped
+    - not _sso_dll_stat.stat.exists
+
+- name: Wait for Jellyfin after SSO plugin restart
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/health"
+    status_code: 200
+  register: _jf_sso_health
+  until: _jf_sso_health.status == 200
+  retries: 40
+  delay: 5
+  when:
+    - _jf_oidc_env_stat.stat.exists
+    - _sso_dll_stat is not skipped
+    - not _sso_dll_stat.stat.exists
+
+- name: Read current SSO plugin configuration
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Plugins/505ce9d1-d916-42fa-86ca-673ef241d7df/Configuration"
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ jellyfin_api_key }}"'
+    return_content: true
+  register: _sso_config_current
+  no_log: true
+  when: _jf_oidc_env_stat.stat.exists and jellyfin_api_key != ''
+
+- name: Configure SSO plugin with Authentik OIDC provider
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Plugins/505ce9d1-d916-42fa-86ca-673ef241d7df/Configuration"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ jellyfin_api_key }}"'
+      Content-Type: application/json
+    body_format: json
+    body:
+      SamlConfigs: {}
+      OidConfigs:
+        # Pinned to auth.home (not authentik_public_url) so jellyfin.home
+        # SSO keeps working on LAN even if the internet/Cloudflare Tunnel
+        # is down -- this is the one service kept LAN-resilient.
+        authentik:
+          OidEndpoint: "https://auth.home/application/o/jellyfin/"
+          OidClientId: "{{ _jf_oidc_client_id }}"
+          OidSecret: "{{ _jf_oidc_client_secret }}"
+          Enabled: true
+          EnableAuthorization: true
+          EnableAllFolders: true
+          EnableFolderRoles: false
+          DefaultProvider: "true"
+          SchemeOverride: "https"
+          LibraryOptions: []
+          FolderRoleMapping: []
+          AdminRoles:
+            - admins
+          Roles:
+            - users
+            - admins
+          OidScopes:
+            - groups
+          RoleClaim: "groups"
+          DoNotValidateEndpoints: true
+          DoNotValidateIssuerName: true
+        # Same Authentik application as "authentik" above, discovered via
+        # the public auth.wesleysoohoo.me URL so jellyfin.wsh works from
+        # anywhere Tailscale reaches (no LAN/.home dependency).
+        authentik-public:
+          OidEndpoint: "{{ authentik_public_url }}/application/o/jellyfin/"
+          OidClientId: "{{ _jf_oidc_client_id }}"
+          OidSecret: "{{ _jf_oidc_client_secret }}"
+          Enabled: true
+          EnableAuthorization: true
+          EnableAllFolders: true
+          EnableFolderRoles: false
+          DefaultProvider: "false"
+          SchemeOverride: "https"
+          LibraryOptions: []
+          FolderRoleMapping: []
+          AdminRoles:
+            - admins
+          Roles:
+            - users
+            - admins
+          OidScopes:
+            - groups
+          RoleClaim: "groups"
+          DoNotValidateEndpoints: true
+          DoNotValidateIssuerName: true
+    status_code: 204
+  no_log: true
+  when: >
+    _jf_oidc_env_stat.stat.exists
+    and jellyfin_api_key != ''
+    and _sso_config_current is not skipped
+    and (('authentik' not in (_sso_config_current.json.OidConfigs | default({})))
+         or ('authentik-public' not in (_sso_config_current.json.OidConfigs | default({})))
+         or (_sso_config_current.json.OidConfigs.authentik.OidEndpoint | default('')) != 'https://auth.home/application/o/jellyfin/'
+         or (_sso_config_current.json.OidConfigs['authentik-public'].OidEndpoint | default('')) != (authentik_public_url + '/application/o/jellyfin/')
+         or (_sso_config_current.json.OidConfigs.authentik.DefaultProvider | default('false')) != 'true'
+         or ('admins' not in (_sso_config_current.json.OidConfigs.authentik.AdminRoles | default([])))
+         or ('admins' not in (_sso_config_current.json.OidConfigs.authentik.Roles | default([])))
+         or ('users' not in (_sso_config_current.json.OidConfigs.authentik.Roles | default([])))
+         or (_sso_config_current.json.OidConfigs.authentik.RoleClaim | default('')) != 'groups'
+         or (_sso_config_current.json.OidConfigs.authentik.OidClientId | default('')) != _jf_oidc_client_id
+         or (_sso_config_current.json.OidConfigs['authentik-public'].OidClientId | default('')) != _jf_oidc_client_id)
+
+# ── Encoding settings ────────────────────────────────────────────────────────
+
+- name: Get Jellyfin encoding configuration
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/System/Configuration/Encoding"
+    headers:
+      Authorization: 'MediaBrowser Token="{{ jellyfin_api_key }}"'
+    return_content: true
+  register: _jf_encoding_config
+  when: jellyfin_api_key != ''
+
+- name: Enable tonemapping in Jellyfin
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/System/Configuration/Encoding"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Token="{{ jellyfin_api_key }}"'
+    body_format: json
+    body: "{{ _jf_encoding_config.json | combine({'EnableTonemapping': true}) }}"
+    status_code: [200, 204]
+  register: _jf_tonemapping_set
+  when:
+    - jellyfin_api_key != ''
+    - _jf_encoding_config is not skipped
+    - not _jf_encoding_config.json.EnableTonemapping
+
+- name: Restart Jellyfin to persist tonemapping setting
+  community.docker.docker_container:
+    name: jellyfin
+    state: started
+    restart: true
+  become: true
+  when: _jf_tonemapping_set is not skipped and _jf_tonemapping_set is changed
+
+# ── Media libraries ──────────────────────────────────────────────────────────
+
+- name: Get existing Jellyfin libraries
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Library/VirtualFolders"
+    headers:
+      Authorization: 'MediaBrowser Token="{{ jellyfin_api_key }}"'
+    status_code: 200
+  register: _jf_libraries
+  when: jellyfin_api_key != ''
+
+- name: Create Jellyfin libraries
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Library/VirtualFolders?collectionType={{ item.collection_type }}&name={{ item.name | urlencode }}&refreshLibrary=true"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Token="{{ jellyfin_api_key }}"'
+    body_format: json
+    body:
+      LibraryOptions:
+        EnableRealtimeMonitor: true
+        PathInfos:
+          - Path: "{{ item.path }}"
+    status_code: [200, 204]
+  loop: "{{ jellyfin_libraries }}"
+  when:
+    - jellyfin_api_key != ''
+    - _jf_libraries.json | selectattr('Name', 'equalto', item.name) | list | length == 0

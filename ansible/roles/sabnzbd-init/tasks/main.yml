@@ -1,0 +1,110 @@
+---
+# SABnzbd initialization role.
+# Waits for SABnzbd to be healthy, then ensures host_whitelist and server
+# config are applied. If SABnzbd started before the pre-seed config was
+# written, force-writes sabnzbd.ini and restarts.
+
+- name: Wait for SABnzbd
+  ansible.builtin.uri:
+    url: "{{ sabnzbd_url }}"
+    status_code: [200, 301, 302, 401, 403]
+  register: sabnzbd_status
+  until: sabnzbd_status.status in [200, 301, 302, 401, 403]
+  retries: 40
+  delay: 10
+
+- name: Check SABnzbd host_whitelist config
+  ansible.builtin.shell: grep -c "^host_whitelist = sabnzbd" /mnt/nas/docker/sabnzbd/sabnzbd.ini || true
+  register: _sabnzbd_whitelist_check
+  changed_when: false
+  become: true
+
+- name: Stop SABnzbd to apply host_whitelist config
+  ansible.builtin.command: docker stop sabnzbd
+  become: true
+  changed_when: true
+  when: _sabnzbd_whitelist_check.stdout | int == 0
+
+- name: Force-write SABnzbd ini with host_whitelist
+  ansible.builtin.copy:
+    dest: /mnt/nas/docker/sabnzbd/sabnzbd.ini
+    force: true
+    content: |
+      [misc]
+      host = 0.0.0.0
+      port = 8080
+      api_key = {{ sabnzbd_api_key }}
+      nzb_key = {{ sabnzbd_api_key }}
+      download_dir = /data/downloads/incomplete
+      complete_dir = /data/downloads/complete
+      dirscan_dir =
+      script_dir =
+      nzb_backup_dir =
+      log_dir = /config/logs
+      admin_dir = /config/admin
+      bandwidth_perc = 100
+      pre_check = 0
+      enable_https = 0
+      username =
+      password =
+      url_base = /
+      host_whitelist = sabnzbd,sabnzbd:8080,sabnzbd.home,sabnzbd.wsh,localhost,127.0.0.1
+      local_ranges = 172.16.0.0/12,192.168.0.0/16
+
+      [servers]
+      {% for server in sabnzbd_servers %}
+      [[{{ server.name }}]]
+      name = {{ server.name }}
+      host = {{ server.host }}
+      port = {{ server.port }}
+      ssl = {{ server.ssl }}
+      ssl_verify = 2
+      username = {{ lookup('vars', server.username_var | lower, default='') }}
+      password = {{ lookup('vars', server.password_var | lower, default='') }}
+      connections = {{ server.connections }}
+      enable = 1
+      required = 0
+      optional = 0
+      retention = 0
+      priority = {{ server.priority }}
+      expire_date =
+      quota =
+      usage_at_start =
+      {% endfor %}
+
+      [categories]
+      [[tv]]
+      name = tv
+      order = 0
+      pp = 3
+      script = Default
+      dir = tv
+      newzbin =
+      priority = 0
+
+      [[movies]]
+      name = movies
+      order = 1
+      pp = 3
+      script = Default
+      dir = movies
+      newzbin =
+      priority = 0
+  become: true
+  when: _sabnzbd_whitelist_check.stdout | int == 0
+
+- name: Start SABnzbd after config update
+  ansible.builtin.command: docker start sabnzbd
+  become: true
+  changed_when: true
+  when: _sabnzbd_whitelist_check.stdout | int == 0
+
+- name: Wait for SABnzbd after restart
+  ansible.builtin.uri:
+    url: "{{ sabnzbd_url }}"
+    status_code: [200, 301, 302, 401, 403]
+  register: sabnzbd_restart_status
+  until: sabnzbd_restart_status.status in [200, 301, 302, 401, 403]
+  retries: 30
+  delay: 5
+  when: _sabnzbd_whitelist_check.stdout | int == 0

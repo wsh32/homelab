@@ -1,0 +1,3 @@
+---
+_svc: "{{ dict(services | default([]) | map(attribute='name') | zip(services | default([]))) }}"
+qbittorrent_webui_port: "{{ (_svc['qbittorrent'] | default({})).port | default(8080) }}"

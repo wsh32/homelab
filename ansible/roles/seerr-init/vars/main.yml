@@ -1,0 +1,10 @@
+---
+_svc: "{{ dict(services | default([]) | map(attribute='name') | zip(services | default([]))) }}"
+seerr_port: "{{ (_svc['seerr'] | default({})).port | default(5055) }}"
+seerr_url: "http://localhost:{{ seerr_port }}"
+radarr_port: "{{ (_svc['radarr'] | default({})).port | default(7878) }}"
+radarr_url: "http://localhost:{{ radarr_port }}"
+sonarr_port: "{{ (_svc['sonarr'] | default({})).port | default(8989) }}"
+sonarr_url: "http://localhost:{{ sonarr_port }}"
+jellyfin_port: "{{ (_svc['jellyfin'] | default({})).port | default(8096) }}"
+jellyfin_url: "http://localhost:{{ jellyfin_port }}"

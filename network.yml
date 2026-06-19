@@ -2,100 +2,227 @@
 #
 # Terraform reads this file directly via yamldecode().
 # Ansible inventory is generated from this file and ansible/group_config.yml
-# by the homelab inventory plugin (ansible/plugins/inventory/homelab.py).
+# by the homelab inventory plugin (ansible/inventory/homelab.py).
 #
-# IP layout:
-#   .1       gateway (Eero)
-#   .2       diglett-dns VM (AdGuard Home -- primary DNS; special-cased outside VM range)
+# IP layout per location:
+#   .1       gateway
+#   .2       primary DNS VM (AdGuard Home -- special-cased outside VM range)
 #   .3       reserved (future backup DNS)
-#   .4–.19   physical nodes (.7 = alakazam-deploy deploy host)
+#   .4–.19   physical nodes
 #   .20–.29  Diglett VMs (VM IDs 200–299)
 #   .30–.49  Machamp VMs (VM IDs 100–199)
-#   .100+    DHCP (Eero managed)
+#   .100+    DHCP (router managed)
 #
 # Tailscale IP layout (100.64.0.0/10):
 #   100.64.0.x   personal devices (dynamic, assigned by headscale)
-#   100.64.1.x   homelab devices (static, last octet matches LAN IP)
+#   100.64.N.x   location N homelab devices (static, last octet matches LAN IP)
+#                N = tailscale_subnet_index for the location (bryant=1, torrance=2, ...)
 
-gateway: 192.168.0.1
-subnet_prefix: 24
+locations:
+  bryant:
+    tailscale_domain: wsh
+    tailscale_subnet_index: 1
+    gateway: 192.168.0.1
+    subnet_prefix: 24
+    dns:
+      primary: 192.168.0.2   # diglett-dns (AdGuard Home)
+      fallback: 8.8.8.8
+    traefik_vm: diglett-infra
 
-# DNS servers injected into all VMs via cloud-init
-dns:
-  - 192.168.0.2   # diglett-dns (AdGuard Home) -- primary
-  - 8.8.8.8       # fallback if diglett-dns is down
+    nodes:
+      alakazam:
+        ip: 192.168.0.4
+        type: nas
+        os: truenas
+        nfs_exports:
+          docker: /mnt/apps/docker
+          media: /mnt/pool/media
+          photos: /mnt/pool/photos
 
-# All nodes -- physical and compute.
-#
-# Fields on every node:
-#   ip:              LAN IP address
-#   type:            Ansible physical group (proxmox | nas | other)
-#   os:              OS family -- nodes with os=truenas are excluded from Ansible inventory
-#   ansible_user:    SSH user override (default: ubuntu)
-#
-# Additional fields for Proxmox nodes:
-#   bridge_port:     NIC bridged to vmbr0. Verify: ssh root@<ip> ip link show
-#   vms:             VMs provisioned on this node
-#
-# VM fields:
-#   ip:              LAN IP (static, set via cloud-init)
-#   vm_id:           Proxmox VM ID
-#   ansible_managed: Set false to exclude from Ansible inventory (default: true)
-#   vm_roles:        List of Ansible groups this VM belongs to (e.g. [services], [dev])
+      alakazam-deploy:
+        ip: 192.168.0.7
+        tailscale_ip: 100.64.1.7
+        type: other
+        ansible_user: ubuntu
 
-nodes:
-  alakazam:
-    ip: 192.168.0.4
-    type: nas
-    os: truenas
+      diglett:
+        ip: 192.168.0.6
+        tailscale_ip: 100.64.1.6
+        type: proxmox
+        ansible_user: root
+        bridge_port: nic0  # Proxmox renames NICs to nic0, nic1, etc. on UM790
+        vms:
+          diglett-dns:
+            ip: 192.168.0.2
+            tailscale_ip: 100.64.1.2
+            vm_id: 200
+            vm_roles: [services]
+            tailscale_exit_node: true
+            services:
+              - name: adguardhome
+                hostname: adguard
+                port: 3000       # network_mode: host; host port == container port
+                nfs_data: docker/adguardhome
+                authentik: none
+              - name: headscale
+                port: 443
+                nfs_data: docker/headscale
+                authentik: oidc
+                traefik: false   # headscale uses its own TLS, not Traefik
+              - name: headplane
+                port: 3000
+                host_port: 3001  # container 3000 mapped to host 3001
+                nfs_data: docker/headplane
+                authentik: oidc
+              - name: cloudflare-ddns
+                authentik: none
+                traefik: false
+          diglett-infra:
+            ip: 192.168.0.20
+            tailscale_ip: 100.64.1.20
+            vm_id: 201
+            vm_roles: [services]
+            nfs_mounts:
+              - export: docker
+                mount: /mnt/nas/docker
+            services:
+              - name: traefik
+                port: 80
+                authentik: none
+                traefik: false   # traefik itself; co-located services use Docker labels
+              - name: step-ca
+                hostname: ca
+                port: 80         # ca-page container serves the UI on port 80
+                nfs_data: docker/step-ca
+                authentik: none
+              - name: postgres
+                port: 5432
+                authentik: none
+                traefik: false
+              - name: infisical
+                port: 8080
+                nfs_data: docker/infisical-backups
+                authentik: none
+              - name: vaultwarden
+                hostname: vault
+                port: 80
+                authentik: none
+              - name: authentik
+                hostname: auth
+                port: 9000
+                nfs_data: docker/authentik
+                authentik: none
+              - name: cloudflared
+                authentik: none
+                traefik: false
+          diglett-haos:
+            ip: 192.168.0.21
+            vm_id: 202
+            ansible_managed: false  # HAOS -- no SSH access via Ansible
 
-  alakazam-deploy:
-    ip: 192.168.0.7
-    tailscale_ip: 100.64.1.7
-    type: other
-    ansible_user: ubuntu
-
-  diglett:
-    ip: 192.168.0.6
-    tailscale_ip: 100.64.1.6
-    type: proxmox
-    ansible_user: root
-    bridge_port: nic0  # Proxmox renames NICs to nic0, nic1, etc. on UM790
-    vms:
-      diglett-dns:
-        ip: 192.168.0.2
-        tailscale_ip: 100.64.1.2
-        vm_id: 200
-        vm_roles: [services]
-        tailscale_exit_node: true
-      diglett-infra:
-        ip: 192.168.0.20
-        tailscale_ip: 100.64.1.20
-        vm_id: 201
-        vm_roles: [services]
-      diglett-haos:
-        ip: 192.168.0.21
-        vm_id: 202
-        ansible_managed: false  # HAOS -- no SSH access via Ansible
-
-  machamp:
-    ip: 192.168.0.5
-    tailscale_ip: 100.64.1.5
-    type: proxmox
-    ansible_user: root
-    bridge_port: nic0
-    pci_mappings:
-      - id: quadro-p2200
-        path: "0000:41:00.0"
-        description: "Quadro P2200 GPU"
-    vms:
-      machamp-media:
-        ip: 192.168.0.30
-        tailscale_ip: 100.64.1.30
-        vm_id: 100
-        vm_roles: [media, gpu]
-      machamp-dev:
-        ip: 192.168.0.31
-        tailscale_ip: 100.64.1.31
-        vm_id: 101
-        vm_roles: [dev]
+      machamp:
+        ip: 192.168.0.5
+        tailscale_ip: 100.64.1.5
+        type: proxmox
+        ansible_user: root
+        bridge_port: nic0
+        pci_mappings:
+          - id: quadro-p2200
+            path: "0000:41:00.0"
+            description: "Quadro P2200 GPU"
+        vms:
+          machamp-media:
+            ip: 192.168.0.30
+            tailscale_ip: 100.64.1.30
+            vm_id: 100
+            vm_roles: [media, gpu]
+            pci_passthrough: [quadro-p2200]  # references pci_mappings id on parent node
+            nfs_mounts:
+              - export: docker
+                mount: /mnt/nas/docker
+              - export: media
+                mount: /mnt/nas/media
+              - export: photos
+                mount: /mnt/nas/photos
+            services:
+              - name: jellyfin
+                port: 8096
+                nfs_data: docker/jellyfin
+                authentik: oidc
+              - name: prowlarr
+                port: 9696
+                nfs_data: docker/prowlarr
+                authentik: proxy
+              - name: radarr
+                port: 7878
+                nfs_data: docker/radarr
+                authentik: proxy
+              - name: sonarr
+                port: 8989
+                nfs_data: docker/sonarr
+                authentik: proxy
+              - name: bazarr
+                port: 6767
+                nfs_data: docker/bazarr
+                authentik: proxy
+              - name: qbittorrent
+                port: 8080
+                nfs_data: docker/qbittorrent
+                authentik: proxy
+              - name: gluetun
+                authentik: none
+                traefik: false
+              - name: sabnzbd
+                port: 8080
+                host_port: 8085  # container 8080 mapped to host 8085
+                nfs_data: docker/sabnzbd
+                authentik: proxy
+              - name: seerr
+                port: 5055
+                nfs_data: docker/seerr
+                authentik: oidc
+              - name: unpackerr
+                authentik: none
+                traefik: false
+              - name: photoprism
+                hostname: photos
+                port: 2342
+                nfs_data: docker/photoprism
+                authentik: none
+              - name: calibre-web
+                hostname: books
+                port: 8083
+                nfs_data: docker/calibre-web
+                authentik: none
+              - name: n8n
+                port: 5678
+                nfs_data: docker/n8n
+                authentik: none
+              - name: couchdb
+                port: 5984
+                nfs_data: docker/couchdb
+                authentik: none
+              - name: quartz
+                hostname: notes
+                port: 8080
+                nfs_data: docker/quartz
+                authentik: none
+              - name: homepage
+                hostname: home
+                port: 3000
+                host_port: 3001  # grafana owns host port 3000
+                nfs_data: docker/homepage
+                authentik: none
+              - name: prometheus
+                port: 9090
+                nfs_data: docker/prometheus
+                authentik: none
+              - name: grafana
+                port: 3000
+                nfs_data: docker/grafana
+                authentik: none
+          machamp-dev:
+            ip: 192.168.0.31
+            tailscale_ip: 100.64.1.31
+            vm_id: 101
+            vm_roles: [dev]

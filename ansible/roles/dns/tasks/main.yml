@@ -195,7 +195,7 @@
   ansible.builtin.lineinfile:
     path: /etc/systemd/resolved.conf
     regexp: '^#?DNS='
-    line: 'DNS=8.8.8.8 8.8.4.4'
+    line: "DNS={{ dns_fallback }}"
   become: true
   register: resolved_dns
 

@@ -1,0 +1,6 @@
+---
+_svc: "{{ dict(services | default([]) | map(attribute='name') | zip(services | default([]))) }}"
+radarr_port: "{{ (_svc['radarr'] | default({})).port | default(7878) }}"
+radarr_url: "http://localhost:{{ radarr_port }}"
+sabnzbd_port: "{{ (_svc['sabnzbd'] | default({})).host_port | default((_svc['sabnzbd'] | default({})).port) | default(8085) }}"
+sabnzbd_url: "http://localhost:{{ sabnzbd_port }}"

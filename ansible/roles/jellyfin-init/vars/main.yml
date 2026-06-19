@@ -1,0 +1,5 @@
+---
+_svc: "{{ dict(services | default([]) | map(attribute='name') | zip(services | default([]))) }}"
+jellyfin_port: "{{ (_svc['jellyfin'] | default({})).port | default(8096) }}"
+jellyfin_url: "http://localhost:{{ jellyfin_port }}"
+jellyfin_sso_plugin_version: "4.0.0.4"

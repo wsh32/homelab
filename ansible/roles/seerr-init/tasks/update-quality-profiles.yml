@@ -1,0 +1,83 @@
+---
+# Update Seerr quality profiles after Recyclarr has created them.
+# Called explicitly from arr-init.yml after recyclarr-init runs.
+
+- name: Get Radarr quality profiles
+  ansible.builtin.uri:
+    url: "http://localhost:7878/api/v3/qualityprofile"
+    headers:
+      X-Api-Key: "{{ radarr_api_key }}"
+    return_content: true
+  register: radarr_quality_profiles
+
+- name: Set Radarr default profile facts
+  ansible.builtin.set_fact:
+    radarr_4k_profile_id: "{{ radarr_quality_profiles.json | selectattr('name', 'equalto', seerr_radarr_default_profile) | map(attribute='id') | list | first | default(1) }}"
+    radarr_4k_profile_name: "{{ radarr_quality_profiles.json | selectattr('name', 'equalto', seerr_radarr_default_profile) | map(attribute='name') | list | first | default('Any') }}"
+
+- name: Get existing Radarr instances in Seerr (for profile update)
+  ansible.builtin.uri:
+    url: "http://localhost:5055/api/v1/settings/radarr"
+    headers:
+      X-Api-Key: "{{ seerr_api_key }}"
+    return_content: true
+  register: seerr_radarr_for_update
+  when: seerr_api_key != '' and seerr_api_key != 'placeholder'
+
+- name: Update Seerr Radarr instance to use WEB-4K profile
+  vars:
+    _instance: "{{ seerr_radarr_for_update.json | selectattr('name', 'equalto', 'Radarr') | list | first | default({}) }}"
+    _body: "{{ _instance | combine({'activeProfileId': radarr_4k_profile_id | int, 'activeProfileName': radarr_4k_profile_name}) | dict2items | rejectattr('key', 'equalto', 'id') | items2dict }}"
+  ansible.builtin.uri:
+    url: "http://localhost:5055/api/v1/settings/radarr/{{ _instance.id }}"
+    method: PUT
+    headers:
+      X-Api-Key: "{{ seerr_api_key }}"
+    body_format: json
+    body: "{{ _body }}"
+    status_code: 200
+  when: >
+    seerr_api_key != '' and seerr_api_key != 'placeholder'
+    and seerr_radarr_for_update is not skipped
+    and _instance.id is defined
+    and _instance.activeProfileId | int != radarr_4k_profile_id | int
+
+- name: Get Sonarr quality profiles
+  ansible.builtin.uri:
+    url: "http://localhost:8989/api/v3/qualityprofile"
+    headers:
+      X-Api-Key: "{{ sonarr_api_key }}"
+    return_content: true
+  register: sonarr_quality_profiles
+
+- name: Set Sonarr default profile facts
+  ansible.builtin.set_fact:
+    sonarr_web1080p_profile_id: "{{ sonarr_quality_profiles.json | selectattr('name', 'equalto', seerr_sonarr_default_profile) | map(attribute='id') | list | first | default(1) }}"
+    sonarr_web1080p_profile_name: "{{ sonarr_quality_profiles.json | selectattr('name', 'equalto', seerr_sonarr_default_profile) | map(attribute='name') | list | first | default('Any') }}"
+
+- name: Get existing Sonarr instances in Seerr (for profile update)
+  ansible.builtin.uri:
+    url: "http://localhost:5055/api/v1/settings/sonarr"
+    headers:
+      X-Api-Key: "{{ seerr_api_key }}"
+    return_content: true
+  register: seerr_sonarr_for_update
+  when: seerr_api_key != '' and seerr_api_key != 'placeholder'
+
+- name: Update Seerr Sonarr instance to use WEB-1080p profile
+  vars:
+    _instance: "{{ seerr_sonarr_for_update.json | selectattr('name', 'equalto', 'Sonarr') | list | first | default({}) }}"
+    _body: "{{ _instance | combine({'activeProfileId': sonarr_web1080p_profile_id | int, 'activeProfileName': sonarr_web1080p_profile_name}) | dict2items | rejectattr('key', 'equalto', 'id') | items2dict }}"
+  ansible.builtin.uri:
+    url: "http://localhost:5055/api/v1/settings/sonarr/{{ _instance.id }}"
+    method: PUT
+    headers:
+      X-Api-Key: "{{ seerr_api_key }}"
+    body_format: json
+    body: "{{ _body }}"
+    status_code: 200
+  when: >
+    seerr_api_key != '' and seerr_api_key != 'placeholder'
+    and seerr_sonarr_for_update is not skipped
+    and _instance.id is defined
+    and _instance.activeProfileId | int != sonarr_web1080p_profile_id | int

@@ -1,0 +1,249 @@
+---
+# Prowlarr initialization role.
+# - Waits for Prowlarr to be healthy
+# - Sets auth method to External (reverse-proxy auth)
+# - Harvests API key from config.xml and pushes to Infisical
+# - Refreshes /etc/homelab.env after arr key harvest (last of the three arr services)
+# - Links Radarr and Sonarr as applications
+# - Adds usenet and torrent indexers from vars/prowlarr_indexers.yml
+
+- name: Wait for Prowlarr
+  ansible.builtin.uri:
+    url: "{{ prowlarr_url }}/api/v1/system/status"
+    headers:
+      X-Api-Key: "{{ prowlarr_api_key }}"
+    status_code: [200, 401]
+  register: prowlarr_status
+  until: prowlarr_status.status in [200, 401]
+  retries: 40
+  delay: 10
+
+# ── Auth method ──────────────────────────────────────────────────────────────
+# AuthenticationMethod=External tells Prowlarr that auth is handled by the
+# reverse proxy (Traefik + Authentik forwardAuth) -- no double-login.
+
+- name: Set Prowlarr auth method to External
+  ansible.builtin.replace:
+    path: /mnt/nas/docker/prowlarr/config.xml
+    regexp: '<AuthenticationMethod>[^<]*</AuthenticationMethod>'
+    replace: '<AuthenticationMethod>External</AuthenticationMethod>'
+  become: true
+  register: _prowlarr_auth_method
+
+- name: Restart Prowlarr if auth method changed
+  ansible.builtin.command: docker restart prowlarr
+  become: true
+  changed_when: true
+  when: _prowlarr_auth_method.changed
+
+# ── Harvest API key ──────────────────────────────────────────────────────────
+
+- name: Record pre-harvest Prowlarr key presence
+  ansible.builtin.set_fact:
+    _prowlarr_key_in_infisical: "{{ prowlarr_api_key != '' }}"
+
+- name: Read Prowlarr API key from config.xml
+  ansible.builtin.shell: grep -oP '(?<=<ApiKey>)[^<]+' /mnt/nas/docker/prowlarr/config.xml
+  register: _prowlarr_key_file
+  become: true
+  changed_when: false
+
+- name: Set Prowlarr API key from config
+  ansible.builtin.set_fact:
+    prowlarr_api_key: "{{ _prowlarr_key_file.stdout | trim }}"
+    _prowlarr_key_new: "{{ (_prowlarr_key_file.stdout | trim) != prowlarr_api_key }}"
+  when: (_prowlarr_key_file.stdout | default('') | trim) != ''
+
+- name: Push Prowlarr API key to Infisical
+  ansible.builtin.uri:
+    url: "{{ infisical_host }}/api/v3/secrets/raw/PROWLARR_API_KEY"
+    method: "{{ 'PATCH' if _prowlarr_key_in_infisical else 'POST' }}"
+    headers:
+      Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+    body_format: json
+    body:
+      workspaceId: "{{ _inf_project_id }}"
+      environment: "{{ _inf_environment }}"
+      secretPath: "/"
+      secretValue: "{{ prowlarr_api_key }}"
+      type: shared
+    status_code: [200, 201]
+  no_log: true
+  when: _prowlarr_key_new | default(false) and prowlarr_api_key != ''
+
+# ── Refresh /etc/homelab.env after arr key harvest ──────────────────────────
+# Prowlarr is the last of the three arr services to push its key, so this
+# role is responsible for the consolidated homelab.env refresh.
+
+- name: Fetch all secrets from Infisical after arr key harvest
+  ansible.builtin.uri:
+    url: "{{ infisical_host }}/api/v3/secrets/raw?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
+    headers:
+      Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+    status_code: 200
+  register: _infisical_refreshed2
+  no_log: true
+  when: >
+    (_radarr_key_new | default(false))
+    or (_sonarr_key_new | default(false))
+    or (_prowlarr_key_new | default(false))
+
+- name: Write refreshed /etc/homelab.env after arr key harvest
+  ansible.builtin.copy:
+    dest: /etc/homelab.env
+    mode: "0600"
+    owner: root
+    group: root
+    content: |
+      {% for s in _infisical_refreshed2.json.secrets %}
+      {{ s.secretKey }}={{ s.secretValue }}
+      {% endfor %}
+  become: true
+  no_log: true
+  when: >
+    (_radarr_key_new | default(false))
+    or (_sonarr_key_new | default(false))
+    or (_prowlarr_key_new | default(false))
+
+# ── Link Radarr and Sonarr ──────────────────────────────────────────────────
+
+- name: Get existing Prowlarr applications
+  ansible.builtin.uri:
+    url: "{{ prowlarr_url }}/api/v1/applications"
+    headers:
+      X-Api-Key: "{{ prowlarr_api_key }}"
+    return_content: true
+  register: prowlarr_apps
+
+- name: Link Prowlarr to Radarr
+  ansible.builtin.uri:
+    url: "{{ prowlarr_url }}/api/v1/applications"
+    method: POST
+    headers:
+      X-Api-Key: "{{ prowlarr_api_key }}"
+    body_format: json
+    body:
+      name: Radarr
+      syncLevel: fullSync
+      implementationName: Radarr
+      implementation: Radarr
+      configContract: RadarrSettings
+      fields:
+        - name: prowlarrUrl
+          value: "http://prowlarr:9696"
+        - name: baseUrl
+          value: "http://radarr:7878"
+        - name: apiKey
+          value: "{{ radarr_api_key }}"
+        - name: syncCategories
+          value: [2000, 2010, 2020, 2030, 2040, 2045, 2050, 2060]
+    status_code: 201
+  when: prowlarr_apps.json | selectattr('name', 'equalto', 'Radarr') | list | length == 0
+
+- name: Link Prowlarr to Sonarr
+  ansible.builtin.uri:
+    url: "{{ prowlarr_url }}/api/v1/applications"
+    method: POST
+    headers:
+      X-Api-Key: "{{ prowlarr_api_key }}"
+    body_format: json
+    body:
+      name: Sonarr
+      syncLevel: fullSync
+      implementationName: Sonarr
+      implementation: Sonarr
+      configContract: SonarrSettings
+      fields:
+        - name: prowlarrUrl
+          value: "http://prowlarr:9696"
+        - name: baseUrl
+          value: "http://sonarr:8989"
+        - name: apiKey
+          value: "{{ sonarr_api_key }}"
+        - name: syncCategories
+          value: [5000, 5010, 5020, 5030, 5040, 5045, 5050, 5060, 5070, 5080, 5090]
+    status_code: 201
+  when: prowlarr_apps.json | selectattr('name', 'equalto', 'Sonarr') | list | length == 0
+
+# ── Add indexers ─────────────────────────────────────────────────────────────
+
+- name: Get existing Prowlarr indexers
+  ansible.builtin.uri:
+    url: "{{ prowlarr_url }}/api/v1/indexer"
+    headers:
+      X-Api-Key: "{{ prowlarr_api_key }}"
+    return_content: true
+  register: _prowlarr_existing_indexers
+
+- name: Add Newznab (usenet) indexers to Prowlarr
+  ansible.builtin.uri:
+    url: "{{ prowlarr_url }}/api/v1/indexer"
+    method: POST
+    headers:
+      X-Api-Key: "{{ prowlarr_api_key }}"
+    body_format: json
+    body:
+      name: "{{ item.name }}"
+      enable: true
+      appProfileId: 1
+      priority: "{{ item.priority | default(25) }}"
+      redirect: true
+      supportsRss: true
+      supportsSearch: true
+      implementationName: Newznab
+      implementation: Newznab
+      configContract: NewznabSettings
+      privacy: "{{ item.privacy | default('private') }}"
+      fields:
+        - name: baseUrl
+          value: "{{ item.url }}"
+        - name: apiPath
+          value: /api
+        - name: apiKey
+          value: "{{ lookup('vars', item.api_key_var | lower, default='') }}"
+        - name: categories
+          value: "{{ item.categories }}"
+    status_code: 201
+  loop: "{{ prowlarr_indexers | selectattr('protocol', 'equalto', 'usenet') | list }}"
+  when: >
+    (lookup('vars', item.api_key_var | lower, default='')) not in ['', 'REPLACE_ME']
+    and _prowlarr_existing_indexers.json | selectattr('name', 'equalto', item.name) | list | length == 0
+
+- name: Fetch Prowlarr indexer schema for native torrent indexers
+  ansible.builtin.uri:
+    url: "{{ prowlarr_url }}/api/v1/indexer/schema"
+    headers:
+      X-Api-Key: "{{ prowlarr_api_key }}"
+    return_content: true
+  register: _prowlarr_schema
+  when: prowlarr_indexers | selectattr('protocol', 'equalto', 'torrent') | list | length > 0
+
+- name: Add native torrent indexers to Prowlarr
+  ansible.builtin.uri:
+    url: "{{ prowlarr_url }}/api/v1/indexer"
+    method: POST
+    headers:
+      X-Api-Key: "{{ prowlarr_api_key }}"
+    body_format: json
+    body: >-
+      {{ _schema_entry | combine({
+           'name': item.name,
+           'enable': true,
+           'appProfileId': 1,
+           'priority': item.priority | default(25),
+           'privacy': item.privacy | default('public'),
+           'fields': _schema_entry.fields
+                     | rejectattr('name', 'equalto', 'baseUrl') | list
+                     + [{'name': 'baseUrl', 'value': item.url}]
+         }) }}
+    status_code: 201
+  vars:
+    _schema_entry: >-
+      {{ _prowlarr_schema.json
+         | selectattr('name', 'equalto', item.name)
+         | list | first }}
+  loop: "{{ prowlarr_indexers | selectattr('protocol', 'equalto', 'torrent') | list }}"
+  when: >
+    _prowlarr_schema is not skipped
+    and (_prowlarr_schema.json | selectattr('name', 'equalto', item.name) | list | length > 0)
+    and _prowlarr_existing_indexers.json | selectattr('name', 'equalto', item.name) | list | length == 0

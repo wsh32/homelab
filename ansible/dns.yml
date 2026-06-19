@@ -15,10 +15,6 @@
   hosts: diglett-dns
   gather_facts: true
 
-  vars:
-    network: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
-    nas_ip: "{{ network.nodes.alakazam.ip }}"
-
   pre_tasks:
     - name: Load local secrets file if present (ansible/secrets.yml -- gitignored)
       ansible.builtin.include_vars:

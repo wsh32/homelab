@@ -1,0 +1,186 @@
+---
+# Sonarr initialization role.
+# - Waits for Sonarr to be healthy
+# - Sets auth method to External (reverse-proxy auth)
+# - Harvests API key from config.xml and pushes to Infisical
+# - Migrates root folder from /tv to /data/tv
+# - Adds qBittorrent and SABnzbd as download clients
+
+- name: Wait for Sonarr
+  ansible.builtin.uri:
+    url: "{{ sonarr_url }}/api/v3/system/status"
+    headers:
+      X-Api-Key: "{{ sonarr_api_key }}"
+    status_code: [200, 401]
+  register: sonarr_status
+  until: sonarr_status.status in [200, 401]
+  retries: 40
+  delay: 10
+
+# ── Auth method ──────────────────────────────────────────────────────────────
+# AuthenticationMethod=External tells Sonarr that auth is handled by the
+# reverse proxy (Traefik + Authentik forwardAuth) -- no double-login.
+
+- name: Set Sonarr auth method to External
+  ansible.builtin.replace:
+    path: /mnt/nas/docker/sonarr/config.xml
+    regexp: '<AuthenticationMethod>[^<]*</AuthenticationMethod>'
+    replace: '<AuthenticationMethod>External</AuthenticationMethod>'
+  become: true
+  register: _sonarr_auth_method
+
+- name: Restart Sonarr if auth method changed
+  ansible.builtin.command: docker restart sonarr
+  become: true
+  changed_when: true
+  when: _sonarr_auth_method.changed
+
+# ── Harvest API key ──────────────────────────────────────────────────────────
+
+- name: Record pre-harvest Sonarr key presence
+  ansible.builtin.set_fact:
+    _sonarr_key_in_infisical: "{{ sonarr_api_key != '' }}"
+
+- name: Read Sonarr API key from config.xml
+  ansible.builtin.shell: grep -oP '(?<=<ApiKey>)[^<]+' /mnt/nas/docker/sonarr/config.xml
+  register: _sonarr_key_file
+  become: true
+  changed_when: false
+
+- name: Set Sonarr API key from config
+  ansible.builtin.set_fact:
+    sonarr_api_key: "{{ _sonarr_key_file.stdout | trim }}"
+    _sonarr_key_new: "{{ (_sonarr_key_file.stdout | trim) != sonarr_api_key }}"
+  when: (_sonarr_key_file.stdout | default('') | trim) != ''
+
+- name: Push Sonarr API key to Infisical
+  ansible.builtin.uri:
+    url: "{{ infisical_host }}/api/v3/secrets/raw/SONARR_API_KEY"
+    method: "{{ 'PATCH' if _sonarr_key_in_infisical else 'POST' }}"
+    headers:
+      Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+    body_format: json
+    body:
+      workspaceId: "{{ _inf_project_id }}"
+      environment: "{{ _inf_environment }}"
+      secretPath: "/"
+      secretValue: "{{ sonarr_api_key }}"
+      type: shared
+    status_code: [200, 201]
+  no_log: true
+  when: _sonarr_key_new | default(false) and sonarr_api_key != ''
+
+# ── Root folder migration ────────────────────────────────────────────────────
+
+- name: Get Sonarr root folders
+  ansible.builtin.uri:
+    url: "{{ sonarr_url }}/api/v3/rootfolder"
+    headers:
+      X-Api-Key: "{{ sonarr_api_key }}"
+    return_content: true
+  register: sonarr_folders
+
+- name: Delete legacy Sonarr /tv root folder
+  ansible.builtin.uri:
+    url: "{{ sonarr_url }}/api/v3/rootfolder/{{ item.id }}"
+    method: DELETE
+    headers:
+      X-Api-Key: "{{ sonarr_api_key }}"
+    status_code: 200
+  loop: "{{ sonarr_folders.json | selectattr('path', 'equalto', '/tv') | list }}"
+
+- name: Add /data/tv root folder to Sonarr
+  ansible.builtin.uri:
+    url: "{{ sonarr_url }}/api/v3/rootfolder"
+    method: POST
+    headers:
+      X-Api-Key: "{{ sonarr_api_key }}"
+    body_format: json
+    body:
+      path: /data/tv
+    status_code: 201
+  when: sonarr_folders.json | selectattr('path', 'equalto', '/data/tv') | list | length == 0
+
+- name: Trigger Sonarr library rescan
+  ansible.builtin.uri:
+    url: "{{ sonarr_url }}/api/v3/command"
+    method: POST
+    headers:
+      X-Api-Key: "{{ sonarr_api_key }}"
+    body_format: json
+    body:
+      name: RescanSeries
+    status_code: 201
+  when: sonarr_folders.json | selectattr('path', 'equalto', '/tv') | list | length > 0
+
+# ── Download clients ─────────────────────────────────────────────────────────
+
+- name: Get existing Sonarr download clients
+  ansible.builtin.uri:
+    url: "{{ sonarr_url }}/api/v3/downloadclient"
+    headers:
+      X-Api-Key: "{{ sonarr_api_key }}"
+    return_content: true
+  register: sonarr_dlclients_check
+
+- name: Add qBittorrent to Sonarr
+  ansible.builtin.uri:
+    url: "{{ sonarr_url }}/api/v3/downloadclient"
+    method: POST
+    headers:
+      X-Api-Key: "{{ sonarr_api_key }}"
+    body_format: json
+    body:
+      name: qBittorrent
+      enable: true
+      protocol: torrent
+      priority: 1
+      implementation: QBittorrent
+      configContract: QBittorrentSettings
+      fields:
+        - name: host
+          value: "gluetun"
+        - name: port
+          value: "{{ qbittorrent_webui_port }}"
+        - name: tvCategory
+          value: sonarr
+        - name: recentTvPriority
+          value: 0
+        - name: olderTvPriority
+          value: 0
+        - name: initialState
+          value: 0
+    status_code: 201
+  when: sonarr_dlclients_check.json | selectattr('name', 'equalto', 'qBittorrent') | list | length == 0
+
+- name: Upsert SABnzbd in Sonarr
+  vars:
+    _existing: "{{ sonarr_dlclients_check.json | selectattr('name', 'equalto', 'SABnzbd') | list }}"
+  ansible.builtin.uri:
+    url: "{{ sonarr_url }}/api/v3/downloadclient{{ '/' ~ _existing[0].id if _existing | length > 0 else '' }}"
+    method: "{{ 'PUT' if _existing | length > 0 else 'POST' }}"
+    headers:
+      X-Api-Key: "{{ sonarr_api_key }}"
+    body_format: json
+    body:
+      id: "{{ _existing[0].id | default(omit) }}"
+      name: SABnzbd
+      enable: true
+      protocol: usenet
+      priority: 1
+      implementation: Sabnzbd
+      configContract: SabnzbdSettings
+      fields:
+        - name: host
+          value: sabnzbd
+        - name: port
+          value: 8080
+        - name: apiKey
+          value: "{{ sabnzbd_api_key }}"
+        - name: tvCategory
+          value: tv
+        - name: recentTvPriority
+          value: -100
+        - name: olderTvPriority
+          value: -100
+    status_code: [201, 202]

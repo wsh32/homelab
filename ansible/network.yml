@@ -16,20 +16,25 @@
     - "{{ playbook_dir }}/../network.yml"
 
   pre_tasks:
+    - name: Build flat nodes dict from all locations
+      ansible.builtin.set_fact:
+        _all_nodes: >-
+          {{ locations.values() | map(attribute='nodes') | map('dict2items') | flatten | items2dict }}
+
     - name: Verify host is defined in network.yml
       ansible.builtin.assert:
         that:
-          - inventory_hostname in nodes
-          - nodes[inventory_hostname].bridge_port is defined
+          - inventory_hostname in _all_nodes
+          - _all_nodes[inventory_hostname].bridge_port is defined
         fail_msg: >
           {{ inventory_hostname }} must have an entry with bridge_port set
-          in network.yml under 'nodes'. Find it with:
+          in network.yml under a location's 'nodes'. Find it with:
           ssh root@{{ ansible_host }} ip link show
 
     - name: Set network facts from network.yml
       ansible.builtin.set_fact:
-        proxmox_bridge_port: "{{ nodes[inventory_hostname].bridge_port }}"
-        disable_nic_offload: "{{ nodes[inventory_hostname].get('disable_nic_offload', false) }}"
+        proxmox_bridge_port: "{{ _all_nodes[inventory_hostname].bridge_port }}"
+        disable_nic_offload: "{{ _all_nodes[inventory_hostname].get('disable_nic_offload', false) }}"
 
   roles:
     - role: network

@@ -1,0 +1,558 @@
+---
+# Seerr initialization role.
+# - Reads existing API key and clientId from settings.json
+# - If not initialized: writes admin user to SQLite DB via docker run python:3-alpine
+# - Patches settings.json with Jellyfin API key and server ID if missing
+# - Adds Radarr and Sonarr as arr instances
+# - Disables local sign-up
+# - Pushes Seerr API key to Infisical and writes final homelab.env
+# - Sets default quality profiles (after recyclarr runs)
+# - Injects Authentik OIDC provider credentials
+
+# ── Read existing state ──────────────────────────────────────────────────────
+
+- name: Read Seerr settings.json
+  ansible.builtin.shell: |
+    python3 -c "
+    import json, sys
+    try:
+        d = json.load(open('/mnt/nas/docker/seerr/settings.json'))
+        k   = d.get('main', {}).get('apiKey', '') or d.get('apiKey', '')
+        cid = d.get('clientId', '')
+        print(k + '|' + cid)
+    except Exception:
+        print('|')
+    "
+  register: _seerr_settings_raw
+  changed_when: false
+
+- name: Set Seerr API key and client ID from settings.json
+  ansible.builtin.set_fact:
+    seerr_api_key: "{{ _seerr_settings_raw.stdout.split('|')[0] | trim }}"
+    _seerr_client_id: "{{ _seerr_settings_raw.stdout.split('|')[1] | trim }}"
+  when: (_seerr_settings_raw.stdout | trim) not in ['', '|']
+
+- name: Ensure Seerr container is running
+  ansible.builtin.command: docker start seerr
+  become: true
+  changed_when: false
+  failed_when: false
+  when: seerr_api_key != '' and seerr_api_key != 'placeholder'
+
+- name: Check Seerr initialization status
+  ansible.builtin.uri:
+    url: "{{ seerr_url }}/api/v1/settings/public"
+    status_code: 200
+    return_content: true
+  register: seerr_public
+  until: seerr_public.status == 200
+  retries: 20
+  delay: 5
+  when: seerr_api_key != '' and seerr_api_key != 'placeholder'
+
+- name: Get Jellyfin root user info
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/Users"
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ jellyfin_api_key }}"'
+    status_code: 200
+    return_content: true
+  register: _jellyfin_users
+  no_log: true
+  when: >
+    jellyfin_api_key != ''
+    and seerr_api_key != '' and seerr_api_key != 'placeholder'
+    and not (seerr_public.json.initialized | default(false))
+
+- name: Set Jellyfin auth facts
+  ansible.builtin.set_fact:
+    _jellyfin_auth_for_seerr:
+      json:
+        User: "{{ _jellyfin_users.json | selectattr('Name', 'equalto', jellyfin_admin_username | default('admin')) | first }}"
+        AccessToken: "{{ jellyfin_api_key }}"
+      skipped: false
+  no_log: true
+  when: >
+    jellyfin_api_key != ''
+    and seerr_api_key != '' and seerr_api_key != 'placeholder'
+    and not (seerr_public.json.initialized | default(false))
+    and _jellyfin_users is not skipped
+
+- name: Get Jellyfin server info
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/System/Info"
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ jellyfin_api_key }}"'
+    status_code: 200
+    return_content: true
+  register: _jellyfin_server_info
+  no_log: true
+  when: >
+    jellyfin_api_key != ''
+    and seerr_api_key != '' and seerr_api_key != 'placeholder'
+    and not (seerr_public.json.initialized | default(false))
+    and _jellyfin_auth_for_seerr is defined
+
+- name: Stop Seerr before DB write to release SQLite lock
+  ansible.builtin.command: docker stop seerr
+  become: true
+  changed_when: true
+  when: >
+    seerr_api_key != '' and seerr_api_key != 'placeholder'
+    and not (seerr_public.json.initialized | default(false))
+    and _jellyfin_auth_for_seerr is defined
+
+- name: Write Seerr DB init script to temp file
+  ansible.builtin.copy:
+    dest: /tmp/seerr-db-init.py
+    mode: "0644"
+    content: |
+      import json, os, sqlite3, sys
+      jf_uid      = os.environ['JF_UID']
+      jf_token    = os.environ['JF_TOKEN']
+      jf_client   = os.environ['JF_CLIENT']
+      jf_api_key  = os.environ['JF_API_KEY']
+      jf_serverid = os.environ['JF_SERVER_ID']
+      db_path   = '/app/config/db/db.sqlite3'
+      try:
+          conn   = sqlite3.connect(db_path, timeout=30)
+          cursor = conn.cursor()
+          cursor.execute('PRAGMA table_info(user)')
+          schema = cursor.fetchall()
+          # schema rows: (cid, name, type, notnull, dflt_value, pk)
+          # Build a set of NOT NULL columns that have no default value --
+          # we must supply a value for these or the INSERT will fail.
+          notnull_no_default = {
+              row[1] for row in schema
+              if row[3] == 1 and row[4] is None and row[5] == 0
+          }
+          fields = {'id': 1, 'email': 'admin@team.rocket', 'avatar': '',
+                    'jellyfinUserId': jf_uid, 'jellyfinUsername': 'admin',
+                    'jellyfinAuthToken': jf_token, 'jellyfinDeviceId': jf_client,
+                    'permissions': 2}
+          # Fill any remaining NOT NULL / no-default columns with safe defaults
+          # so the INSERT never fails on constraint violations we haven't seen yet.
+          type_defaults = {'INTEGER': 0, 'REAL': 0.0}
+          for row in schema:
+              col_name, col_type, notnull, dflt, pk = row[1], row[2], row[3], row[4], row[5]
+              if col_name not in fields and notnull and dflt is None and pk == 0:
+                  fields[col_name] = type_defaults.get(col_type.upper(), '')
+          col_names    = ', '.join(fields.keys()) + ', createdAt, updatedAt'
+          placeholders = ', '.join(['?'] * len(fields)) + ", datetime('now'), datetime('now')"
+          cursor.execute(
+              'INSERT OR REPLACE INTO user (' + col_names + ') VALUES (' + placeholders + ')',
+              list(fields.values()))
+          conn.commit()
+          conn.close()
+          print('Upserted Seerr admin user at id=1')
+      except Exception as e:
+          print('DB error: ' + str(e), file=sys.stderr)
+          sys.exit(1)
+      with open('/app/config/settings.json') as f:
+          settings = json.load(f)
+      settings.setdefault('public', {})['initialized'] = True
+      settings.setdefault('public', {})['mediaServerLogin'] = True
+      settings.setdefault('main', {})['mediaServerType'] = 2  # JELLYFIN
+      settings['jellyfin'] = {
+          'ip': 'jellyfin',
+          'port': 8096,
+          'useSsl': False,
+          'urlBase': '',
+          'externalHostname': '',
+          'serverId': jf_serverid,
+          'serverName': 'TeamRocket',
+          'name': 'TeamRocket',
+          'apiKey': jf_api_key,
+          'libraries': [],
+      }
+      with open('/app/config/settings.json', 'w') as f:
+          json.dump(settings, f, indent=2)
+      print('Marked Seerr as initialized with Jellyfin config')
+  when: >
+    seerr_api_key != '' and seerr_api_key != 'placeholder'
+    and not (seerr_public.json.initialized | default(false))
+    and _jellyfin_auth_for_seerr is defined
+
+- name: Get Seerr DB file owner for docker run
+  ansible.builtin.stat:
+    path: /mnt/nas/docker/seerr/db/db.sqlite3
+  register: _seerr_db_stat
+  when: >
+    seerr_api_key != '' and seerr_api_key != 'placeholder'
+    and not (seerr_public.json.initialized | default(false))
+    and _jellyfin_auth_for_seerr is defined
+
+- name: Write Jellyfin admin user into Seerr database
+  become: true
+  ansible.builtin.shell:
+    cmd: >-
+      docker run --rm
+      --user "{{ _seerr_db_stat.stat.uid }}:{{ _seerr_db_stat.stat.gid }}"
+      -v /mnt/nas/docker/seerr:/app/config
+      -v /tmp/seerr-db-init.py:/init.py:ro
+      -e "JF_UID={{ _jellyfin_auth_for_seerr.json.User.Id }}"
+      -e "JF_TOKEN={{ _jellyfin_auth_for_seerr.json.AccessToken }}"
+      -e "JF_CLIENT={{ _seerr_client_id | default('seerr') }}"
+      -e "JF_API_KEY={{ jellyfin_api_key }}"
+      -e "JF_SERVER_ID={{ _jellyfin_server_info.json.Id | default('') }}"
+      python:3-alpine python3 /init.py
+  when: >
+    seerr_api_key != '' and seerr_api_key != 'placeholder'
+    and not (seerr_public.json.initialized | default(false))
+    and _jellyfin_auth_for_seerr is defined
+    and _jellyfin_auth_for_seerr.json.User.Id is defined
+    and _seerr_db_stat is not skipped
+    and _jellyfin_server_info is defined
+  changed_when: true
+  no_log: true
+
+- name: Restart Seerr to apply DB initialization
+  ansible.builtin.command: docker restart seerr
+  become: true
+  changed_when: true
+  when: >
+    seerr_api_key != '' and seerr_api_key != 'placeholder'
+    and not (seerr_public.json.initialized | default(false))
+    and _jellyfin_auth_for_seerr is defined
+
+- name: Wait for Seerr after restart
+  ansible.builtin.uri:
+    url: "{{ seerr_url }}/api/v1/settings/public"
+    status_code: 200
+  register: seerr_post_restart
+  until: seerr_post_restart.status == 200
+  retries: 20
+  delay: 5
+  when: >
+    seerr_api_key != '' and seerr_api_key != 'placeholder'
+    and not (seerr_public.json.initialized | default(false))
+    and _jellyfin_auth_for_seerr is defined
+
+- name: Re-read Seerr API key after any restart
+  ansible.builtin.shell: |
+    python3 -c "
+    import json, sys
+    try:
+        d = json.load(open('/mnt/nas/docker/seerr/settings.json'))
+        print(d.get('main', {}).get('apiKey', '') or d.get('apiKey', ''))
+    except Exception:
+        print('')
+    "
+  register: _seerr_key_refreshed
+  changed_when: false
+
+- name: Update Seerr API key fact after restart
+  ansible.builtin.set_fact:
+    seerr_api_key: "{{ _seerr_key_refreshed.stdout | trim }}"
+  when: (_seerr_key_refreshed.stdout | trim) != ''
+
+- name: Read Seerr settings.json
+  ansible.builtin.slurp:
+    src: /mnt/nas/docker/seerr/settings.json
+  register: _seerr_settings_json
+  become: true
+  when: jellyfin_api_key != '' and seerr_api_key != '' and seerr_api_key != 'placeholder'
+
+- name: Parse Seerr Jellyfin API key from settings.json
+  ansible.builtin.set_fact:
+    _seerr_jf_apikey: "{{ (_seerr_settings_json.content | b64decode | from_json).jellyfin.apiKey | default('') }}"
+  when: _seerr_settings_json is not skipped and _seerr_settings_json.content is defined
+
+- name: Read Seerr mediaServerType from settings.json
+  ansible.builtin.set_fact:
+    _seerr_media_server_type: "{{ (_seerr_settings_json.content | b64decode | from_json).main.mediaServerType | default(4) }}"
+  when: _seerr_settings_json is not skipped and _seerr_settings_json.content is defined
+
+- name: Fetch Jellyfin server info
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/System/Info"
+    headers:
+      Authorization: 'MediaBrowser Client="Ansible", Device="ansible-init", DeviceId="ansible-init-001", Version="1.0", Token="{{ jellyfin_api_key }}"'
+    status_code: 200
+    return_content: true
+  register: _jellyfin_server_info_patch
+  no_log: true
+  when: >
+    jellyfin_api_key != ''
+    and ((_seerr_jf_apikey | default('')) == ''
+         or (_seerr_media_server_type | default(4) | int) != 2)
+
+- name: Patch Seerr settings.json with Jellyfin API key and server ID
+  ansible.builtin.shell: |
+    python3 -c "
+    import json
+    with open('/mnt/nas/docker/seerr/settings.json') as f:
+        s = json.load(f)
+    changed = False
+    pub = s.setdefault('public', {})
+    pub['mediaServerLogin'] = True
+    main = s.setdefault('main', {})
+    if main.get('mediaServerType', 4) != 2:
+        main['mediaServerType'] = 2
+        changed = True
+    jf = s.setdefault('jellyfin', {})
+    if not jf.get('apiKey'):
+        jf['apiKey'] = '{{ jellyfin_api_key }}'
+        jf['serverId'] = '{{ _jellyfin_server_info_patch.json.Id | default("") }}'
+        jf.setdefault('ip', 'jellyfin')
+        jf.setdefault('port', 8096)
+        changed = True
+    if changed:
+        with open('/mnt/nas/docker/seerr/settings.json', 'w') as f:
+            json.dump(s, f, indent=2)
+        print('patched')
+    else:
+        print('ok')
+    "
+  register: _seerr_settings_patch
+  changed_when: _seerr_settings_patch.stdout | trim == 'patched'
+  become: true
+  no_log: true
+  when: >
+    jellyfin_api_key != ''
+    and ((_seerr_jf_apikey | default('')) == ''
+         or (_seerr_media_server_type | default(4) | int) != 2)
+    and _jellyfin_server_info_patch is defined
+    and _jellyfin_server_info_patch.json is defined
+
+- name: Restart Seerr after settings patch
+  ansible.builtin.command: docker restart seerr
+  become: true
+  changed_when: true
+  when: >
+    _seerr_settings_patch is defined
+    and (_seerr_settings_patch.changed | default(false))
+
+- name: Wait for Seerr after settings patch restart
+  ansible.builtin.uri:
+    url: "{{ seerr_url }}/api/v1/settings/public"
+    status_code: 200
+  register: _seerr_patch_wait
+  until: _seerr_patch_wait.status == 200
+  retries: 20
+  delay: 5
+  when: >
+    _seerr_settings_patch is defined
+    and (_seerr_settings_patch.changed | default(false))
+
+# ── Add Radarr and Sonarr ────────────────────────────────────────────────────
+
+- name: Get existing Radarr instances in Seerr
+  ansible.builtin.uri:
+    url: "{{ seerr_url }}/api/v1/settings/radarr"
+    headers:
+      X-Api-Key: "{{ seerr_api_key }}"
+    return_content: true
+  register: seerr_radarr_list
+  when: seerr_api_key != '' and seerr_api_key != 'placeholder'
+
+- name: Add Radarr to Seerr
+  ansible.builtin.uri:
+    url: "{{ seerr_url }}/api/v1/settings/radarr"
+    method: POST
+    headers:
+      X-Api-Key: "{{ seerr_api_key }}"
+    body_format: json
+    body:
+      name: Radarr
+      hostname: radarr
+      port: 7878
+      apiKey: "{{ radarr_api_key }}"
+      useSsl: false
+      baseUrl: ""
+      activeProfileId: "{{ radarr_4k_profile_id | default(1) }}"
+      activeProfileName: "{{ radarr_4k_profile_name | default('Any') }}"
+      activeDirectory: /data/movies
+      minimumAvailability: released
+      is4k: false
+      isDefault: true
+      externalUrl: "http://radarr.home"
+    status_code: 201
+  when: >
+    seerr_api_key != '' and seerr_api_key != 'placeholder'
+    and seerr_radarr_list is not skipped
+    and (seerr_radarr_list.json | selectattr('name', 'equalto', 'Radarr') | list | length == 0)
+
+- name: Get existing Sonarr instances in Seerr
+  ansible.builtin.uri:
+    url: "{{ seerr_url }}/api/v1/settings/sonarr"
+    headers:
+      X-Api-Key: "{{ seerr_api_key }}"
+    return_content: true
+  register: seerr_sonarr_list
+  when: seerr_api_key != '' and seerr_api_key != 'placeholder'
+
+- name: Add Sonarr to Seerr
+  ansible.builtin.uri:
+    url: "{{ seerr_url }}/api/v1/settings/sonarr"
+    method: POST
+    headers:
+      X-Api-Key: "{{ seerr_api_key }}"
+    body_format: json
+    body:
+      name: Sonarr
+      hostname: sonarr
+      port: 8989
+      apiKey: "{{ sonarr_api_key }}"
+      useSsl: false
+      baseUrl: ""
+      activeProfileId: "{{ sonarr_web1080p_profile_id | default(1) }}"
+      activeProfileName: "{{ sonarr_web1080p_profile_name | default('Any') }}"
+      activeDirectory: /data/tv
+      minimumAvailability: released
+      enableSeasonFolders: true
+      is4k: false
+      isDefault: true
+      externalUrl: "http://sonarr.home"
+    status_code: 201
+  when: >
+    seerr_api_key != '' and seerr_api_key != 'placeholder'
+    and seerr_sonarr_list is not skipped
+    and (seerr_sonarr_list.json | selectattr('name', 'equalto', 'Sonarr') | list | length == 0)
+
+- name: Disable local account sign-up in Seerr
+  ansible.builtin.uri:
+    url: "{{ seerr_url }}/api/v1/settings/main"
+    method: POST
+    headers:
+      X-Api-Key: "{{ seerr_api_key }}"
+    body_format: json
+    body:
+      localLogin: false
+      mediaServerLogin: true
+    status_code: 200
+  when: seerr_api_key != '' and seerr_api_key != 'placeholder'
+
+# ── Push Seerr API key to Infisical ─────────────────────────────────────────
+
+- name: Push Seerr API key to Infisical
+  ansible.builtin.uri:
+    url: "{{ infisical_host }}/api/v3/secrets/raw/SEERR_API_KEY"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+    body_format: json
+    body:
+      workspaceId: "{{ _inf_project_id }}"
+      environment: "{{ _inf_environment }}"
+      secretPath: "/"
+      secretValue: "{{ seerr_api_key }}"
+      type: shared
+    status_code: [200, 201]
+  no_log: true
+  when: _seerr_key_new and seerr_api_key != 'placeholder' and seerr_api_key != ''
+
+- name: Fetch all secrets from Infisical after Seerr key
+  ansible.builtin.uri:
+    url: "{{ infisical_host }}/api/v3/secrets/raw?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
+    headers:
+      Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+    status_code: 200
+  register: _infisical_refreshed3
+  no_log: true
+  when: _seerr_key_new and seerr_api_key != 'placeholder' and seerr_api_key != ''
+
+- name: Write final /etc/homelab.env
+  ansible.builtin.copy:
+    dest: /etc/homelab.env
+    mode: "0600"
+    owner: root
+    group: root
+    content: |
+      {% for s in _infisical_refreshed3.json.secrets %}
+      {{ s.secretKey }}={{ s.secretValue }}
+      {% endfor %}
+  become: true
+  no_log: true
+  when: _seerr_key_new and seerr_api_key != 'placeholder' and seerr_api_key != ''
+
+# ── Authentik OIDC injection ─────────────────────────────────────────────────
+# Credentials come from /mnt/nas/docker/seerr-oidc.env written by infra.yml.
+
+- name: Check if Seerr OIDC credentials are available on NFS
+  ansible.builtin.stat:
+    path: /mnt/nas/docker/seerr-oidc.env
+  register: _seerr_oidc_env_stat
+  become: true
+
+- name: Fail if Seerr OIDC env not yet written by infra.yml
+  ansible.builtin.fail:
+    msg: >
+      /mnt/nas/docker/seerr-oidc.env not found.
+      Run ansible-playbook ansible/infra.yml first.
+  when: not _seerr_oidc_env_stat.stat.exists
+
+- name: Read Seerr OIDC credentials from NFS
+  ansible.builtin.slurp:
+    src: /mnt/nas/docker/seerr-oidc.env
+  register: _seerr_oidc_env_raw
+  become: true
+
+- name: Parse Seerr OIDC credentials
+  ansible.builtin.set_fact:
+    _seerr_oidc_client_id: "{{ (_seerr_oidc_env_raw.content | b64decode) | regex_search('(?m)^SEERR_OIDC_CLIENT_ID=(.+)$', '\\1') | first }}"
+    _seerr_oidc_client_secret: "{{ (_seerr_oidc_env_raw.content | b64decode) | regex_search('(?m)^SEERR_OIDC_CLIENT_SECRET=(.+)$', '\\1') | first }}"
+
+- name: Patch Seerr settings.json with OIDC provider config
+  ansible.builtin.shell: |
+    python3 -c "
+    import json, sys, os
+
+    path = '/mnt/nas/docker/seerr/settings.json'
+    try:
+        with open(path) as f:
+            d = json.load(f)
+    except FileNotFoundError:
+        d = {}
+
+    # Discovered via authentik_public_url (auth.wesleysoohoo.me, reachable
+    # from LAN, remote internet, and Tailscale alike) so seerr.home and
+    # seerr.wsh share a single OIDC provider and login button.
+    desired_providers = [
+        {
+            'slug': 'authentik',
+            'name': 'Authentik',
+            'issuerUrl': '{{ authentik_public_url }}/application/o/seerr/',
+            'clientId': '{{ _seerr_oidc_client_id }}',
+            'clientSecret': '{{ _seerr_oidc_client_secret }}',
+            'scopes': 'openid profile email',
+            'requiredClaims': '',
+            'newUserLogin': True,
+        },
+    ]
+
+    providers = d.setdefault('oidc', {}).setdefault('providers', [])
+    desired_slugs = {p['slug'] for p in desired_providers}
+    all_match = d.get('main', {}).get('oidcLogin') == True
+    if len(providers) != len(desired_providers):
+        all_match = False
+    providers[:] = [p for p in providers if p['slug'] in desired_slugs]
+    for desired in desired_providers:
+        existing = next((p for p in providers if p['slug'] == desired['slug']), None)
+        if existing != desired:
+            all_match = False
+        if existing:
+            existing.update(desired)
+        else:
+            providers.append(desired)
+
+    if all_match:
+        print('no-change')
+        sys.exit(0)
+
+    d.setdefault('main', {})['oidcLogin'] = True
+
+    with open(path, 'w') as f:
+        json.dump(d, f, indent=2)
+    os.chown(path, 1000, 1000)
+    print('patched')
+    "
+  register: _seerr_settings_patch
+  changed_when: _seerr_settings_patch.stdout | trim == 'patched'
+  become: true
+
+- name: Restart Seerr to apply OIDC config
+  ansible.builtin.command: docker restart seerr
+  become: true
+  changed_when: true
+  when: _seerr_settings_patch.changed

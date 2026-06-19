@@ -1,0 +1,40 @@
+---
+# Recyclarr initialization role.
+# Runs a one-shot Recyclarr sync via docker container.
+# Recyclarr is stateless for sync purposes; uses a local VM temp dir to
+# avoid needing write access to the NFS docker share root.
+
+- name: Create local Recyclarr config temp directory
+  ansible.builtin.file:
+    path: /tmp/recyclarr-config
+    state: directory
+    mode: "0755"
+
+- name: Copy Recyclarr config to VM
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../services/machamp-media/config/recyclarr/"
+    dest: /tmp/recyclarr-config/
+    mode: "0644"
+
+- name: Run Recyclarr sync
+  become: true
+  community.docker.docker_container:
+    name: recyclarr-init
+    image: ghcr.io/recyclarr/recyclarr:7
+    networks:
+      - name: machamp-media_default
+    volumes:
+      - /tmp/recyclarr-config:/config
+    env:
+      RADARR_API_KEY: "{{ radarr_api_key }}"
+      SONARR_API_KEY: "{{ sonarr_api_key }}"
+    command: sync
+    detach: false
+    cleanup: true
+  register: recyclarr_result
+  ignore_errors: true
+
+- name: Show Recyclarr sync output
+  ansible.builtin.debug:
+    var: recyclarr_result.container.Output
+  when: recyclarr_result is defined
