@@ -17,7 +17,7 @@
 
 - name: Get existing Radarr instances in Seerr (for profile update)
   ansible.builtin.uri:
-    url: "{{ seerr_url }}/api/v1/settings/radarr"
+    url: "http://localhost:5055/api/v1/settings/radarr"
     headers:
       X-Api-Key: "{{ seerr_api_key }}"
     return_content: true
@@ -29,7 +29,7 @@
     _instance: "{{ seerr_radarr_for_update.json | selectattr('name', 'equalto', 'Radarr') | list | first | default({}) }}"
     _body: "{{ _instance | combine({'activeProfileId': radarr_4k_profile_id | int, 'activeProfileName': radarr_4k_profile_name}) | dict2items | rejectattr('key', 'equalto', 'id') | items2dict }}"
   ansible.builtin.uri:
-    url: "{{ seerr_url }}/api/v1/settings/radarr/{{ _instance.id }}"
+    url: "http://localhost:5055/api/v1/settings/radarr/{{ _instance.id }}"
     method: PUT
     headers:
       X-Api-Key: "{{ seerr_api_key }}"
@@ -57,7 +57,7 @@
 
 - name: Get existing Sonarr instances in Seerr (for profile update)
   ansible.builtin.uri:
-    url: "{{ seerr_url }}/api/v1/settings/sonarr"
+    url: "http://localhost:5055/api/v1/settings/sonarr"
     headers:
       X-Api-Key: "{{ seerr_api_key }}"
     return_content: true
@@ -69,7 +69,7 @@
     _instance: "{{ seerr_sonarr_for_update.json | selectattr('name', 'equalto', 'Sonarr') | list | first | default({}) }}"
     _body: "{{ _instance | combine({'activeProfileId': sonarr_web1080p_profile_id | int, 'activeProfileName': sonarr_web1080p_profile_name}) | dict2items | rejectattr('key', 'equalto', 'id') | items2dict }}"
   ansible.builtin.uri:
-    url: "{{ seerr_url }}/api/v1/settings/sonarr/{{ _instance.id }}"
+    url: "http://localhost:5055/api/v1/settings/sonarr/{{ _instance.id }}"
     method: PUT
     headers:
       X-Api-Key: "{{ seerr_api_key }}"
