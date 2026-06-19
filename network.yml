@@ -184,6 +184,43 @@ locations:
               - name: unpackerr
                 authentik: none
                 traefik: false
+              - name: photoprism
+                hostname: photos
+                port: 2342
+                nfs_data: docker/photoprism
+                authentik: none
+              - name: calibre-web
+                hostname: books
+                port: 8083
+                nfs_data: docker/calibre-web
+                authentik: none
+              - name: n8n
+                port: 5678
+                nfs_data: docker/n8n
+                authentik: none
+              - name: couchdb
+                port: 5984
+                nfs_data: docker/couchdb
+                authentik: none
+              - name: quartz
+                hostname: notes
+                port: 8080
+                nfs_data: docker/quartz
+                authentik: none
+              - name: homepage
+                hostname: home
+                port: 3000
+                host_port: 3001  # grafana owns host port 3000
+                nfs_data: docker/homepage
+                authentik: none
+              - name: prometheus
+                port: 9090
+                nfs_data: docker/prometheus
+                authentik: none
+              - name: grafana
+                port: 3000
+                nfs_data: docker/grafana
+                authentik: none
           machamp-dev:
             ip: 192.168.0.31
             tailscale_ip: 100.64.1.31

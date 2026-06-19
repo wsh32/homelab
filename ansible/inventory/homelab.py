@@ -73,6 +73,9 @@ def build_inventory():
                         infisical_host = f"http://{vm_ip}:{svc['port']}"
                     all_location_services.append({**svc, 'vm': vm_name, 'vm_ip': vm_ip})
 
+        proxmox_nodes = [{'name': n, 'ip': a['ip']}
+                         for n, a in nodes.items() if a.get('type') == 'proxmox']
+
         # Common extra vars for every host in this location
         loc_vars = {'location': loc_name, 'tailscale_domain': tailscale_domain}
         if nas_ip:
@@ -83,6 +86,8 @@ def build_inventory():
             loc_vars['infisical_host'] = infisical_host
         if loc.get('dns', {}).get('fallback'):
             loc_vars['dns_fallback'] = loc['dns']['fallback']
+        if proxmox_nodes:
+            loc_vars['proxmox_nodes'] = proxmox_nodes
 
         managed_nodes = {h: a for h, a in nodes.items() if a.get('os') != 'truenas'}
 

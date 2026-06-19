@@ -20,6 +20,16 @@
     rsync_opts:
       - "--chown={{ ansible_user }}:{{ ansible_user }}"
       - "--exclude=.env"   # preserve the /etc/homelab.env symlink created below
+      - "--exclude=traefik/dynamic/services-vm.yml"   # rendered by template task below
+
+- name: Render Traefik services-vm.yml from network.yml
+  ansible.builtin.template:
+    src: services-vm.yml.j2
+    dest: /home/{{ ansible_user }}/homelab/services/diglett-infra/traefik/dynamic/services-vm.yml
+    mode: "0644"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  become: true
 
 - name: Mount NFS share
   ansible.builtin.include_tasks: ../../../tasks/nfs-mount.yml
