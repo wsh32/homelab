@@ -14,10 +14,6 @@
   hosts: diglett-dns
   gather_facts: false
 
-  vars:
-    network: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
-    nas_ip: "{{ network.locations.bryant.nodes.alakazam.ip }}"
-
   pre_tasks:
     - name: Load secrets.yml if present
       ansible.builtin.include_vars:
@@ -103,10 +99,6 @@
 - name: Inject OIDC credentials into Headscale (diglett-dns)
   hosts: diglett-dns
   gather_facts: false
-
-  vars:
-    network: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
-    nas_ip: "{{ network.locations.bryant.nodes.alakazam.ip }}"
 
   pre_tasks:
     - name: Load secrets.yml if present
