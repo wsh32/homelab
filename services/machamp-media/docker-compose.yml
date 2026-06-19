@@ -26,7 +26,7 @@ services:
     depends_on:
       - jellyfin
     volumes:
-      - /var/lib/jellyfin-data:/data:ro
+      - /var/lib/jellyfin-data:/data
       - /mnt/nas/docker/jellyfin-backup:/backup
       - ./config/jellyfin-litestream.yml:/etc/litestream.yml:ro
     command: replicate
