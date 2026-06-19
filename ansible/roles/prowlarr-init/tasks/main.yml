@@ -186,7 +186,7 @@
       name: "{{ item.name }}"
       enable: true
       appProfileId: 1
-      priority: 25
+      priority: "{{ item.priority | default(25) }}"
       redirect: true
       supportsRss: true
       supportsSearch: true
@@ -230,7 +230,7 @@
            'name': item.name,
            'enable': true,
            'appProfileId': 1,
-           'priority': 25,
+           'priority': item.priority | default(25),
            'privacy': item.privacy | default('public'),
            'fields': _schema_entry.fields
                      | rejectattr('name', 'equalto', 'baseUrl') | list

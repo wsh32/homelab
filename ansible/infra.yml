@@ -74,6 +74,16 @@
         port: 8080
         timeout: 120
 
+    - name: Wait for Infisical API to be ready
+      ansible.builtin.uri:
+        url: "http://localhost:8080/api/v1/status"
+        method: GET
+        status_code: 200
+      register: _infisical_status
+      until: _infisical_status.status == 200
+      retries: 30
+      delay: 5
+
     - name: Bootstrap Infisical via REST API
       ansible.builtin.uri:
         url: "http://localhost:8080/api/v1/admin/bootstrap"

@@ -49,6 +49,10 @@
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/vars/sabnzbd_servers.yml"
 
+    - name: Load media quality profile config
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/vars/media_config.yml"
+
     # ── Load Infisical push credentials from the target ──────────────────────
 
     - name: Load /etc/infisical.env (push credentials)
