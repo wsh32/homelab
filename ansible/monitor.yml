@@ -72,7 +72,7 @@
           clientId: "{{ infisical_client_id }}"
           clientSecret: "{{ infisical_client_secret }}"
         status_code: 200
-      register: _infisical_ua_token
+      register: _inf_token
       delegate_to: localhost
       no_log: true
       when:
@@ -80,16 +80,79 @@
         - infisical_client_secret is defined
         - infisical_project_id is defined
 
+    - name: Set Infisical project facts
+      ansible.builtin.set_fact:
+        _inf_project_id: "{{ infisical_project_id }}"
+        _inf_environment: "{{ infisical_environment | default('prod') }}"
+      when: _inf_token is not skipped
+
     - name: Fetch all secrets from Infisical
       ansible.builtin.uri:
-        url: "{{ infisical_host }}/api/v3/secrets/raw?workspaceId={{ infisical_project_id }}&environment={{ infisical_environment | default('prod') }}&secretPath=/"
+        url: "{{ infisical_host }}/api/v3/secrets/raw?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
         headers:
-          Authorization: "Bearer {{ _infisical_ua_token.json.accessToken }}"
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
         status_code: 200
       register: _infisical_secrets
       delegate_to: localhost
       no_log: true
-      when: _infisical_ua_token is not skipped
+      when: _inf_token is not skipped
+
+    # ── Generate missing secrets ────────────────────────────────────────────────
+
+    - name: Set existing secret facts from Infisical
+      ansible.builtin.set_fact:
+        jellystat_db_password: >-
+          {{ (_infisical_secrets.json.secrets
+              | selectattr('secretKey', 'equalto', 'JELLYSTAT_DB_PASSWORD')
+              | map(attribute='secretValue') | list | first) | default('') }}
+        jellystat_jwt_secret: >-
+          {{ (_infisical_secrets.json.secrets
+              | selectattr('secretKey', 'equalto', 'JELLYSTAT_JWT_SECRET')
+              | map(attribute='secretValue') | list | first) | default('') }}
+      when: _infisical_secrets is not skipped
+
+    - name: Generate JELLYSTAT_DB_PASSWORD
+      ansible.builtin.set_fact:
+        jellystat_db_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=32, chars=['ascii_letters', 'digits']) }}"
+      when:
+        - _infisical_secrets is not skipped
+        - jellystat_db_password == ''
+
+    - name: Generate JELLYSTAT_JWT_SECRET
+      ansible.builtin.set_fact:
+        jellystat_jwt_secret: "{{ lookup('ansible.builtin.password', '/dev/null', length=64, chars=['ascii_letters', 'digits']) }}"
+      when:
+        - _infisical_secrets is not skipped
+        - jellystat_jwt_secret == ''
+
+    - name: Upsert JELLYSTAT_DB_PASSWORD in Infisical
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/infisical-upsert.yml"
+      vars:
+        _inf_upsert_name: JELLYSTAT_DB_PASSWORD
+        _inf_upsert_value: "{{ jellystat_db_password }}"
+      when:
+        - _infisical_secrets is not skipped
+        - jellystat_db_password != ''
+
+    - name: Upsert JELLYSTAT_JWT_SECRET in Infisical
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/infisical-upsert.yml"
+      vars:
+        _inf_upsert_name: JELLYSTAT_JWT_SECRET
+        _inf_upsert_value: "{{ jellystat_jwt_secret }}"
+      when:
+        - _infisical_secrets is not skipped
+        - jellystat_jwt_secret != ''
+
+    - name: Fetch refreshed secrets from Infisical after generation
+      ansible.builtin.uri:
+        url: "{{ infisical_host }}/api/v3/secrets/raw?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
+        headers:
+          Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+        status_code: 200
+      register: _infisical_secrets
+      delegate_to: localhost
+      no_log: true
+      when: _inf_token is not skipped
 
     - name: Write /etc/homelab.env from Infisical secrets
       ansible.builtin.copy:
