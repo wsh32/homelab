@@ -500,3 +500,28 @@
   when:
     - jellyfin_api_key != ''
     - _jf_libraries.json | selectattr('Name', 'equalto', item.name) | list | length == 0
+
+# ── Prometheus metrics ───────────────────────────────────────────────────────
+
+- name: Get Jellyfin system configuration
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/System/Configuration"
+    headers:
+      Authorization: 'MediaBrowser Token="{{ jellyfin_api_key }}"'
+    return_content: true
+  register: _jf_system_config
+  when: jellyfin_api_key != ''
+
+- name: Enable Prometheus metrics endpoint
+  ansible.builtin.uri:
+    url: "{{ jellyfin_url }}/System/Configuration"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Token="{{ jellyfin_api_key }}"'
+    body_format: json
+    body: "{{ _jf_system_config.json | combine({'EnableMetrics': true}) }}"
+    status_code: [200, 204]
+  when:
+    - jellyfin_api_key != ''
+    - _jf_system_config is not skipped
+    - not (_jf_system_config.json.EnableMetrics | default(false))
