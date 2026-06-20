@@ -1,6 +1,11 @@
 ---
 # Configure machamp-monitor: NFS mounts, Infisical secrets, and compose stack.
-# Run after base.yml.
+# Requires Infisical (diglett-infra) to be up for secret export.
+#
+# Prerequisites:
+#   - Alakazam NFS reachable at 192.168.0.4:/mnt/apps/docker
+#   - ansible/secrets.yml contains infisical_client_id/secret/project_id
+#   - Infisical machine identity created for machamp-monitor (see secrets.yml.example)
 #
 # Usage:
 #   ansible-playbook ansible/monitor.yml
@@ -9,12 +14,8 @@
   hosts: machamp-monitor
   gather_facts: true
 
-  vars:
-    network: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
-    nas_ip: "{{ network.nodes.alakazam.ip }}"
-
   pre_tasks:
-    - name: Load local secrets file if present
+    - name: Load local secrets file if present (ansible/secrets.yml -- gitignored)
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
       failed_when: false
@@ -23,11 +24,12 @@
 
     # ── NFS mounts ─────────────────────────────────────────────────────────────
 
-    - name: Mount NFS docker config share
+    - name: Mount NFS shares
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/nfs-mount.yml"
       vars:
-        nfs_mount_path: /mnt/nas/docker
-        nfs_source_path: "{{ nas_ip }}:/mnt/apps/docker"
+        nfs_mount_path: "{{ item.mount }}"
+        nfs_source_path: "{{ item.source }}"
+      loop: "{{ nfs_mounts }}"
 
     # ── Infisical CLI ───────────────────────────────────────────────────────────
 
@@ -63,7 +65,7 @@
 
     - name: Get Infisical access token via Universal Auth
       ansible.builtin.uri:
-        url: "{{ infisical_host | default('http://192.168.0.20:8080') }}/api/v1/auth/universal-auth/login"
+        url: "{{ infisical_host }}/api/v1/auth/universal-auth/login"
         method: POST
         body_format: json
         body:
@@ -80,7 +82,7 @@
 
     - name: Fetch all secrets from Infisical
       ansible.builtin.uri:
-        url: "{{ infisical_host | default('http://192.168.0.20:8080') }}/api/v3/secrets/raw?workspaceId={{ infisical_project_id }}&environment={{ infisical_environment | default('prod') }}&secretPath=/"
+        url: "{{ infisical_host }}/api/v3/secrets/raw?workspaceId={{ infisical_project_id }}&environment={{ infisical_environment | default('prod') }}&secretPath=/"
         headers:
           Authorization: "Bearer {{ _infisical_ua_token.json.accessToken }}"
         status_code: 200
