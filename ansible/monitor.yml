@@ -1,0 +1,140 @@
+---
+# Configure machamp-monitor: NFS mounts, Infisical secrets, and compose stack.
+# Run after base.yml.
+#
+# Usage:
+#   ansible-playbook ansible/monitor.yml
+
+- name: Configure machamp-monitor (NFS, Infisical, compose stack)
+  hosts: machamp-monitor
+  gather_facts: true
+
+  vars:
+    network: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
+    nas_ip: "{{ network.nodes.alakazam.ip }}"
+
+  pre_tasks:
+    - name: Load local secrets file if present
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      failed_when: false
+
+  tasks:
+
+    # ── NFS mounts ─────────────────────────────────────────────────────────────
+
+    - name: Mount NFS docker config share
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/nfs-mount.yml"
+      vars:
+        nfs_mount_path: /mnt/nas/docker
+        nfs_source_path: "{{ nas_ip }}:/mnt/apps/docker"
+
+    # ── Infisical CLI ───────────────────────────────────────────────────────────
+
+    - name: Add Infisical CLI apt repository
+      ansible.builtin.shell:
+        cmd: curl -1sLf 'https://artifacts-cli.infisical.com/setup.deb.sh' | bash
+        creates: /etc/apt/sources.list.d/infisical.list
+      become: true
+
+    - name: Install Infisical CLI
+      ansible.builtin.apt:
+        name: infisical
+        state: present
+        update_cache: true
+      become: true
+
+    - name: Write /etc/infisical.env (machine identity for on-VM use)
+      ansible.builtin.copy:
+        dest: /etc/infisical.env
+        mode: "0600"
+        owner: root
+        group: root
+        content: |
+          INFISICAL_CLIENT_ID={{ infisical_client_id }}
+          INFISICAL_CLIENT_SECRET={{ infisical_client_secret }}
+          INFISICAL_PROJECT_ID={{ infisical_project_id }}
+          INFISICAL_ENVIRONMENT={{ infisical_environment | default('prod') }}
+      become: true
+      when:
+        - infisical_client_id is defined
+        - infisical_client_secret is defined
+        - infisical_project_id is defined
+
+    - name: Get Infisical access token via Universal Auth
+      ansible.builtin.uri:
+        url: "{{ infisical_host | default('http://192.168.0.20:8080') }}/api/v1/auth/universal-auth/login"
+        method: POST
+        body_format: json
+        body:
+          clientId: "{{ infisical_client_id }}"
+          clientSecret: "{{ infisical_client_secret }}"
+        status_code: 200
+      register: _infisical_ua_token
+      delegate_to: localhost
+      no_log: true
+      when:
+        - infisical_client_id is defined
+        - infisical_client_secret is defined
+        - infisical_project_id is defined
+
+    - name: Fetch all secrets from Infisical
+      ansible.builtin.uri:
+        url: "{{ infisical_host | default('http://192.168.0.20:8080') }}/api/v3/secrets/raw?workspaceId={{ infisical_project_id }}&environment={{ infisical_environment | default('prod') }}&secretPath=/"
+        headers:
+          Authorization: "Bearer {{ _infisical_ua_token.json.accessToken }}"
+        status_code: 200
+      register: _infisical_secrets
+      delegate_to: localhost
+      no_log: true
+      when: _infisical_ua_token is not skipped
+
+    - name: Write /etc/homelab.env from Infisical secrets
+      ansible.builtin.copy:
+        dest: /etc/homelab.env
+        mode: "0600"
+        owner: root
+        group: root
+        content: |
+          {% for s in _infisical_secrets.json.secrets %}
+          {{ s.secretKey }}={{ s.secretValue }}
+          {% endfor %}
+      become: true
+      no_log: true
+      when: _infisical_secrets is not skipped
+
+    # ── Compose stack ───────────────────────────────────────────────────────────
+
+    - name: Ensure homelab services directory exists on VM
+      ansible.builtin.file:
+        path: /home/{{ ansible_user }}/homelab/services/machamp-monitor
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+      become: true
+
+    - name: Sync machamp-monitor compose stack to VM
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../services/machamp-monitor/"
+        dest: /home/{{ ansible_user }}/homelab/services/machamp-monitor/
+        delete: true
+        recursive: true
+        rsync_opts:
+          - "--chown={{ ansible_user }}:{{ ansible_user }}"
+          - "--exclude=.env"
+
+    - name: Symlink .env → /etc/homelab.env for compose variable substitution
+      ansible.builtin.file:
+        src: /etc/homelab.env
+        dest: /home/{{ ansible_user }}/homelab/services/machamp-monitor/.env
+        state: link
+        force: true
+      become: true
+
+    - name: Start machamp-monitor compose stack
+      community.docker.docker_compose_v2:
+        project_src: /home/{{ ansible_user }}/homelab/services/machamp-monitor
+        state: present
+        pull: missing
+      become: true

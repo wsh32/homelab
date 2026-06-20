@@ -210,9 +210,23 @@ locations:
               - name: homepage
                 hostname: home
                 port: 3000
-                host_port: 3001  # grafana owns host port 3000
+                host_port: 3001
                 nfs_data: docker/homepage
                 authentik: none
+          machamp-dev:
+            ip: 192.168.0.31
+            tailscale_ip: 100.64.1.31
+            vm_id: 101
+            vm_roles: [dev]
+          machamp-monitor:
+            ip: 192.168.0.32
+            tailscale_ip: 100.64.1.32
+            vm_id: 102
+            vm_roles: [services]
+            nfs_mounts:
+              - export: docker
+                mount: /mnt/nas/docker
+            services:
               - name: prometheus
                 port: 9090
                 nfs_data: docker/prometheus
@@ -221,8 +235,8 @@ locations:
                 port: 3000
                 nfs_data: docker/grafana
                 authentik: none
-          machamp-dev:
-            ip: 192.168.0.31
-            tailscale_ip: 100.64.1.31
-            vm_id: 101
-            vm_roles: [dev]
+              - name: loki
+                port: 3100
+                nfs_data: docker/loki
+                authentik: none
+                traefik: false
