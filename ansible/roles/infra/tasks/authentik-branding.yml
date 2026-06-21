@@ -51,7 +51,7 @@
     status_code: 200
   register: _login_flow_result
 
-- name: Clear login flow background (placeholder until travel photo is set)
+- name: Set login flow title and clear background
   ansible.builtin.uri:
     url: "http://localhost:9000/api/v3/flows/instances/{{ _login_flow_result.json.results[0].pk }}/"
     method: PATCH
@@ -60,6 +60,7 @@
       Content-Type: "application/json"
     body_format: json
     body:
+      title: "Welcome to Team Rocket"
       background: ""
     status_code: 200
   when: _login_flow_result.json.pagination.count > 0
