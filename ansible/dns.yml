@@ -6,7 +6,7 @@
 # Prerequisites:
 #   - diglett-dns VM must be up and cloud-init must have completed
 #   - /etc/headscale.env must exist (written by Terraform cloud-init)
-#   - Alakazam NFS must be reachable at 192.168.0.4:/mnt/apps/docker
+#   - Alakazam NFS must be reachable at alakazam-nas:/mnt/apps/docker
 #
 # Usage:
 #   ansible-playbook ansible/dns.yml

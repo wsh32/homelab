@@ -4,7 +4,7 @@
 # Run after services.yml. Requires Infisical (diglett-infra) to be up for secret export.
 #
 # Prerequisites:
-#   - Alakazam NFS reachable at 192.168.0.4:/mnt/apps/docker, :/mnt/pool/media, :/mnt/pool/photos
+#   - Alakazam NFS reachable at alakazam-nas:/mnt/apps/docker, :/mnt/pool/media, :/mnt/pool/photos
 #   - ansible/secrets.yml contains infisical_client_id/secret/project_id
 #   - Infisical machine identity created for machamp-media (see secrets.yml.example)
 #

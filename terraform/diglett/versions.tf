@@ -17,7 +17,7 @@ terraform {
   }
 
   # State stored on Alakazam NFS -- mount before running Terraform.
-  # Mount: sudo mount -t nfs alakazam.local:/mnt/apps/terraform /mnt/terraform-state
+  # Mount: sudo mount -t nfs alakazam-nas:/mnt/apps/terraform /mnt/terraform-state
   backend "local" {
     path = "/mnt/terraform-state/diglett/terraform.tfstate"
   }

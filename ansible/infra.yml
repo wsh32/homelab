@@ -8,7 +8,7 @@
 #
 # Prerequisites:
 #   - diglett-infra VM must be up and cloud-init must have completed
-#   - Alakazam NFS must be reachable at 192.168.0.4:/mnt/apps/docker
+#   - Alakazam NFS must be reachable at alakazam-nas:/mnt/apps/docker
 #   - ansible/secrets.yml must contain infisical_admin_email and infisical_admin_password
 #
 # Usage (first run or re-run):

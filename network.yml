@@ -8,9 +8,11 @@
 #   .1       gateway
 #   .2       primary DNS VM (AdGuard Home -- special-cased outside VM range)
 #   .3       reserved (future backup DNS)
-#   .4–.19   physical nodes
+#   .4       NAS VM (alakazam-nas -- TrueNAS, special-cased outside VM range)
+#   .5–.19   physical nodes
 #   .20–.29  Diglett VMs (VM IDs 200–299)
 #   .30–.49  Machamp VMs (VM IDs 100–199)
+#   .50–.59  Alakazam VMs (VM IDs 500–599)
 #   .100+    DHCP (router managed)
 #
 # Tailscale IP layout (100.64.0.0/10):
@@ -30,8 +32,9 @@ locations:
     traefik_vm: diglett-infra
 
     nodes:
-      alakazam:
+      alakazam-nas:
         ip: 192.168.0.4
+        nfs_hostname: alakazam-nas   # use hostname (not IP) for NFS mount sources
         type: nas
         os: truenas
         nfs_exports:
@@ -39,11 +42,18 @@ locations:
           media: /mnt/pool/media
           photos: /mnt/pool/photos
 
-      alakazam-deploy:
+      alakazam:
         ip: 192.168.0.7
         tailscale_ip: 100.64.1.7
-        type: other
-        ansible_user: ubuntu
+        type: proxmox
+        ansible_user: root
+        bridge_port: nic0
+        vms:
+          alakazam-deploy:
+            ip: 192.168.0.50
+            tailscale_ip: 100.64.1.50
+            vm_id: 500
+            ansible_user: ubuntu
 
       diglett:
         ip: 192.168.0.6

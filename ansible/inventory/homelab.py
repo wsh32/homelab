@@ -60,7 +60,7 @@ def build_inventory():
 
         for node_attrs in nodes.values():
             if node_attrs.get('type') == 'nas':
-                nas_ip = node_attrs['ip']
+                nas_ip = node_attrs.get('nfs_hostname') or node_attrs['ip']
                 nfs_exports = node_attrs.get('nfs_exports', {})
             for vm_name, vm_attrs in node_attrs.get('vms', {}).items():
                 if not vm_attrs.get('ansible_managed', True):
