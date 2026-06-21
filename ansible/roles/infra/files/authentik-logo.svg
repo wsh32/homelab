@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <clipPath id="c">
+      <circle cx="50" cy="50" r="47"/>
+    </clipPath>
+    <radialGradient id="shine" cx="40%" cy="35%" r="60%">
+      <stop offset="0%" stop-color="#2d5a8e" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#1a2f4a" stop-opacity="1"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Top half: Team Rocket navy -->
+  <path d="M 3 50 A 47 47 0 0 1 97 50 Z" fill="url(#shine)" clip-path="url(#c)"/>
+
+  <!-- Bottom half: dark charcoal -->
+  <path d="M 3 50 A 47 47 0 0 0 97 50 Z" fill="#2d3748" clip-path="url(#c)"/>
+
+  <!-- Center band -->
+  <rect x="3" y="45" width="94" height="10" fill="#0f1117" clip-path="url(#c)"/>
+
+  <!-- Center button shadow ring -->
+  <circle cx="50" cy="50" r="14" fill="#0f1117"/>
+
+  <!-- Center button face -->
+  <circle cx="50" cy="50" r="10" fill="#e2e8f0"/>
+
+  <!-- Center button highlight -->
+  <ellipse cx="47" cy="46.5" rx="3" ry="2" fill="white" opacity="0.55"/>
+
+  <!-- Outer border -->
+  <circle cx="50" cy="50" r="47" fill="none" stroke="#0f1117" stroke-width="2.5"/>
+</svg>

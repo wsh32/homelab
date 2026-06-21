@@ -1,0 +1,65 @@
+---
+- name: Ensure Authentik media directory exists on NFS
+  ansible.builtin.file:
+    path: /mnt/nas/docker/authentik/media
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Deploy Authentik logo to NFS media
+  ansible.builtin.copy:
+    src: authentik-logo.svg
+    dest: /mnt/nas/docker/authentik/media/logo.svg
+    mode: "0644"
+  become: true
+
+- name: Get Authentik brands
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/core/brands/"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _brands_result
+
+- name: Set default brand PK
+  ansible.builtin.set_fact:
+    _default_brand_pk: >-
+      {{ (_brands_result.json.results | selectattr('default', 'equalto', true) | list)[0].pk }}
+
+- name: Apply Team Rocket branding
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/core/brands/{{ _default_brand_pk }}/"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      title: "Team Rocket"
+      logo: "/media/logo.svg"
+      favicon: "/media/logo.svg"
+      custom_css: "{{ lookup('file', role_path + '/files/authentik-theme.css') }}"
+    status_code: 200
+
+- name: Get default authentication flow
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/flows/instances/?designation=authentication&slug=default-authentication-flow"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+    status_code: 200
+  register: _login_flow_result
+
+- name: Clear login flow background (placeholder until travel photo is set)
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/flows/instances/{{ _login_flow_result.json.results[0].pk }}/"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      background: ""
+    status_code: 200
+  when: _login_flow_result.json.pagination.count > 0

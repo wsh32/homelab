@@ -1,0 +1,92 @@
+/* ── Team Rocket Auth Theme ─────────────────────────────────────────────── */
+
+:root {
+  --ak-accent: #3b4cca;
+  --pf-global--primary-color--100: #3b4cca;
+  --pf-global--primary-color--200: #2d3da0;
+  --pf-global--link--Color: #6b8cff;
+  --pf-global--link--Color--hover: #8ba4ff;
+  --pf-global--BackgroundColor--100: #0f1117;
+  --pf-global--BackgroundColor--200: #1a1f36;
+  --pf-global--Color--100: #f1f5f9;
+  --pf-global--Color--200: #94a3b8;
+  --pf-global--BorderColor--100: #2d3748;
+}
+
+/* Page background — replace with flow background image once travel photos are set */
+.pf-c-login {
+  background: linear-gradient(160deg, #0f1117 0%, #1a1d2e 60%, #0f1117 100%);
+  min-height: 100vh;
+}
+
+/* Login card */
+.pf-c-login__main {
+  background-color: rgba(15, 17, 23, 0.90) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(59, 76, 202, 0.22);
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px rgba(59, 76, 202, 0.08),
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 0 80px rgba(59, 76, 202, 0.07);
+}
+
+.pf-c-login__main-header-desc {
+  color: #64748b !important;
+  font-size: 0.82rem;
+}
+
+/* Input fields */
+.pf-c-form-control {
+  background-color: #1a1f36 !important;
+  border-color: #2d3748 !important;
+  color: #f1f5f9 !important;
+  border-radius: 6px;
+}
+
+.pf-c-form-control:focus {
+  border-color: #3b4cca !important;
+  box-shadow: 0 0 0 2px rgba(59, 76, 202, 0.22) !important;
+}
+
+/* Form labels */
+.pf-c-form__label-text {
+  color: #cbd5e1 !important;
+}
+
+/* Primary button */
+.pf-c-button.pf-m-primary {
+  background-color: #3b4cca !important;
+  border-color: #3b4cca !important;
+  border-radius: 6px;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pf-c-button.pf-m-primary:hover {
+  background-color: #4f6bcc !important;
+  border-color: #4f6bcc !important;
+  box-shadow: 0 4px 16px rgba(59, 76, 202, 0.38);
+}
+
+/* Links */
+a, a:visited {
+  color: #6b8cff !important;
+}
+
+a:hover {
+  color: #8ba4ff !important;
+  text-decoration: underline;
+}
+
+/* Logo sizing */
+.pf-c-brand {
+  max-height: 60px;
+}
+
+/* Hide "powered by authentik" footer */
+.pf-c-login__footer {
+  display: none !important;
+}

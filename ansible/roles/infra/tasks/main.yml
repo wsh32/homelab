@@ -1598,3 +1598,6 @@
   ansible.builtin.file:
     path: /tmp/_sync_bindings.py
     state: absent
+
+- name: Apply Authentik branding
+  ansible.builtin.include_tasks: authentik-branding.yml
