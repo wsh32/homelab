@@ -181,7 +181,7 @@
     - name: Register with headscale using pre-auth key (first boot only)
       ansible.builtin.shell: |
         . /etc/headscale.env
-        tailscale up --login-server=$HEADSCALE_SERVER_URL --auth-key=$(cat /etc/tailscale-auth.key) --advertise-exit-node --hostname=diglett-dns
+        tailscale up --login-server=$HEADSCALE_SERVER_URL --auth-key=$(cat /etc/tailscale-auth.key) --advertise-exit-node --advertise-routes=192.168.0.0/24 --hostname=diglett-dns
       become: true
       when: not _ts_registered
 
@@ -203,7 +203,7 @@
           TimeoutStartSec=300
           ExecStartPre=/bin/bash -c 'until nc -z localhost 443; do sleep 2; done'
           ExecStartPre=ethtool -K eth0 rx-udp-gro-forwarding on rx-gro-list off
-          ExecStart=/bin/bash -c '. /etc/headscale.env && tailscale up --login-server=$HEADSCALE_SERVER_URL --advertise-exit-node --hostname=diglett-dns'
+          ExecStart=/bin/bash -c '. /etc/headscale.env && tailscale up --login-server=$HEADSCALE_SERVER_URL --advertise-exit-node --advertise-routes=192.168.0.0/24 --hostname=diglett-dns'
 
           [Install]
           WantedBy=multi-user.target
