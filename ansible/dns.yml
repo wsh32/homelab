@@ -268,7 +268,7 @@
     - name: Generate headscale API key for headplane
       community.docker.docker_container_exec:
         container: headscale
-        command: headscale apikeys create --expiration 0 --output json
+        command: headscale apikeys create --expiration 9999d --output json
       register: headplane_apikey_result
       become: true
       when: not _api_key_valid
