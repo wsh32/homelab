@@ -239,6 +239,7 @@
       ansible.builtin.stat:
         path: /mnt/nas/docker/headplane/api.key
       register: headplane_api_key_stat
+      become: true
 
     - name: Read existing headplane API key from NFS
       ansible.builtin.slurp:
