@@ -4,8 +4,9 @@
   },
   "autoApprovers": {
     "routes": {
-      "0.0.0.0/0": ["tag:infra"],
-      "::/0":       ["tag:infra"]
+      "0.0.0.0/0":        ["tag:infra"],
+      "::/0":             ["tag:infra"],
+      "192.168.0.0/24":   ["tag:infra"]
     },
     "exitNode": ["tag:infra"]
   },
