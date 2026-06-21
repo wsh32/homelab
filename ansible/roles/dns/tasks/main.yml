@@ -84,7 +84,7 @@
 - name: Create new headscale API key for headplane
   ansible.builtin.shell: |
     docker exec headscale headscale apikeys create --expiration 9999d --output json \
-      | python3 -c "import sys,json; print(json.load(sys.stdin)['key'])"
+      | tr -d '"'
   register: _hp_new_api_key
   become: true
   when: _hp_key_valid.rc != 0
