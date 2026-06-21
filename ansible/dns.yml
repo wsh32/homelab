@@ -261,8 +261,10 @@
         _api_key_valid: >-
           {{
             headplane_api_key_stat.stat.exists and
-            (_apikeys_list.stdout | from_json
-             | selectattr('prefix', 'in', (_existing_api_key_raw.content | b64decode | trim))
+            ((_apikeys_list.stdout | from_json)
+             | map(attribute='prefix')
+             | map('replace', '...', '')
+             | select('in', (_existing_api_key_raw.content | b64decode | trim))
              | list | length > 0)
           }}
 
