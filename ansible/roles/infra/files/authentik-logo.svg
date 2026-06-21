@@ -3,30 +3,34 @@
     <clipPath id="c">
       <circle cx="50" cy="50" r="47"/>
     </clipPath>
-    <radialGradient id="shine" cx="40%" cy="35%" r="60%">
-      <stop offset="0%" stop-color="#2d5a8e" stop-opacity="1"/>
-      <stop offset="100%" stop-color="#1a2f4a" stop-opacity="1"/>
-    </radialGradient>
   </defs>
 
-  <!-- Top half: Team Rocket navy -->
-  <path d="M 3 50 A 47 47 0 0 1 97 50 Z" fill="url(#shine)" clip-path="url(#c)"/>
+  <!-- Bottom half: white -->
+  <path d="M 3 50 A 47 47 0 0 0 97 50 Z" fill="#f0f0f5"/>
 
-  <!-- Bottom half: dark charcoal -->
-  <path d="M 3 50 A 47 47 0 0 0 97 50 Z" fill="#2d3748" clip-path="url(#c)"/>
+  <!-- Top half: Master Ball purple -->
+  <path d="M 3 50 A 47 47 0 0 1 97 50 Z" fill="#7B4FA8"/>
+
+  <!-- Pink decorative arcs -->
+  <path d="M 9 44 Q 16 20 40 14" fill="none" stroke="#E0558A" stroke-width="6.5" stroke-linecap="round" clip-path="url(#c)"/>
+  <path d="M 91 44 Q 84 20 60 14" fill="none" stroke="#E0558A" stroke-width="6.5" stroke-linecap="round" clip-path="url(#c)"/>
+
+  <!-- White oval accents flanking M -->
+  <ellipse cx="31" cy="25" rx="4.5" ry="5.5" fill="white" clip-path="url(#c)"/>
+  <ellipse cx="69" cy="25" rx="4.5" ry="5.5" fill="white" clip-path="url(#c)"/>
+
+  <!-- White M -->
+  <text x="50" y="36" font-family="'Arial Black', Arial, sans-serif" font-weight="900" font-size="23" fill="white" text-anchor="middle" dominant-baseline="middle">M</text>
 
   <!-- Center band -->
-  <rect x="3" y="45" width="94" height="10" fill="#0f1117" clip-path="url(#c)"/>
+  <rect x="3" y="45" width="94" height="10" fill="#111" clip-path="url(#c)"/>
 
-  <!-- Center button shadow ring -->
-  <circle cx="50" cy="50" r="14" fill="#0f1117"/>
-
-  <!-- Center button face -->
-  <circle cx="50" cy="50" r="10" fill="#e2e8f0"/>
-
-  <!-- Center button highlight -->
-  <ellipse cx="47" cy="46.5" rx="3" ry="2" fill="white" opacity="0.55"/>
+  <!-- Center button -->
+  <circle cx="50" cy="50" r="14" fill="#111"/>
+  <circle cx="50" cy="50" r="11" fill="#E0558A"/>
+  <circle cx="50" cy="50" r="7" fill="#f8f8fc"/>
+  <ellipse cx="47.5" cy="47" rx="2.2" ry="1.6" fill="white" opacity="0.6"/>
 
   <!-- Outer border -->
-  <circle cx="50" cy="50" r="47" fill="none" stroke="#0f1117" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="47" fill="none" stroke="#111" stroke-width="2.5"/>
 </svg>
