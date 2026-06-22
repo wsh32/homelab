@@ -154,6 +154,7 @@
         line: "{{ _headscale_resolved.stdout.split()[0] }}  {{ headscale_server_url | urlsplit('hostname') }}"
         state: present
       become: true
+      when: inventory_hostname != 'diglett-dns'
 
     - name: Join tailscale network
       ansible.builtin.command: >-
