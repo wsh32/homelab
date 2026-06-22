@@ -9,10 +9,19 @@ scrape_configs:
 
   - job_name: node
     static_configs:
-      # Add node_exporter targets as VMs are stood up.
       - targets:
-          - machamp-infra:9100
+          - diglett-infra:9100
           - alakazam-deploy:9100
           - diglett-dns:9100
           - machamp-media:9100
           - machamp-dev:9100
+          - machamp-monitor:9100
+
+  - job_name: traefik
+    static_configs:
+      - targets: [diglett-infra:8082]
+
+  - job_name: jellyfin
+    static_configs:
+      - targets: [machamp-media:8096]
+    metrics_path: /metrics

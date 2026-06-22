@@ -70,3 +70,25 @@ module "services" {
   # hardware mapping. See GPU passthrough section in docs/runbook.md.
   # Applying this to a running VM requires a full VM restart.
 }
+
+module "monitor" {
+  source = "../modules/proxmox-vm"
+
+  node_name     = local.node
+  vm_id         = local.vms["machamp-monitor"].vm_id
+  name          = "machamp-monitor"
+  description   = "Observability VM -- Prometheus, Grafana, Loki"
+  tags          = ["machamp", "monitor"]
+  image_file_id = proxmox_download_file.ubuntu_2404.id
+
+  cores        = 2
+  memory_mb    = 4096
+  disk_size_gb = 40
+
+  ip_address     = "${local.vms["machamp-monitor"].ip}/24"
+  gateway        = local.loc.gateway
+  dns_servers    = [local.loc.dns.primary, local.loc.dns.fallback]
+  ssh_public_key = var.ssh_public_key
+  vm_password    = var.vm_password
+  timezone       = var.timezone
+}
