@@ -181,7 +181,7 @@
     - name: Register with headscale using pre-auth key (first boot only)
       ansible.builtin.shell: |
         . /etc/headscale.env
-        tailscale up --login-server=$HEADSCALE_SERVER_URL --auth-key=$(cat /etc/tailscale-auth.key) --advertise-exit-node --hostname=diglett-dns
+        tailscale up --login-server=$HEADSCALE_SERVER_URL --auth-key=$(cat /etc/tailscale-auth.key) --advertise-exit-node --advertise-routes=192.168.0.0/24 --hostname=diglett-dns
       become: true
       when: not _ts_registered
 
@@ -203,7 +203,7 @@
           TimeoutStartSec=300
           ExecStartPre=/bin/bash -c 'until nc -z localhost 443; do sleep 2; done'
           ExecStartPre=ethtool -K eth0 rx-udp-gro-forwarding on rx-gro-list off
-          ExecStart=/bin/bash -c '. /etc/headscale.env && tailscale up --login-server=$HEADSCALE_SERVER_URL --advertise-exit-node --hostname=diglett-dns'
+          ExecStart=/bin/bash -c '. /etc/headscale.env && tailscale up --login-server=$HEADSCALE_SERVER_URL --advertise-exit-node --advertise-routes=192.168.0.0/24 --hostname=diglett-dns'
 
           [Install]
           WantedBy=multi-user.target
@@ -239,6 +239,7 @@
       ansible.builtin.stat:
         path: /mnt/nas/docker/headplane/api.key
       register: headplane_api_key_stat
+      become: true
 
     - name: Read existing headplane API key from NFS
       ansible.builtin.slurp:
@@ -260,15 +261,17 @@
         _api_key_valid: >-
           {{
             headplane_api_key_stat.stat.exists and
-            (_apikeys_list.stdout | from_json
-             | selectattr('prefix', 'in', (_existing_api_key_raw.content | b64decode | trim))
+            ((_apikeys_list.stdout | from_json)
+             | map(attribute='prefix')
+             | map('replace', '...', '')
+             | select('in', (_existing_api_key_raw.content | b64decode | trim))
              | list | length > 0)
           }}
 
     - name: Generate headscale API key for headplane
       community.docker.docker_container_exec:
         container: headscale
-        command: headscale apikeys create --expiration 0 --output json
+        command: headscale apikeys create --expiration 9999d --output json
       register: headplane_apikey_result
       become: true
       when: not _api_key_valid
@@ -310,9 +313,5 @@
       become: true
       when: api_key_injected.changed
 
-    - name: Display headplane login key for Vaultwarden
-      ansible.builtin.debug:
-        msg: "headplane login -- navigate to :3001/admin and enter this API key: {{ headplane_api_key_nfs.content | b64decode | trim }}"
-      when: not _api_key_valid
 
 

@@ -18,6 +18,18 @@ http:
         replacement: "https://jellyfin.wsh/SSO/OID/start/authentik-public"
         permanent: false
 
+    # Redirect headplane root to /admin.
+    headplane-root:
+      redirectRegex:
+        regex: "^https://headplane\\.home/$"
+        replacement: "https://headplane.home/admin"
+        permanent: false
+    headplane-root-wsh:
+      redirectRegex:
+        regex: "^https://headplane\\.wsh/$"
+        replacement: "https://headplane.wsh/admin"
+        permanent: false
+
     # Authentik forward auth -- all arr/media services require authentication.
     # Authentik proxy providers (forward_auth_single) are bootstrapped by ansible/roles/infra/tasks/main.yml.
     authentik:
@@ -53,6 +65,23 @@ http:
       rule: "Host(`traefik.wsh`)"
       entryPoints: [websecure]
       service: api@internal
+      tls:
+        certResolver: step
+
+    # ── Headplane ─────────────────────────────────────────────────────────────
+    # Root-path redirect: / → /admin (headplane's UI is hardcoded at /admin).
+    headplane-root-redirect:
+      rule: "Host(`headplane.home`) && Path(`/`)"
+      entryPoints: [websecure]
+      middlewares: [headplane-root]
+      service: headplane-svc
+      tls:
+        certResolver: step
+    headplane-root-redirect-wsh:
+      rule: "Host(`headplane.wsh`) && Path(`/`)"
+      entryPoints: [websecure]
+      middlewares: [headplane-root-wsh]
+      service: headplane-svc
       tls:
         certResolver: step
 

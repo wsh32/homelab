@@ -66,21 +66,42 @@
   ansible.builtin.lineinfile:
     path: /home/{{ ansible_user }}/homelab/services/diglett-dns/headplane/config.yaml
     regexp: '^\s+base_url:'
-    line: "  base_url: \"https://headplane.home\""
+    line: "  base_url: \"https://headplane.wsh\""
   notify: Restart diglett-dns stack
 
-- name: Check if headplane API key is provisioned
-  ansible.builtin.stat:
-    path: /mnt/nas/docker/headplane/api.key
-  register: headplane_api_key_stat_role
+- name: Validate existing headplane API key against headscale
+  ansible.builtin.shell: |
+    [ -z "$KEY" ] && exit 1
+    docker exec headscale headscale apikeys list --output json 2>/dev/null \
+      | python3 -c "import sys,json,os; keys=json.load(sys.stdin); p=os.environ['KEY'][:10]; [sys.exit(0) for k in keys if k.get('prefix','').startswith(p)]; sys.exit(1)"
+  environment:
+    KEY: "{{ lookup('file', '/mnt/nas/docker/headplane/api.key', errors='ignore') | trim }}"
+  register: _hp_key_valid
+  failed_when: false
+  changed_when: false
   become: true
+
+- name: Create new headscale API key for headplane
+  ansible.builtin.shell: |
+    docker exec headscale headscale apikeys create --expiration 9999d --output json \
+      | tr -d '"'
+  register: _hp_new_api_key
+  become: true
+  when: _hp_key_valid.rc != 0
+
+- name: Save new headplane API key to NFS
+  ansible.builtin.copy:
+    content: "{{ _hp_new_api_key.stdout | trim }}"
+    dest: /mnt/nas/docker/headplane/api.key
+    mode: "0600"
+  become: true
+  when: _hp_key_valid.rc != 0
 
 - name: Read headplane API key for config injection
   ansible.builtin.slurp:
     src: /mnt/nas/docker/headplane/api.key
   register: headplane_api_key_role
   become: true
-  when: headplane_api_key_stat_role.stat.exists
 
 - name: Inject headplane API key into config
   ansible.builtin.lineinfile:
@@ -88,7 +109,6 @@
     regexp: '^\s+api_key:'
     line: "  api_key: \"{{ headplane_api_key_role.content | b64decode | trim }}\""
   notify: Restart diglett-dns stack
-  when: headplane_api_key_stat_role.stat.exists
 
 # ── Headplane OIDC (conditional -- skipped until infra.yml has run) ────────────
 
@@ -121,7 +141,7 @@
         issuer: "{{ authentik_public_url }}/application/o/headplane/"
         client_id: "{{ _hp_oidc_client_id }}"
         client_secret: "{{ _hp_oidc_client_secret }}"
-        headscale_api_key: "{{ headplane_api_key_role.content | b64decode | trim if headplane_api_key_stat_role.stat.exists else '' }}"
+        headscale_api_key: "{{ headplane_api_key_role.content | b64decode | trim }}"
         disable_api_key_login: false
   notify: Restart diglett-dns stack
   when: _hp_oidc_env_stat.stat.exists and authentik_public_url is defined
