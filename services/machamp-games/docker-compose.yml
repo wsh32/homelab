@@ -1,0 +1,52 @@
+services:
+  pelican-panel:
+    image: ghcr.io/pelican-dev/panel:latest
+    container_name: pelican-panel
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - /mnt/nas/docker/pelican/panel:/app/var
+    env_file:
+      - /etc/homelab.env
+      - .env
+    environment:
+      APP_URL: "https://gameserver.wsh"
+      DB_CONNECTION: pgsql
+      DB_HOST: postgresql
+      DB_PORT: "5432"
+      DB_DATABASE: pelican
+      DB_USERNAME: pelican
+    depends_on:
+      postgresql:
+        condition: service_healthy
+
+  pelican-wings:
+    image: ghcr.io/pelican-dev/wings:latest
+    container_name: pelican-wings
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - /mnt/nas/docker/pelican/wings:/etc/pelican
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/pelican:/var/lib/pelican
+      - /tmp/pelican:/tmp/pelican
+    depends_on:
+      - pelican-panel
+
+  postgresql:
+    image: postgres:17
+    container_name: pelican-postgres
+    restart: unless-stopped
+    volumes:
+      - /mnt/nas/docker/pelican/postgres:/var/lib/postgresql/data
+    env_file:
+      - /etc/homelab.env
+    environment:
+      POSTGRES_DB: pelican
+      POSTGRES_USER: pelican
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pelican"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

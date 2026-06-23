@@ -42,6 +42,29 @@ module "dev" {
   timezone           = var.timezone
 }
 
+module "games" {
+  source = "../modules/proxmox-vm"
+
+  node_name     = local.node
+  vm_id         = local.vms["machamp-games"].vm_id
+  name          = "machamp-games"
+  description   = "game server"
+  tags          = ["machamp", "games"]
+  image_file_id = proxmox_download_file.ubuntu_2404.id
+
+  cores        = 8
+  memory_mb    = 16384
+  disk_size_gb = 60
+
+  ip_address         = "${local.vms["machamp-games"].ip}/24"
+  gateway            = local.loc.gateway
+  dns_servers        = [local.loc.dns.primary, local.loc.dns.fallback]
+  ssh_public_key     = var.ssh_public_key
+  vm_password        = var.vm_password
+  timezone           = var.timezone
+  tailscale_auth_key = var.tailscale_auth_key
+}
+
 module "services" {
   source = "../modules/proxmox-vm"
 

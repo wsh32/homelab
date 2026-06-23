@@ -120,6 +120,7 @@ locations:
             vm_id: 202
             ansible_managed: false  # HAOS -- no SSH access via Ansible
 
+<<<<<<< HEAD
       machamp:
         ip: 192.168.0.5
         tailscale_ip: 100.64.1.5
@@ -226,3 +227,23 @@ locations:
             tailscale_ip: 100.64.1.31
             vm_id: 101
             vm_roles: [dev]
+          machamp-games:
+            ip: 192.168.0.32
+            tailscale_ip: 100.64.1.32
+            vm_id: 102
+            vm_roles: [games]
+            nfs_mounts:
+              - export: docker
+                mount: /mnt/nas/docker
+            services:
+              - name: pelican-panel
+                hostname: gameserver
+                port: 80
+                nfs_data: docker/pelican/panel
+                authentik: oidc
+              - name: pelican-wings
+                authentik: none
+                traefik: false
+              - name: postgresql
+                authentik: none
+                traefik: false
