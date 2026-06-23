@@ -1318,6 +1318,23 @@
     _jf_provider_exists and
     ('authorization_code' not in (_jf_existing_provider.grant_types | default([])))
 
+- name: Enforce Jellyfin OIDC token validity periods
+  ansible.builtin.uri:
+    url: "http://localhost:9000/api/v3/providers/oauth2/{{ _jf_existing_provider.pk }}/"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ _authentik_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      access_token_validity: "hours=1"
+      refresh_token_validity: "days=30"
+    status_code: 200
+  when: >
+    _jf_provider_exists and
+    ((_jf_existing_provider.access_token_validity | default('')) != 'hours=1' or
+     (_jf_existing_provider.refresh_token_validity | default('')) != 'days=30')
+
 - name: Write Jellyfin OIDC credentials to NFS
   ansible.builtin.copy:
     dest: /mnt/nas/docker/jellyfin-oidc.env
