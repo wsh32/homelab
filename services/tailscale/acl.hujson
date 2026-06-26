@@ -36,6 +36,12 @@
       "src":    ["autogroup:admin"],
       "dst":    ["tag:infra"],
       "users":  ["root", "autogroup:nonroot"]
+    },
+    {
+      "action": "accept",
+      "src":    ["tag:infra"],
+      "dst":    ["tag:infra"],
+      "users":  ["root", "autogroup:nonroot"]
     }
   ]
 }
