@@ -2,48 +2,38 @@
 // Managed as code; pushed to Tailscale API by ansible/tailscale-hosted.yml.
 {
   "tagOwners": {
-    "tag:management": ["autogroup:network-admin"],
-    "tag:offsite":    ["autogroup:network-admin"],
-    "tag:infra":      ["autogroup:network-admin"],
-    "tag:machamp-vm": ["autogroup:network-admin"],
-    "tag:diglett-vm": ["autogroup:network-admin"]
+    "tag:infra": ["autogroup:network-admin"]
   },
 
   "autoApprovers": {
-    // Subnet routes advertised by tag:infra nodes are auto-approved.
+    // tag:infra nodes can advertise subnet routes and exit nodes without manual approval.
+    "exitNode": ["tag:infra"],
     "routes": {
-      "10.0.1.0/24": ["tag:infra"],
+      "10.0.1.0/24": ["tag:infra"],  // diglett VM bridge
       "10.0.2.0/24": ["tag:infra"],  // machamp VM bridge
       "10.0.3.0/24": ["tag:infra"]   // geodude VM bridge
     }
   },
 
   "grants": [
-    // Allow all connections.
+    // Admins can reach everything.
     {
-      "src": ["*"],
+      "src": ["autogroup:admin"],
       "dst": ["*"],
       "ip":  ["*"]
     },
+    // infra nodes can reach each other for inter-node management.
     {
-      "src": ["autogroup:network-admin"],
+      "src": ["tag:infra"],
       "dst": ["tag:infra"],
       "ip":  ["*"]
     }
   ],
 
   "ssh": [
-    // Allow all users to SSH into their own devices in check mode.
-    {
-      "action": "check",
-      "src":    ["autogroup:member"],
-      "dst":    ["autogroup:self"],
-      "users":  ["autogroup:nonroot", "root"]
-    },
-    // Network/org admins can SSH into all infra nodes.
     {
       "action": "accept",
-      "src":    ["autogroup:network-admin", "autogroup:admin"],
+      "src":    ["autogroup:admin"],
       "dst":    ["tag:infra"],
       "users":  ["root", "autogroup:nonroot"]
     }
