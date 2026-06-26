@@ -1,0 +1,160 @@
+---
+# Configure physical nodes on the Tailscale hosted tailnet.
+#
+# Nodes on the hosted tailnet (diglett, machamp, geodude) advertise VM bridge
+# subnets so Tailscale members can reach VMs directly without running Headscale.
+# This separates the physical recovery path from the Headscale failure domain.
+#
+# Prerequisites:
+#   - tailscale_api_token: Tailscale API access token (Settings → Keys → Access tokens)
+#   - tailscale_tailnet: your tailnet name (e.g. "example.com" or "user.github")
+#   Both must be in ansible/secrets.yml (gitignored) or passed via --extra-vars.
+#
+# On first run for a node:
+#   The playbook generates a short-lived auth key and enrolls the node.
+#   For geodude: ensure the node was added to Tailscale manually with SSH enabled
+#   before running, OR run this playbook and let it enroll the node automatically.
+#
+# Usage:
+#   ansible-playbook ansible/tailscale-hosted.yml
+#   ansible-playbook ansible/tailscale-hosted.yml --limit geodude
+
+# ── Play 1: Push ACL to Tailscale ────────────────────────────────────────────
+- name: Push Tailscale ACL
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/secrets.yml"
+
+  tasks:
+    - name: Push ACL file to Tailscale API
+      ansible.builtin.uri:
+        url: "https://api.tailscale.com/api/v2/tailnet/{{ tailscale_tailnet }}/acl"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tailscale_api_token }}"
+          Content-Type: "application/hujson"
+          If-Match: "*"
+        body: "{{ lookup('file', playbook_dir + '/../services/tailscale/acl.hujson') }}"
+        status_code: 200
+      no_log: true
+
+# ── Play 2: Enroll / configure nodes ─────────────────────────────────────────
+- name: Configure Tailscale on hosted nodes
+  hosts: tailscale_hosted
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/secrets.yml"
+  vars_files_optional:
+    - "{{ playbook_dir }}/../network.yml"
+
+  tasks:
+    - name: Install tailscale via official install script
+      ansible.builtin.shell:
+        cmd: curl -fsSL https://tailscale.com/install.sh | sh
+        creates: /usr/bin/tailscale
+      become: true
+
+    - name: Enable and start tailscaled
+      ansible.builtin.systemd:
+        name: tailscaled
+        state: started
+        enabled: true
+      become: true
+
+    - name: Check Tailscale connection status
+      ansible.builtin.command: tailscale status --json
+      register: _ts_status
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Set enrolled fact
+      ansible.builtin.set_fact:
+        _ts_enrolled: "{{ _ts_status.rc == 0 and (_ts_status.stdout | from_json).get('BackendState') == 'Running' }}"
+
+    - name: Generate short-lived auth key
+      ansible.builtin.uri:
+        url: "https://api.tailscale.com/api/v2/tailnet/{{ tailscale_tailnet }}/keys"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tailscale_api_token }}"
+        body_format: json
+        body:
+          capabilities:
+            devices:
+              create:
+                reusable: false
+                ephemeral: false
+                preauthorized: true
+                tags: ["tag:infra"]
+          expirySeconds: 300
+        status_code: 200
+      register: _ts_key
+      no_log: true
+      delegate_to: localhost
+      when: not _ts_enrolled
+
+    - name: Enroll in Tailscale hosted tailnet
+      ansible.builtin.command: >-
+        tailscale up
+        --auth-key={{ _ts_key.json.key }}
+        --hostname={{ inventory_hostname }}
+        --advertise-tags=tag:infra
+        {% if ts_bridge_subnet is defined %}--advertise-routes={{ ts_bridge_subnet }}{% endif %}
+        {% if tailscale_ssh | default(false) %}--ssh{% endif %}
+        --accept-routes=false
+      become: true
+      no_log: true
+      when: not _ts_enrolled
+
+    - name: Apply Tailscale settings (already enrolled nodes)
+      ansible.builtin.command: >-
+        tailscale up
+        --hostname={{ inventory_hostname }}
+        --advertise-tags=tag:infra
+        {% if ts_bridge_subnet is defined %}--advertise-routes={{ ts_bridge_subnet }}{% endif %}
+        {% if tailscale_ssh | default(false) %}--ssh{% endif %}
+        --accept-routes=false
+        --reset
+      become: true
+      when: _ts_enrolled
+
+    - name: Get device info from Tailscale API
+      ansible.builtin.uri:
+        url: "https://api.tailscale.com/api/v2/tailnet/{{ tailscale_tailnet }}/devices"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ tailscale_api_token }}"
+        status_code: 200
+      register: _ts_devices
+      no_log: true
+      delegate_to: localhost
+      when: tailscale_ip is defined and tailscale_ip
+
+    - name: Find device ID for this node
+      ansible.builtin.set_fact:
+        _ts_device_id: >-
+          {{
+            _ts_devices.json.devices
+            | selectattr('hostname', 'equalto', inventory_hostname)
+            | map(attribute='id') | first
+          }}
+      when: tailscale_ip is defined and tailscale_ip and _ts_devices is not skipped
+
+    - name: Set static Tailscale IP
+      ansible.builtin.uri:
+        url: "https://api.tailscale.com/api/v2/device/{{ _ts_device_id }}/ip"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tailscale_api_token }}"
+        body_format: json
+        body:
+          ipv4: "{{ tailscale_ip }}"
+        status_code: 200
+      no_log: true
+      delegate_to: localhost
+      when: tailscale_ip is defined and tailscale_ip and _ts_device_id is defined
+      register: _ip_result
+      failed_when: _ip_result.status not in [200, 409]  # 409 = IP already assigned

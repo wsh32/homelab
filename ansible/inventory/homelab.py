@@ -34,6 +34,7 @@ def build_inventory():
         'all': {'vars': {'ansible_python_interpreter': '/usr/bin/python3'}},
         'physical': {'children': []},
         'vms': {'children': []},
+        'tailscale_hosted': {'hosts': []},
     }
     physical_type_groups = set()
 
@@ -97,14 +98,23 @@ def build_inventory():
             if not ts_ip and subnet_index and 'ip' in attrs:
                 ts_ip = f"100.64.{subnet_index}.{_last_octet(attrs['ip'])}"
 
-            hvars = {'ansible_host': attrs['ip'], **loc_vars}
+            connect_via_ts = attrs.get('connect_via_tailscale', False)
+            hvars = {'ansible_host': ts_ip if connect_via_ts else attrs['ip'], **loc_vars}
             if attrs.get('bridge_port'):
                 hvars['static_ip'] = f"{attrs['ip']}/{subnet_prefix}"
             if 'ansible_user' in attrs:
                 hvars['ansible_user'] = attrs['ansible_user']
             if ts_ip:
                 hvars['tailscale_ip'] = ts_ip
+            if attrs.get('vm_bridge_subnet'):
+                hvars['ts_bridge_subnet'] = attrs['vm_bridge_subnet']
+                hvars['ts_bridge_ip'] = attrs['vm_bridge_ip']
+            if attrs.get('tailscale_ssh'):
+                hvars['tailscale_ssh'] = True
             hostvars[hostname] = hvars
+
+            if attrs.get('tailscale_hosted'):
+                groups['tailscale_hosted']['hosts'].append(hostname)
 
             # Register physical type group
             ptype = attrs.get('type', 'other')

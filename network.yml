@@ -17,6 +17,12 @@
 #   100.64.0.x   personal devices (dynamic, assigned by headscale)
 #   100.64.N.x   location N homelab devices (static, last octet matches LAN IP)
 #                N = tailscale_subnet_index for the location (bryant=1, torrance=2, ...)
+#
+# Tailscale hosted tailnet (physical Proxmox nodes):
+#   Physical nodes (diglett, machamp, geodude) run Tailscale hosted (not Headscale).
+#   They advertise their vm_bridge_subnet as a subnet route, giving Tailscale
+#   devices access to VMs via the internal bridge (vmbr1).
+#   vm_bridge_subnet: the /24 advertised; vm_bridge_ip: the node's address on that bridge.
 
 locations:
   bryant:
@@ -51,6 +57,9 @@ locations:
         type: proxmox
         ansible_user: root
         bridge_port: nic0  # Proxmox renames NICs to nic0, nic1, etc. on UM790
+        tailscale_hosted: true
+        vm_bridge_subnet: "10.0.1.0/24"
+        vm_bridge_ip: "10.0.1.1"
         vms:
           diglett-dns:
             ip: 192.168.0.2
@@ -126,6 +135,9 @@ locations:
         type: proxmox
         ansible_user: root
         bridge_port: nic0
+        tailscale_hosted: true
+        vm_bridge_subnet: "10.0.2.0/24"
+        vm_bridge_ip: "10.0.2.1"
         pci_mappings:
           - id: quadro-p2200
             path: "0000:41:00.0"
@@ -226,3 +238,23 @@ locations:
             tailscale_ip: 100.64.1.31
             vm_id: 101
             vm_roles: [dev]
+
+  geodude:
+    # Offsite location. Physical node connects via Tailscale hosted tailnet;
+    # ansible_host is set to the Tailscale IP (connect_via_tailscale: true).
+    tailscale_domain: wsh
+    gateway: 192.168.1.1
+    subnet_prefix: 24
+    dns:
+      primary: 192.168.1.1
+      fallback: 8.8.8.8
+
+    nodes:
+      geodude:
+        ip: 192.168.1.2       # LAN IP at offsite -- update after physical setup
+        tailscale_ip: "100.64.0.10"  # claimed at enrollment via Tailscale API
+        type: proxmox
+        ansible_user: root
+        connect_via_tailscale: true  # ansible_host = tailscale_ip (no LAN route)
+        tailscale_hosted: true
+        tailscale_ssh: true

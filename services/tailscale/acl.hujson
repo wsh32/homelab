@@ -1,0 +1,44 @@
+// Tailscale hosted tailnet ACL.
+// Managed as code; pushed to Tailscale API by ansible/tailscale-hosted.yml.
+//
+// Nodes on this tailnet: physical Proxmox nodes (diglett, machamp, geodude).
+// They advertise VM bridge subnets so Tailscale devices can reach VMs directly.
+{
+  "tagOwners": {
+    // Nodes enrolled by ansible/tailscale-hosted.yml carry tag:infra.
+    "tag:infra": []
+  },
+
+  "autoApprovers": {
+    // Subnet routes advertised by tag:infra nodes are auto-approved.
+    "routes": {
+      "10.0.1.0/24": ["tag:infra"],  // diglett VM bridge
+      "10.0.2.0/24": ["tag:infra"]   // machamp VM bridge
+    }
+  },
+
+  "ssh": [
+    {
+      // Operators (any user) can SSH to tag:infra nodes.
+      "action": "accept",
+      "src":    ["autogroup:member"],
+      "dst":    ["tag:infra"],
+      "users":  ["autogroup:nonroot", "root"]
+    }
+  ],
+
+  "acls": [
+    {
+      // Operators can reach everything on the tailnet.
+      "action": "accept",
+      "src":    ["autogroup:member"],
+      "dst":    ["*:*"]
+    },
+    {
+      // tag:infra nodes can talk to each other (e.g. inter-node management).
+      "action": "accept",
+      "src":    ["tag:infra"],
+      "dst":    ["tag:infra:*"]
+    }
+  ]
+}

@@ -18,3 +18,9 @@ nodes:
     vars:
       proxmox_node: machamp
       ansible_user: ubuntu
+
+  geodude:
+    group: geodude_vms
+    vars:
+      proxmox_node: geodude
+      ansible_user: ubuntu
