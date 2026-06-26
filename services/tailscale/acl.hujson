@@ -1,44 +1,50 @@
 // Tailscale hosted tailnet ACL.
 // Managed as code; pushed to Tailscale API by ansible/tailscale-hosted.yml.
-//
-// Nodes on this tailnet: physical Proxmox nodes (diglett, machamp, geodude).
-// They advertise VM bridge subnets so Tailscale devices can reach VMs directly.
 {
   "tagOwners": {
-    // Nodes enrolled by ansible/tailscale-hosted.yml carry tag:infra.
-    "tag:infra": []
+    "tag:management": ["autogroup:network-admin"],
+    "tag:offsite":    ["autogroup:network-admin"],
+    "tag:infra":      ["autogroup:network-admin"],
+    "tag:machamp-vm": ["autogroup:network-admin"],
+    "tag:diglett-vm": ["autogroup:network-admin"]
   },
 
   "autoApprovers": {
     // Subnet routes advertised by tag:infra nodes are auto-approved.
     "routes": {
-      "10.0.1.0/24": ["tag:infra"],  // diglett VM bridge
-      "10.0.2.0/24": ["tag:infra"]   // machamp VM bridge
+      "10.0.1.0/24": ["tag:infra"],
+      "10.0.2.0/24": ["tag:infra"]
     }
   },
 
-  "ssh": [
+  "grants": [
+    // Allow all connections.
     {
-      // Operators (any user) can SSH to tag:infra nodes.
-      "action": "accept",
-      "src":    ["autogroup:member"],
-      "dst":    ["tag:infra"],
-      "users":  ["autogroup:nonroot", "root"]
+      "src": ["*"],
+      "dst": ["*"],
+      "ip":  ["*"]
+    },
+    {
+      "src": ["autogroup:network-admin"],
+      "dst": ["tag:infra"],
+      "ip":  ["*"]
     }
   ],
 
-  "acls": [
+  "ssh": [
+    // Allow all users to SSH into their own devices in check mode.
     {
-      // Operators can reach everything on the tailnet.
-      "action": "accept",
+      "action": "check",
       "src":    ["autogroup:member"],
-      "dst":    ["*:*"]
+      "dst":    ["autogroup:self"],
+      "users":  ["autogroup:nonroot", "root"]
     },
+    // Network/org admins can SSH into all infra nodes.
     {
-      // tag:infra nodes can talk to each other (e.g. inter-node management).
       "action": "accept",
-      "src":    ["tag:infra"],
-      "dst":    ["tag:infra:*"]
+      "src":    ["autogroup:network-admin", "autogroup:admin"],
+      "dst":    ["tag:infra"],
+      "users":  ["root", "autogroup:nonroot"]
     }
   ]
 }
