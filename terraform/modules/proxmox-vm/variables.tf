@@ -117,3 +117,15 @@ variable "hostpci_mappings" {
   type        = list(string)
   default     = []
 }
+
+variable "bridge_secondary" {
+  description = "Bridge name for a second NIC (e.g. \"vmbr1\" for the VM bridge subnet). Null disables the second NIC."
+  type        = string
+  default     = null
+}
+
+variable "bridge_secondary_ip" {
+  description = "Static IP with CIDR for the second NIC (e.g. \"10.0.3.20/24\"). Written via netplan at first boot. Only used when bridge_secondary is set."
+  type        = string
+  default     = ""
+}

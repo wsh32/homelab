@@ -13,7 +13,8 @@
     // Subnet routes advertised by tag:infra nodes are auto-approved.
     "routes": {
       "10.0.1.0/24": ["tag:infra"],
-      "10.0.2.0/24": ["tag:infra"]
+      "10.0.2.0/24": ["tag:infra"],  // machamp VM bridge
+      "10.0.3.0/24": ["tag:infra"]   // geodude VM bridge
     }
   },
 

@@ -30,6 +30,18 @@ swap:
   maxsize: ${swap_size_gb}G
 %{ endif ~}
 
+%{ if bridge_secondary_ip != "" ~}
+write_files:
+  - path: /etc/netplan/51-bridge.yaml
+    content: |
+      network:
+        version: 2
+        ethernets:
+          ens19:
+            dhcp4: false
+            addresses: [${bridge_secondary_ip}]
+
+%{ endif ~}
 package_update: true
 package_upgrade: true
 package_reboot_if_required: true
@@ -38,6 +50,9 @@ packages:
 
 runcmd:
   - systemctl enable --now qemu-guest-agent
+%{ if bridge_secondary_ip != "" ~}
+  - netplan apply
+%{ endif ~}
 %{ for cmd in extra_runcmd ~}
   - ${cmd}
 %{ endfor ~}

@@ -18,12 +18,13 @@ resource "proxmox_virtual_environment_file" "user_data" {
   source_raw {
     file_name = "${var.name}-user-data.yaml"
     data = templatefile("${path.module}/cloud-init.yaml.tftpl", {
-      name               = var.name
-      timezone           = var.timezone
-      ssh_public_key     = var.ssh_public_key
-      vm_password        = var.vm_password
-      swap_size_gb       = var.swap_size_gb
-      extra_runcmd       = var.extra_runcmd
+      name                = var.name
+      timezone            = var.timezone
+      ssh_public_key      = var.ssh_public_key
+      vm_password         = var.vm_password
+      swap_size_gb        = var.swap_size_gb
+      extra_runcmd        = var.extra_runcmd
+      bridge_secondary_ip = var.bridge_secondary_ip
     })
   }
 
@@ -64,6 +65,14 @@ resource "proxmox_virtual_environment_vm" "vm" {
   network_device {
     bridge = "vmbr0"
     model  = "virtio"
+  }
+
+  dynamic "network_device" {
+    for_each = var.bridge_secondary != null ? [var.bridge_secondary] : []
+    content {
+      bridge = network_device.value
+      model  = "virtio"
+    }
   }
 
   # QEMU guest agent (installed via cloud-init)
