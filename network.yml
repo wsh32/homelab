@@ -252,9 +252,8 @@ locations:
     nodes:
       geodude:
         ip: 192.168.1.2       # LAN IP at offsite -- update after physical setup
-        tailscale_ip: "100.64.0.10"  # claimed at enrollment via Tailscale API
         type: proxmox
         ansible_user: root
-        connect_via_tailscale: true  # ansible_host = tailscale_ip (no LAN route)
+        connect_via_tailscale: true  # ansible_host = MagicDNS hostname; no LAN route
         tailscale_hosted: true
         tailscale_ssh: true

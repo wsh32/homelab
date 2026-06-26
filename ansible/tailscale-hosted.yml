@@ -12,8 +12,10 @@
 #
 # On first run for a node:
 #   The playbook generates a short-lived auth key and enrolls the node.
-#   For geodude: ensure the node was added to Tailscale manually with SSH enabled
-#   before running, OR run this playbook and let it enroll the node automatically.
+#   Remote nodes (connect_via_tailscale: true) are reached via MagicDNS hostname,
+#   so Tailscale must already be running on the operator's machine with MagicDNS enabled.
+#   For geodude: manually join it to Tailscale first (so the hostname resolves),
+#   then run this playbook to apply the correct settings.
 #
 # Usage:
 #   ansible-playbook ansible/tailscale-hosted.yml
@@ -121,40 +123,3 @@
       become: true
       when: _ts_enrolled
 
-    - name: Get device info from Tailscale API
-      ansible.builtin.uri:
-        url: "https://api.tailscale.com/api/v2/tailnet/{{ tailscale_tailnet }}/devices"
-        method: GET
-        headers:
-          Authorization: "Bearer {{ tailscale_api_token }}"
-        status_code: 200
-      register: _ts_devices
-      no_log: true
-      delegate_to: localhost
-      when: tailscale_ip is defined and tailscale_ip
-
-    - name: Find device ID for this node
-      ansible.builtin.set_fact:
-        _ts_device_id: >-
-          {{
-            _ts_devices.json.devices
-            | selectattr('hostname', 'equalto', inventory_hostname)
-            | map(attribute='id') | first
-          }}
-      when: tailscale_ip is defined and tailscale_ip and _ts_devices is not skipped
-
-    - name: Set static Tailscale IP
-      ansible.builtin.uri:
-        url: "https://api.tailscale.com/api/v2/device/{{ _ts_device_id }}/ip"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ tailscale_api_token }}"
-        body_format: json
-        body:
-          ipv4: "{{ tailscale_ip }}"
-        status_code: 200
-      no_log: true
-      delegate_to: localhost
-      when: tailscale_ip is defined and tailscale_ip and _ts_device_id is defined
-      register: _ip_result
-      failed_when: _ip_result.status not in [200, 409]  # 409 = IP already assigned
