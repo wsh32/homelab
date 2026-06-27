@@ -393,7 +393,7 @@ HTTPS_PROXY=http://localhost:1055 curl https://geodude:8006  # geodude via tails
 ### 8. Configure Proxmox nodes
 
 ```bash
-ansible-playbook ansible/physical.yml
+ansible-playbook ansible/proxmox.yml
 ```
 
 This configures Machamp and Diglett: CPU governor, power tuning, and PCI hardware mappings
@@ -412,7 +412,7 @@ The Terraform token is also granted `PVEMappingUser` permission on each mapping 
 cp ansible/secrets.yml.example ansible/secrets.yml
 $EDITOR ansible/secrets.yml
 
-ansible-playbook ansible/physical.yml
+ansible-playbook ansible/proxmox.yml
 ```
 
 This:
@@ -615,7 +615,7 @@ At this point:
 
 ## GPU passthrough (Quadro P2200 → machamp-media)
 
-The Proxmox PCI mapping (`quadro-p2200`) is created automatically by `ansible/physical.yml`
+The Proxmox PCI mapping (`quadro-p2200`) is created automatically by `ansible/proxmox.yml`
 (Phase 3). After `terraform apply` provisions machamp-media with the GPU attached:
 
 ### Install NVIDIA drivers
@@ -682,7 +682,7 @@ ssh root@<device-ip> \
   TAILSCALE_AUTH_KEY=<headscale-preauth-key> \
   bash -s < scripts/bootstrap-physical.sh
 ```
-3. From deploy VM: `ansible-playbook ansible/physical.yml --limit <hostname>`
+3. From deploy VM: `ansible-playbook ansible/proxmox.yml --limit <hostname>`
 
 **Update secrets:**
 Update in Infisical UI, then on the affected VM:

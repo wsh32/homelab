@@ -1,7 +1,7 @@
 ---
-# Configure all physical nodes.
+# Configure all Proxmox nodes.
 #
-# Play 1 (physical):         Base hardening and tooling for all physical nodes.
+# Play 1 (proxmox):          Base hardening and tooling.
 # Play 2 (proxmox):          Proxmox-specific tuning -- CPU governor, PCI mappings,
 #                            Terraform token permissions, SSH, IPv4 forwarding.
 # Play 3 (localhost):        Push Tailscale ACL to the hosted tailnet API.
@@ -13,8 +13,8 @@
 #     tailscale_tailnet:   <tailnet name, e.g. "corgi-census.ts.net">
 #
 # Usage:
-#   ansible-playbook ansible/physical.yml
-#   ansible-playbook ansible/physical.yml --limit geodude
+#   ansible-playbook ansible/proxmox.yml
+#   ansible-playbook ansible/proxmox.yml --limit geodude
 
 # ── Play 1: Base config ───────────────────────────────────────────────────────
 - name: Configure Proxmox nodes (base)
