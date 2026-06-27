@@ -91,8 +91,8 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
     ip_config {
       ipv4 {
-        address = var.ip_address
-        gateway = var.gateway
+        address = var.ip_address != null ? var.ip_address : "dhcp"
+        gateway = var.ip_address != null ? var.gateway : null
       }
     }
 

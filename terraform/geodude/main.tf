@@ -3,8 +3,6 @@ locals {
   net  = yamldecode(file("${path.module}/../../network.yml"))
   loc  = local.net.locations.geodude
   vms  = local.loc.nodes[local.node].vms
-  gw   = local.loc.gateway
-  dns  = local.loc.dns
 }
 
 # Download Ubuntu 24.04 (Noble) cloud image to Geodude once.
@@ -33,10 +31,6 @@ module "dev" {
   memory_mb    = 8192
   disk_size_gb = 40
   swap_size_gb = 2
-
-  ip_address  = "${local.vms["geodude-dev"].ip}/${local.loc.subnet_prefix}"
-  gateway     = local.gw
-  dns_servers = [local.dns.primary, local.dns.fallback]
 
   ssh_public_key = var.ssh_public_key
   vm_password    = var.vm_password

@@ -266,6 +266,5 @@ locations:
         vm_bridge_ip: "10.0.3.1"
         vms:
           geodude-dev:
-            ip: 192.168.1.20
             vm_id: 300
             vm_roles: [dev]

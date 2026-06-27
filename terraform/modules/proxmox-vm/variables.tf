@@ -49,14 +49,15 @@ variable "image_file_id" {
 }
 
 variable "ip_address" {
-  description = "Static IP address with CIDR (e.g. 192.168.0.21/24)"
+  description = "Static IP address with CIDR (e.g. 192.168.0.21/24). Null uses DHCP."
   type        = string
+  default     = null
 }
 
 variable "gateway" {
-  description = "Default gateway"
+  description = "Default gateway. Null uses DHCP."
   type        = string
-  default     = "192.168.0.1"
+  default     = null
 }
 
 variable "dns_servers" {
