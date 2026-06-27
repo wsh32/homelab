@@ -30,6 +30,17 @@
     - "{{ playbook_dir }}/secrets.yml"
 
   tasks:
+    - name: Get current ACL ETag
+      ansible.builtin.uri:
+        url: "https://api.tailscale.com/api/v2/tailnet/{{ tailscale_tailnet }}/acl"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ tailscale_api_token }}"
+          Accept: "application/hujson"
+        status_code: 200
+      register: _acl_current
+      no_log: true
+
     - name: Push ACL file to Tailscale API
       ansible.builtin.uri:
         url: "https://api.tailscale.com/api/v2/tailnet/{{ tailscale_tailnet }}/acl"
@@ -37,7 +48,7 @@
         headers:
           Authorization: "Bearer {{ tailscale_api_token }}"
           Content-Type: "application/hujson"
-          If-Match: "*"
+          If-Match: "{{ _acl_current.etag }}"
         body: "{{ lookup('file', playbook_dir + '/../services/tailscale/acl.hujson') }}"
         status_code: 200
       no_log: true
