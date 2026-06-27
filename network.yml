@@ -260,6 +260,7 @@ locations:
         tailscale_ip: 100.64.1.2   # Tailscale hosted IP -- used as ansible_host
         type: proxmox
         ansible_user: root
+        bridge_port: nic0
         connect_via_tailscale: true  # ansible_host = tailscale_ip; no LAN route
         tailscale_hosted: true
         tailscale_ssh: true
