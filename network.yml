@@ -263,6 +263,7 @@ locations:
         connect_via_tailscale: true  # ansible_host = tailscale_ip; no LAN route
         tailscale_hosted: true
         tailscale_ssh: true
+        disable_nic_offload: true
         vm_bridge_subnet: "10.0.3.0/24"
         vm_bridge_ip: "10.0.3.1"
         vms:

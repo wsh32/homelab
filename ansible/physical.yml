@@ -17,8 +17,8 @@
 #   ansible-playbook ansible/physical.yml --limit geodude
 
 # ── Play 1: Base config ───────────────────────────────────────────────────────
-- name: Configure physical devices
-  hosts: physical
+- name: Configure Proxmox nodes (base)
+  hosts: proxmox
   gather_facts: true
 
   roles:
