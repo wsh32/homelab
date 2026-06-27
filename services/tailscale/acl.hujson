@@ -2,7 +2,8 @@
 // Managed as code; pushed to Tailscale API by ansible/tailscale-hosted.yml.
 {
   "tagOwners": {
-    "tag:infra": ["autogroup:network-admin"]
+    "tag:infra":    ["autogroup:network-admin"],
+    "tag:offsite":  ["autogroup:network-admin"]
   },
 
   "autoApprovers": {
