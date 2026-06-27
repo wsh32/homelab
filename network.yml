@@ -245,7 +245,6 @@ locations:
     # Offsite location. Physical node connects via Tailscale hosted tailnet;
     # ansible_host is set to the MagicDNS hostname (connect_via_tailscale: true).
     tailscale_domain: wsh
-    tailscale_subnet_index: 3   # Headscale IPs: 100.64.3.x (last octet = VM IP last octet)
     subnet_prefix: 24
     dns:
       primary: 8.8.8.8
