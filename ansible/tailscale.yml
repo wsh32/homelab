@@ -39,7 +39,7 @@
           tailscale up
           --authkey={{ tailscale_auth_key }}
           --hostname={{ inventory_hostname }}
-          --accept-routes
+          --accept-routes=false
       become: true
       register: ts_up
       changed_when: ts_up.rc == 0 and "already authenticated" not in ts_up.stderr
