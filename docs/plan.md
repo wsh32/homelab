@@ -154,7 +154,7 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 
 ### One-time manual steps (operator laptop)
 
-4. **Configure static IPs on physical nodes** -- `ansible-playbook ansible/network.yml`
+4. **Configure static IPs on physical nodes** -- `ansible-playbook ansible/proxmox-network.yml`
    for Machamp and Diglett; set static IP on Alakazam via TrueNAS UI.
 5. **Write `terraform.tfvars`** -- populate with Proxmox API tokens, SSH public key,
    and Cloudflare API token. This is the only manual credential entry in the bootstrap.

@@ -170,7 +170,7 @@ ssh root@192.168.0.6 ip link show   # diglett
 
 Update `bridge_port` in `network.yml` if needed, then:
 ```bash
-ansible-playbook ansible/network.yml
+ansible-playbook ansible/proxmox-network.yml
 ```
 
 For Alakazam: Network → Interfaces in TrueNAS UI → set static IP (`192.168.0.4`).
