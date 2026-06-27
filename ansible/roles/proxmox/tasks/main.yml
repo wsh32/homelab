@@ -79,7 +79,7 @@
 - name: Create Proxmox PCI mappings
   vars:
     _net: "{{ lookup('file', playbook_dir + '/../network.yml') | from_yaml }}"
-    _mappings: "{{ _net.nodes[inventory_hostname].pci_mappings | default([]) }}"
+    _mappings: "{{ (_net.locations.values() | map(attribute='nodes') | map('default', {}) | map('dict2items') | flatten | selectattr('key', 'equalto', inventory_hostname) | map(attribute='value') | first | default({})).get('pci_mappings', []) }}"
   when: _mappings | length > 0
   block:
     - name: Create PCI mapping if not present
