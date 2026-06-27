@@ -300,27 +300,22 @@ two Tailscale connections:
 - **tailscale2** (second instance, userspace): hosted Tailscale tailnet for reaching
   physical nodes (diglett, machamp, geodude)
 
-Enroll in both tailnets:
+Enroll in Headscale (the hosted tailnet enrollment is handled automatically by the deploy role):
 
 ```bash
 # Join Headscale (primary tailnet -- VMs and personal devices)
 sudo tailscale up \
   --authkey=<headscale-preauth-key> \
   --hostname=alakazam-deploy \
-  --accept-routes
-
-# Join hosted tailnet (userspace -- for reaching offsite nodes via tailscale2)
-sudo tailscale --socket=/var/run/tailscale2.sock up \
-  --authkey=<hosted-tailnet-auth-key> \
-  --hostname=alakazam-deploy \
-  --accept-routes
+  --accept-routes=false
 ```
 
-- The Headscale pre-auth key comes from step 9 below (or from an existing headscale instance).
-- The hosted tailnet auth key is generated in the Tailscale admin console
-  (Settings → Keys → Auth keys).
+The Headscale pre-auth key comes from step 11 below (or from an existing headscale instance).
 
-After enrolling in the hosted tailnet, the deploy VM can SSH to physical nodes via:
+The deploy role automatically enrolls `tailscale2` (the hosted tailnet instance) via the
+Tailscale API using `tailscale_api_token` from `ansible/secrets.yml`.
+
+After the deploy role runs, the deploy VM can SSH to physical nodes via:
 ```bash
 ssh root@geodude    # resolved via SSH config ProxyCommand → tailscale2 HTTP CONNECT proxy
 ssh root@diglett    # same
