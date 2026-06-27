@@ -106,6 +106,49 @@
     daemon_reload: true
   become: true
 
+- name: Check tailscale2 enrollment status
+  ansible.builtin.command: tailscale --socket=/var/run/tailscale2.sock status --json
+  register: _ts2_status
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: Set tailscale2 enrolled fact
+  ansible.builtin.set_fact:
+    _ts2_enrolled: "{{ _ts2_status.rc == 0 and (_ts2_status.stdout | from_json).get('BackendState') == 'Running' }}"
+
+- name: Generate hosted tailnet auth key for tailscale2
+  ansible.builtin.uri:
+    url: "https://api.tailscale.com/api/v2/tailnet/{{ tailscale_tailnet }}/keys"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ tailscale_api_token }}"
+    body_format: json
+    body:
+      capabilities:
+        devices:
+          create:
+            reusable: false
+            ephemeral: false
+            preauthorized: true
+            tags: ["tag:infra"]
+      expirySeconds: 300
+    status_code: 200
+  register: _ts2_key
+  no_log: true
+  when: not _ts2_enrolled
+
+- name: Enroll tailscale2 in hosted tailnet
+  ansible.builtin.command: >-
+    tailscale --socket=/var/run/tailscale2.sock up
+    --authkey={{ _ts2_key.json.key }}
+    --hostname=alakazam-deploy
+    --advertise-tags=tag:infra
+    --accept-routes
+  become: true
+  no_log: true
+  when: not _ts2_enrolled
+
 - name: Collect hosts that connect via Tailscale
   ansible.builtin.set_fact:
     tailscale_connect_hosts: >-

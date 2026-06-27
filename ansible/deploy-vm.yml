@@ -11,6 +11,8 @@
 - name: Configure deploy VM
   hosts: alakazam-deploy
   gather_facts: true
+  vars_files:
+    - "{{ playbook_dir }}/secrets.yml"
 
   roles:
     - role: base
