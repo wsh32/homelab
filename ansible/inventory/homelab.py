@@ -112,7 +112,7 @@ def build_inventory():
             if connect_via_ts:
                 hvars['connect_via_tailscale'] = True
                 hvars['tailscale_fqdn'] = ansible_host
-            if attrs.get('bridge_port'):
+            if attrs.get('bridge_port') and not attrs.get('dhcp') and 'ip' in attrs:
                 hvars['static_ip'] = f"{attrs['ip']}/{subnet_prefix}"
             if 'ansible_user' in attrs:
                 hvars['ansible_user'] = attrs['ansible_user']

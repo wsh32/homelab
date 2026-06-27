@@ -35,6 +35,12 @@
       ansible.builtin.set_fact:
         proxmox_bridge_port: "{{ _all_nodes[inventory_hostname].bridge_port }}"
         disable_nic_offload: "{{ _all_nodes[inventory_hostname].get('disable_nic_offload', false) }}"
+        dhcp: "{{ _all_nodes[inventory_hostname].get('dhcp', false) }}"
+
+    - name: Set static IP fact
+      ansible.builtin.set_fact:
+        static_ip: "{{ _all_nodes[inventory_hostname].ip }}/{{ subnet_prefix }}"
+      when: not _all_nodes[inventory_hostname].get('dhcp', false)
 
     - name: Set VM bridge IP fact
       ansible.builtin.set_fact:
