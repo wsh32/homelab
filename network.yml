@@ -241,7 +241,7 @@ locations:
             vm_id: 101
             vm_roles: [dev]
 
-  geodude:
+  bedrock:
     # Offsite location. Physical node connects via Tailscale hosted tailnet;
     # ansible_host is set to the MagicDNS hostname (connect_via_tailscale: true).
     tailscale_domain: wsh

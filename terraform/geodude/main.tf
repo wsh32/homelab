@@ -1,7 +1,7 @@
 locals {
   node = "geodude"
   net  = yamldecode(file("${path.module}/../../network.yml"))
-  loc  = local.net.locations.geodude
+  loc  = local.net.locations.bedrock
   vms  = local.loc.nodes[local.node].vms
 }
 
@@ -24,7 +24,7 @@ module "dev" {
   vm_id         = local.vms["geodude-dev"].vm_id
   name          = "geodude-dev"
   description   = "Offsite development / test VM"
-  tags          = ["geodude", "dev"]
+  tags          = ["bedrock", "dev"]
   image_file_id = proxmox_download_file.ubuntu_2404.id
 
   cores        = 4
