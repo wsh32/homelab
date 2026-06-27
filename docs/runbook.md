@@ -224,26 +224,44 @@ Create it manually:
 
 ### 7. Bootstrap the deploy VM
 
-From the operator laptop:
+SSH into the deploy VM (`ssh ubuntu@192.168.0.7`) and run the following:
 
 ```bash
-ssh ubuntu@192.168.0.7 \
-  TAILSCALE_AUTH_KEY=<headscale-preauth-key> \
-  bash -s < scripts/bootstrap-alakazam-deploy.sh
-```
+# Allow passwordless sudo so Ansible become tasks run non-interactively
+echo "ubuntu ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/ubuntu-nopasswd
+sudo chmod 0440 /etc/sudoers.d/ubuntu-nopasswd
 
-This installs Ansible, clones the repo, configures passwordless sudo, then runs
-`ansible-playbook deploy-vm.yml --connection=local` to apply base hardening and
-deploy tooling (Terraform, Infisical CLI, Tailscale). You will be prompted for
-the `ubuntu` sudo password once at the start.
+# Install prerequisites
+sudo apt-get update -q
+sudo apt-get install -y git python3 python3-pip pipx
 
-If the Ansible step fails and you need to re-run it manually:
+# Install Ansible
+pipx install --include-deps ansible
+export PATH="$HOME/.local/bin:$PATH"
 
-```bash
-ssh ubuntu@alakazam-deploy
+# Clone the repo
+git clone https://github.com/wsh32/homelab.git ~/homelab
+
+# Self-configure via Ansible (base hardening + deploy tooling)
 cd ~/homelab/ansible
-ansible-playbook deploy-vm.yml --limit alakazam-deploy --connection=local --ask-become-pass
+ansible-playbook deploy-vm.yml --limit alakazam-deploy --connection=local
+
+# Join Headscale (primary tailnet -- VMs and personal devices)
+sudo tailscale up \
+  --authkey=<headscale-preauth-key> \
+  --hostname=alakazam-deploy \
+  --accept-routes
+
+# Join hosted tailnet (userspace -- for reaching offsite nodes like geodude)
+sudo tailscale --socket=/var/run/tailscale2.sock up \
+  --authkey=<hosted-tailnet-auth-key> \
+  --hostname=alakazam-deploy \
+  --accept-routes
 ```
+
+The hosted tailnet auth key is generated in the Tailscale admin console
+(Settings → Keys → Auth keys). The headscale pre-auth key comes from step 9 below
+or from an existing headscale instance.
 
 Then copy `terraform.tfvars` to the deploy VM:
 
@@ -267,8 +285,8 @@ sudo mkdir -p /mnt/terraform-state
 sudo mount -t nfs 192.168.0.4:/mnt/apps/terraform /mnt/terraform-state
 
 # Create per-node state directories and set ownership
-sudo mkdir -p /mnt/terraform-state/machamp /mnt/terraform-state/diglett
-sudo chown ubuntu:ubuntu /mnt/terraform-state/machamp /mnt/terraform-state/diglett
+sudo mkdir -p /mnt/terraform-state/machamp /mnt/terraform-state/diglett /mnt/terraform-state/geodude
+sudo chown ubuntu:ubuntu /mnt/terraform-state/machamp /mnt/terraform-state/diglett /mnt/terraform-state/geodude
 ```
 
 Persist the mount across reboots by adding to `/etc/fstab`:
