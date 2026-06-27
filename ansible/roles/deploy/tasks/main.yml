@@ -120,7 +120,7 @@
     mode: "0600"
     marker: "# {mark} ANSIBLE MANAGED BLOCK -- tailscale2-{{ item }}"
     block: |
-      Host {{ item }}
+      Host {{ item }} {{ hostvars[item]['ansible_host'] }}
           Hostname {{ hostvars[item]['ansible_host'] }}
           ProxyCommand nc -X connect -x localhost:1055 %h %p
   loop: "{{ tailscale_connect_hosts }}"
