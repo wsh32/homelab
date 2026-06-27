@@ -32,7 +32,10 @@ def build_inventory():
 
     hostvars = {}
     groups = {
-        'all': {'vars': {'ansible_python_interpreter': '/usr/bin/python3'}},
+        'all': {'vars': {
+            'ansible_python_interpreter': '/usr/bin/python3',
+            'tailscale_hosted_domain': tailscale_hosted_domain,
+        }},
         'physical': {'children': []},
         'vms': {'children': []},
         'tailscale_hosted': {'hosts': []},

@@ -149,34 +149,21 @@
   no_log: true
   when: not _ts2_enrolled
 
-- name: Collect hosts that connect via Tailscale
-  ansible.builtin.set_fact:
-    tailscale_connect_hosts: >-
-      {{ hostvars | dict2items
-         | selectattr('value.connect_via_tailscale', 'defined')
-         | map(attribute='key') | list }}
-
-- name: Configure SSH stanzas for connect_via_tailscale nodes
+- name: Remove legacy per-host SSH stanzas written by older deploy role versions
   ansible.builtin.blockinfile:
     path: "{{ ansible_env.HOME }}/.ssh/config"
-    create: true
-    mode: "0600"
     marker: "# {mark} ANSIBLE MANAGED BLOCK -- tailscale2-{{ item }}"
-    block: |
-      Host {{ item }} {{ hostvars[item]['ansible_host'] }}
-          Hostname {{ hostvars[item]['ansible_host'] }}
-          ProxyCommand nc -X connect -x localhost:1055 %h %p
-  loop: "{{ tailscale_connect_hosts }}"
+    state: absent
+  loop: "{{ groups['tailscale_hosted'] | default([]) }}"
 
-- name: Configure SSH to route Tailscale IP range via tailscale2 HTTP CONNECT proxy
+- name: Configure SSH to route hosted tailnet via tailscale2 HTTP CONNECT proxy
   ansible.builtin.blockinfile:
     path: "{{ ansible_env.HOME }}/.ssh/config"
     create: true
     mode: "0600"
     marker: "# {mark} ANSIBLE MANAGED BLOCK -- tailscale2-proxy"
     block: |
-      # Route any 100.64.x.x address through tailscale2 (HTTP CONNECT proxy).
-      Host 100.64.*
+      Host *.{{ tailscale_hosted_domain }} 100.64.*
           ProxyCommand nc -X connect -x localhost:1055 %h %p
 
 - name: Configure SSH agent in .bashrc
