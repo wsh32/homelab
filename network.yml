@@ -61,7 +61,6 @@ locations:
         type: proxmox
         ansible_user: root
         bridge_port: nic0  # Proxmox renames NICs to nic0, nic1, etc. on UM790
-        tailscale_hosted: true
         vm_bridge_subnet: "10.0.1.0/24"
         vm_bridge_ip: "10.0.1.1"
         vms:
@@ -139,7 +138,6 @@ locations:
         type: proxmox
         ansible_user: root
         bridge_port: nic0
-        tailscale_hosted: true
         vm_bridge_subnet: "10.0.2.0/24"
         vm_bridge_ip: "10.0.2.1"
         pci_mappings:
@@ -262,7 +260,6 @@ locations:
         ansible_user: root
         bridge_port: nic0
         connect_via_tailscale: true  # ansible_host = tailscale_ip; no LAN route
-        tailscale_hosted: true
         tailscale_ssh: true
         disable_nic_offload: true
         vm_bridge_subnet: "10.0.3.0/24"

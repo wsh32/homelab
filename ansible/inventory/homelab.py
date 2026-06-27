@@ -125,7 +125,7 @@ def build_inventory():
                 hvars['tailscale_ssh'] = True
             hostvars[hostname] = hvars
 
-            if attrs.get('tailscale_hosted'):
+            if attrs.get('type') == 'proxmox':
                 groups['tailscale_hosted']['hosts'].append(hostname)
 
             # Register physical type group
