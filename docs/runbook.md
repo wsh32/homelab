@@ -175,7 +175,7 @@ ssh root@192.168.0.6 ip link show   # diglett
 
 Update `bridge_port` in `network.yml` if needed, then:
 ```bash
-ansible-playbook ansible/proxmox-network.yml
+ansible-playbook ansible/proxmox-bridge.yml
 ```
 
 This also creates the internal `vmbr1` bridge on each node (the VM bridge used for
@@ -211,7 +211,7 @@ Geodude is at an offsite location and is not on the local LAN. After initial OS 
 5. Create the Proxmox API token on geodude (step 2 above).
 6. Run the network playbook for geodude:
    ```bash
-   ansible-playbook ansible/proxmox-network.yml --limit geodude
+   ansible-playbook ansible/proxmox-bridge.yml --limit geodude
    # geodude is reached via SSH ProxyCommand through tailscale2 automatically
    ```
    This creates `vmbr1` on geodude (10.0.3.1/24).
@@ -393,7 +393,7 @@ HTTPS_PROXY=http://localhost:1055 curl https://geodude:8006  # geodude via tails
 ### 8. Configure Proxmox nodes
 
 ```bash
-ansible-playbook ansible/proxmox.yml
+ansible-playbook ansible/physical.yml
 ```
 
 This configures Machamp and Diglett: CPU governor, power tuning, and PCI hardware mappings
@@ -412,7 +412,7 @@ The Terraform token is also granted `PVEMappingUser` permission on each mapping 
 cp ansible/secrets.yml.example ansible/secrets.yml
 $EDITOR ansible/secrets.yml
 
-ansible-playbook ansible/tailscale-hosted.yml
+ansible-playbook ansible/physical.yml
 ```
 
 This:
@@ -615,7 +615,7 @@ At this point:
 
 ## GPU passthrough (Quadro P2200 → machamp-media)
 
-The Proxmox PCI mapping (`quadro-p2200`) is created automatically by `ansible/proxmox.yml`
+The Proxmox PCI mapping (`quadro-p2200`) is created automatically by `ansible/physical.yml`
 (Phase 3). After `terraform apply` provisions machamp-media with the GPU attached:
 
 ### Install NVIDIA drivers

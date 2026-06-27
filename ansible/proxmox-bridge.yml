@@ -1,11 +1,11 @@
 ---
-# Configure static IP on Proxmox physical nodes.
+# Configure network bridges on Proxmox physical nodes (vmbr0 + vmbr1).
 # Safe to re-run -- ifreload -a applies changes without dropping connections
 # as long as the IP address is not changing.
 #
 # Usage:
-#   ansible-playbook ansible/network.yml
-#   ansible-playbook ansible/network.yml --limit machamp
+#   ansible-playbook ansible/proxmox-bridge.yml
+#   ansible-playbook ansible/proxmox-bridge.yml --limit machamp
 #
 # IPs and bridge ports are read from network.yml at the repo root.
 
