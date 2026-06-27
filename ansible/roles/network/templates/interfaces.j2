@@ -17,3 +17,12 @@ iface vmbr0 inet static
 {% if disable_nic_offload | default(false) %}
         post-up ethtool -K {{ proxmox_bridge_port }} tso off gso off gro off
 {% endif %}
+{% if ts_bridge_ip is defined %}
+
+auto vmbr1
+iface vmbr1 inet static
+        address {{ ts_bridge_ip }}/24
+        bridge-ports none
+        bridge-stp off
+        bridge-fd 0
+{% endif %}
