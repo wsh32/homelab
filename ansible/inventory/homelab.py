@@ -99,7 +99,13 @@ def build_inventory():
                 ts_ip = f"100.64.{subnet_index}.{_last_octet(attrs['ip'])}"
 
             connect_via_ts = attrs.get('connect_via_tailscale', False)
-            hvars = {'ansible_host': hostname if connect_via_ts else attrs['ip'], **loc_vars}
+            if connect_via_ts:
+                ansible_host = ts_ip or hostname
+            else:
+                ansible_host = attrs['ip']
+            hvars = {'ansible_host': ansible_host, **loc_vars}
+            if connect_via_ts:
+                hvars['connect_via_tailscale'] = True
             if attrs.get('bridge_port'):
                 hvars['static_ip'] = f"{attrs['ip']}/{subnet_prefix}"
             if 'ansible_user' in attrs:
