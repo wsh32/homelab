@@ -113,10 +113,10 @@
     mode: "0600"
     marker: "# {mark} ANSIBLE MANAGED BLOCK -- tailscale2-proxy"
     block: |
-      # Route connections to hosted tailnet nodes through tailscale2 (userspace SOCKS5).
+      # Route connections to hosted tailnet nodes through tailscale2 (HTTP CONNECT proxy).
       # Covers MagicDNS hostnames and the 100.x Tailscale IP range.
       Host geodude *.ts.net 100.64.*
-          ProxyCommand nc -X 5 -x localhost:1055 %h %p
+          ProxyCommand nc -X connect -x localhost:1055 %h %p
 
 - name: Configure SSH agent in .bashrc
   ansible.builtin.blockinfile:
