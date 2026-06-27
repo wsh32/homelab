@@ -26,6 +26,7 @@ def build_inventory():
 
     network = load_yaml(repo_root / 'network.yml')
     group_config = load_yaml(ansible_dir / 'group_config.yml')
+    tailscale_hosted_domain = network.get('tailscale_hosted_domain', '')
 
     node_configs = group_config.get('nodes', {})
 
@@ -100,12 +101,14 @@ def build_inventory():
 
             connect_via_ts = attrs.get('connect_via_tailscale', False)
             if connect_via_ts:
-                ansible_host = ts_ip or hostname
+                fqdn = f"{hostname}.{tailscale_hosted_domain}" if tailscale_hosted_domain else hostname
+                ansible_host = fqdn
             else:
                 ansible_host = attrs['ip']
             hvars = {'ansible_host': ansible_host, **loc_vars}
             if connect_via_ts:
                 hvars['connect_via_tailscale'] = True
+                hvars['tailscale_fqdn'] = ansible_host
             if attrs.get('bridge_port'):
                 hvars['static_ip'] = f"{attrs['ip']}/{subnet_prefix}"
             if 'ansible_user' in attrs:

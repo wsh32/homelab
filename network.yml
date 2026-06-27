@@ -24,6 +24,10 @@
 #   devices access to VMs via the internal bridge (vmbr1).
 #   vm_bridge_subnet: the /24 advertised; vm_bridge_ip: the node's address on that bridge.
 
+# MagicDNS domain for the hosted Tailscale tailnet (Settings > DNS in Tailscale admin).
+# FQDNs for physical nodes are <hostname>.<tailscale_hosted_domain>.
+tailscale_hosted_domain: corgi-census.ts.net
+
 locations:
   bryant:
     tailscale_domain: wsh
