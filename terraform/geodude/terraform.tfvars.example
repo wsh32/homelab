@@ -1,4 +1,11 @@
 # Copy to terraform.tfvars and fill in values. NEVER commit terraform.tfvars.
+#
+# On alakazam-deploy, geodude is reached via the hosted tailnet (userspace/SOCKS5).
+# Wrap terraform invocations with:
+#   HTTPS_PROXY=socks5h://localhost:1055 terraform plan
+#   HTTPS_PROXY=socks5h://localhost:1055 terraform apply
+# SSH (used by bpg/proxmox for file uploads) is handled automatically via
+# ~/.ssh/config (ProxyCommand set up by the deploy Ansible role).
 
 # Proxmox API endpoint -- reached via Tailscale MagicDNS
 proxmox_endpoint = "https://geodude:8006"

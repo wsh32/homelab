@@ -8,7 +8,8 @@
 # Usage:
 #   ssh ubuntu@192.168.0.7 \
 #     TAILSCALE_AUTH_KEY=<headscale-preauth-key> \
-#     bash -s < scripts/bootstrap-alakazam-deploy.sh
+#     TAILSCALE_HOSTED_AUTH_KEY=<hosted-tailnet-auth-key> \
+#     bash -s < scripts/alakazam-deploy/bootstrap-alakazam-deploy.sh
 #
 # After this:
 #   1. Copy terraform.tfvars to ~/homelab/terraform/diglett/ and ~/homelab/terraform/machamp/
@@ -23,7 +24,11 @@
 set -euo pipefail
 
 if [[ -z "${TAILSCALE_AUTH_KEY:-}" ]]; then
-  echo "Error: TAILSCALE_AUTH_KEY is required"
+  echo "Error: TAILSCALE_AUTH_KEY is required (Headscale pre-auth key)"
+  exit 1
+fi
+if [[ -z "${TAILSCALE_HOSTED_AUTH_KEY:-}" ]]; then
+  echo "Error: TAILSCALE_HOSTED_AUTH_KEY is required (hosted tailnet auth key)"
   exit 1
 fi
 
@@ -64,11 +69,18 @@ cd "$REPO_DIR/ansible"
 ansible-playbook deploy-vm.yml --limit alakazam-deploy --connection=local
 
 # ── Tailscale join ────────────────────────────────────────────────────────────
-# Tailscale is installed by the base role above; join the network here.
+# Primary (Headscale): installed by base role, joined here.
+# Secondary (hosted tailnet): tailscale2 service installed by deploy role above.
 
-echo "==> Joining Tailscale network..."
+echo "==> Joining Headscale network..."
 sudo tailscale up \
   --authkey="${TAILSCALE_AUTH_KEY}" \
+  --hostname="alakazam-deploy" \
+  --accept-routes
+
+echo "==> Joining hosted tailnet (userspace)..."
+sudo tailscale --socket=/var/run/tailscale2.sock up \
+  --authkey="${TAILSCALE_HOSTED_AUTH_KEY}" \
   --hostname="alakazam-deploy" \
   --accept-routes
 
