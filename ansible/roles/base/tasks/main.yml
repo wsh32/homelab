@@ -30,6 +30,7 @@
       - lsb-release
       - nfs-common
       - rsync
+      - cron
       - avahi-daemon
     state: present
     update_cache: true
