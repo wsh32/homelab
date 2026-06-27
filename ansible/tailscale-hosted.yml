@@ -61,6 +61,15 @@
     - "{{ playbook_dir }}/secrets.yml"
 
   tasks:
+    - name: Enable IPv4 forwarding
+      ansible.posix.sysctl:
+        name: net.ipv4.ip_forward
+        value: "1"
+        sysctl_set: true
+        state: present
+        reload: true
+      become: true
+
     - name: Install tailscale via official install script
       ansible.builtin.shell:
         cmd: curl -fsSL https://tailscale.com/install.sh | sh
