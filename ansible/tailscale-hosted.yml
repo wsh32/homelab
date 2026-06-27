@@ -48,8 +48,6 @@
   gather_facts: false
   vars_files:
     - "{{ playbook_dir }}/secrets.yml"
-  vars_files_optional:
-    - "{{ playbook_dir }}/../network.yml"
 
   tasks:
     - name: Install tailscale via official install script
