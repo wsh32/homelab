@@ -166,6 +166,13 @@
       Host *.{{ tailscale_hosted_domain }} 100.64.*
           ProxyCommand nc -X connect -x localhost:1055 %h %p
 
+- name: Add tailscale2 alias to .bashrc
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_env.HOME }}/.bashrc"
+    line: "alias tailscale2='tailscale --socket=/var/run/tailscale2.sock'"
+    regexp: "alias tailscale2="
+    state: present
+
 - name: Configure SSH agent in .bashrc
   ansible.builtin.blockinfile:
     path: "{{ ansible_env.HOME }}/.bashrc"
