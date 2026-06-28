@@ -4,6 +4,9 @@ services:
     image: traefik:v3.7.1
     container_name: traefik
     restart: unless-stopped
+    user: "1000:1000"
+    cap_add:
+      - NET_BIND_SERVICE
     depends_on:
       step-ca:
         condition: service_healthy
@@ -230,7 +233,7 @@ services:
       - "traefik.http.routers.ca-wsh-tls.tls.certresolver=step"
       - "traefik.http.services.ca-svc.loadbalancer.server.port=80"
 
-  # ── Cloudflare Tunnel ─────────────────────────────────────────────────────
+  # ── Cloudflare Tunnel (Authentik OIDC) ────────────────────────────────────
   # Exposes only /application/o/ (Authentik OIDC) publicly via Cloudflare Tunnel.
   # Token written to /etc/cloudflare-tunnel.env by Ansible (ansible/roles/infra/tasks/main.yml).
   cloudflared:

@@ -46,8 +46,8 @@
     mode: "{{ item.mode }}"
   loop:
     # PostgreSQL alpine image runs as uid 70 (alpine), not 999 (debian).
-    - { path: /var/lib/postgres,    owner: "70",  group: "70",  mode: "0750" }
-    - { path: /var/lib/vaultwarden, owner: "0",   group: "0",   mode: "0755" }
+    - { path: /var/lib/postgres,       owner: "70",   group: "70",   mode: "0750" }
+    - { path: /var/lib/vaultwarden,    owner: "0",    group: "0",    mode: "0755" }
   become: true
 
 - name: Create NFS sentinel directory
@@ -75,7 +75,7 @@
     group: "{{ item.owner }}"
     mode: "0755"
   loop:
-    - { path: /mnt/nas/docker/traefik/acme, owner: "0" }
+    - { path: /mnt/nas/docker/traefik/acme, owner: "1000" }
     # step-ca runs as uid 1000 and writes its config/certs here on first init
     - { path: /mnt/nas/docker/step-ca, owner: "1000" }
   become: true
@@ -785,10 +785,9 @@
     content: |
       HEADSCALE_OIDC_CLIENT_ID={{ _oidc_client_id }}
       HEADSCALE_OIDC_CLIENT_SECRET={{ _oidc_client_secret }}
-    owner: root
-    group: root
+    owner: ubuntu
+    group: ubuntu
     mode: "0600"
-  become: true
 
 # ── Headplane OIDC bootstrap ──────────────────────────────────────────────────
 
@@ -975,10 +974,9 @@
     content: |
       HEADPLANE_OIDC_CLIENT_ID={{ _hp_oidc_client_id }}
       HEADPLANE_OIDC_CLIENT_SECRET={{ _hp_oidc_client_secret }}
-    owner: root
-    group: root
+    owner: ubuntu
+    group: ubuntu
     mode: "0600"
-  become: true
 
 # ── arr services: Authentik proxy providers (forwardAuth) ─────────────────────
 # Creates one Proxy Provider per arr service in forward_auth_single mode, then
@@ -1324,10 +1322,9 @@
     content: |
       JELLYFIN_OIDC_CLIENT_ID={{ _jf_oidc_client_id }}
       JELLYFIN_OIDC_CLIENT_SECRET={{ _jf_oidc_client_secret }}
-    owner: root
-    group: root
+    owner: ubuntu
+    group: ubuntu
     mode: "0600"
-  become: true
 
 # ── Seerr: native OIDC provider ───────────────────────────────────────────────
 
@@ -1465,10 +1462,9 @@
     content: |
       SEERR_OIDC_CLIENT_ID={{ _seerr_oidc_client_id }}
       SEERR_OIDC_CLIENT_SECRET={{ _seerr_oidc_client_secret }}
-    owner: root
-    group: root
+    owner: ubuntu
+    group: ubuntu
     mode: "0600"
-  become: true
   changed_when: false
 
 # ── Authentik groups ──────────────────────────────────────────────────────────

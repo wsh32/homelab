@@ -1,0 +1,84 @@
+---
+- name: Create local web data directory
+  ansible.builtin.file:
+    path: /var/lib/tenderloin-web
+    state: directory
+    owner: "1000"
+    group: "1000"
+    mode: "0755"
+  become: true
+
+- name: Create .ssh directory
+  ansible.builtin.file:
+    path: /home/{{ ansible_user }}/.ssh
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0700"
+
+- name: Generate SSH deploy key for git-sync
+  community.crypto.openssh_keypair:
+    path: /home/{{ ansible_user }}/.ssh/diglett_web_id_ed25519
+    type: ed25519
+    comment: diglett-web
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0600"
+  register: deploy_key
+
+- name: Read public key
+  ansible.builtin.slurp:
+    src: /home/{{ ansible_user }}/.ssh/diglett_web_id_ed25519.pub
+  register: deploy_key_pub
+
+- name: Register SSH key on GitHub account
+  ansible.builtin.uri:
+    url: https://api.github.com/user/keys
+    method: POST
+    headers:
+      Authorization: "Bearer {{ github_token }}"
+      Accept: application/vnd.github+json
+    body_format: json
+    body:
+      title: diglett-web
+      key: "{{ deploy_key_pub.content | b64decode | trim }}"
+    status_code: [201, 422]  # 422 = key already registered
+  delegate_to: localhost
+  when: deploy_key.changed and (github_token | default('')) not in ['', 'REPLACE_ME']
+
+- name: Add github.com to ubuntu known_hosts
+  ansible.builtin.known_hosts:
+    name: github.com
+    key: "{{ lookup('pipe', 'ssh-keyscan github.com') }}"
+    path: /home/{{ ansible_user }}/.ssh/known_hosts
+    state: present
+
+- name: Write tenderloin.ai Cloudflare Tunnel token
+  ansible.builtin.copy:
+    dest: /etc/tenderloin-tunnel.env
+    content: "TUNNEL_TOKEN={{ tenderloin_tunnel_token }}\n"
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+  when: tenderloin_tunnel_token is defined
+
+- name: Create services directory
+  ansible.builtin.file:
+    path: /home/{{ ansible_user }}/homelab/services/diglett-web
+    state: directory
+    mode: "0755"
+
+- name: Sync services/diglett-web/ from deploy VM
+  ansible.posix.synchronize:
+    src: "{{ playbook_dir }}/../services/diglett-web/"
+    dest: /home/{{ ansible_user }}/homelab/services/diglett-web/
+    delete: true
+    recursive: true
+
+- name: Start Docker Compose stack
+  community.docker.docker_compose_v2:
+    project_src: /home/{{ ansible_user }}/homelab/services/diglett-web
+    state: present
+    pull: always
+  become: true

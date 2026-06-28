@@ -32,7 +32,7 @@ variable "cloudflare_api_token" {
   sensitive   = true
 }
 
-variable "cloudflare_zone_id" {
+variable "cloudflare_homelab_zone_id" {
   description = "Cloudflare zone ID for the domain used for Headscale"
   type        = string
 }
@@ -47,4 +47,9 @@ variable "authentik_subdomain" {
   description = "Subdomain for the public Authentik OIDC endpoint (e.g. 'auth' → auth.example.com)"
   type        = string
   default     = "auth"
+}
+
+variable "cloudflare_tenderloin_zone_id" {
+  description = "Cloudflare zone ID for tenderloin.ai"
+  type        = string
 }
