@@ -39,5 +39,5 @@ module "dev" {
   # Second NIC on vmbr1 so geodude's Tailscale subnet route covers this VM.
   # IP last octet mirrors the LAN IP (192.168.1.20 → 10.0.3.20).
   bridge_secondary    = "vmbr1"
-  bridge_secondary_ip = "10.0.3.20/24"
+  bridge_secondary_ip = "10.0.3.2/24"
 }
