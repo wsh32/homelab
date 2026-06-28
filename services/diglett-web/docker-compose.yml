@@ -18,7 +18,7 @@ services:
       GITSYNC_ADD_USER: "true"
     volumes:
       - /var/lib/tenderloin-web:/repo
-      - /home/ubuntu/.ssh/id_ed25519:/etc/git-sync-ssh/id_ed25519:ro
+      - /home/ubuntu/.ssh/tenderloin_deploy_key:/etc/git-sync-ssh/id_ed25519:ro
     healthcheck:
       test: ["CMD-SHELL", "test -L /repo/tenderloin && test -f /repo/tenderloin/index.html"]
       interval: 5s
