@@ -121,6 +121,11 @@ locations:
                 port: 9000
                 nfs_data: docker/authentik
                 authentik: none
+              - name: tenderloin-web
+                hostname: tenderloin
+                port: 80
+                nfs_data: docker/tenderloin-web
+                authentik: none
               - name: cloudflared
                 authentik: none
                 traefik: false
