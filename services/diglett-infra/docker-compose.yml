@@ -248,7 +248,7 @@ services:
       - "traefik.http.routers.tenderloin-home-tls.tls.certresolver=step"
       - "traefik.http.services.tenderloin-svc.loadbalancer.server.port=80"
 
-  # ── Cloudflare Tunnel ─────────────────────────────────────────────────────
+  # ── Cloudflare Tunnel (Authentik OIDC) ────────────────────────────────────
   # Exposes only /application/o/ (Authentik OIDC) publicly via Cloudflare Tunnel.
   # Token written to /etc/cloudflare-tunnel.env by Ansible (ansible/roles/infra/tasks/main.yml).
   cloudflared:
@@ -260,6 +260,18 @@ services:
     # TUNNEL_TOKEN in env_file is read natively by cloudflared -- no tunnel name needed
     depends_on:
       - authentik-server
+
+  # ── Cloudflare Tunnel (tenderloin.ai) ─────────────────────────────────────
+  # Exposes tenderloin-web publicly at tenderloin.ai via Cloudflare Tunnel.
+  # Token written to /etc/tenderloin-tunnel.env by Ansible (ansible/roles/infra/tasks/main.yml).
+  cloudflared-tenderloin:
+    image: cloudflare/cloudflared:2026.5.0
+    container_name: cloudflared-tenderloin
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    env_file: /etc/tenderloin-tunnel.env
+    depends_on:
+      - tenderloin-web
 
   # ── PostgreSQL backup ──────────────────────────────────────────────────────
   postgres-backup:

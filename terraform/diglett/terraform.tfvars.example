@@ -31,3 +31,6 @@ headscale_subdomain = "headscale"
 
 # Subdomain for the public Authentik OIDC endpoint (creates auth.<your-zone>)
 authentik_subdomain = "auth"
+
+# Cloudflare zone ID for tenderloin.ai -- found in the right sidebar of the zone's Overview page
+tenderloin_zone_id = "REPLACE_ME"

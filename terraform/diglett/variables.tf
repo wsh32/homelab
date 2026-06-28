@@ -48,3 +48,8 @@ variable "authentik_subdomain" {
   type        = string
   default     = "auth"
 }
+
+variable "tenderloin_zone_id" {
+  description = "Cloudflare zone ID for tenderloin.ai"
+  type        = string
+}
