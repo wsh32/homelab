@@ -802,10 +802,9 @@
     content: |
       HEADSCALE_OIDC_CLIENT_ID={{ _oidc_client_id }}
       HEADSCALE_OIDC_CLIENT_SECRET={{ _oidc_client_secret }}
-    owner: root
-    group: root
+    owner: ubuntu
+    group: ubuntu
     mode: "0600"
-  become: true
 
 # ── Headplane OIDC bootstrap ──────────────────────────────────────────────────
 
@@ -992,10 +991,9 @@
     content: |
       HEADPLANE_OIDC_CLIENT_ID={{ _hp_oidc_client_id }}
       HEADPLANE_OIDC_CLIENT_SECRET={{ _hp_oidc_client_secret }}
-    owner: root
-    group: root
+    owner: ubuntu
+    group: ubuntu
     mode: "0600"
-  become: true
 
 # ── arr services: Authentik proxy providers (forwardAuth) ─────────────────────
 # Creates one Proxy Provider per arr service in forward_auth_single mode, then
@@ -1341,10 +1339,9 @@
     content: |
       JELLYFIN_OIDC_CLIENT_ID={{ _jf_oidc_client_id }}
       JELLYFIN_OIDC_CLIENT_SECRET={{ _jf_oidc_client_secret }}
-    owner: root
-    group: root
+    owner: ubuntu
+    group: ubuntu
     mode: "0600"
-  become: true
 
 # ── Seerr: native OIDC provider ───────────────────────────────────────────────
 
@@ -1482,10 +1479,9 @@
     content: |
       SEERR_OIDC_CLIENT_ID={{ _seerr_oidc_client_id }}
       SEERR_OIDC_CLIENT_SECRET={{ _seerr_oidc_client_secret }}
-    owner: root
-    group: root
+    owner: ubuntu
+    group: ubuntu
     mode: "0600"
-  become: true
   changed_when: false
 
 # ── Authentik groups ──────────────────────────────────────────────────────────
