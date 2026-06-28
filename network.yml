@@ -13,16 +13,13 @@
 #   .30–.49  Machamp VMs (VM IDs 100–199)
 #   .100+    DHCP (router managed)
 #
-# Tailscale IP layout (100.64.0.0/10):
-#   100.64.0.x   personal devices (dynamic, assigned by headscale)
-#   100.64.N.x   location N homelab devices (static, last octet matches LAN IP)
-#                N = tailscale_subnet_index for the location (bryant=1, torrance=2, ...)
-#
-# Tailscale hosted tailnet (physical Proxmox nodes):
-#   Physical nodes (diglett, machamp, geodude) run Tailscale hosted (not Headscale).
-#   They advertise their vm_bridge_subnet as a subnet route, giving Tailscale
+# Tailscale topology:
+#   Physical Proxmox nodes (diglett, machamp, geodude) run Tailscale hosted tailnet.
+#   They advertise their vm_bridge_subnet as a subnet route, giving hosted-tailnet
 #   devices access to VMs via the internal bridge (vmbr1).
 #   vm_bridge_subnet: the /24 advertised; vm_bridge_ip: the node's address on that bridge.
+#   VMs and personal devices join the self-hosted Headscale tailnet.
+#   IPs on both tailnets are dynamic (MagicDNS / Headscale DNS for name resolution).
 
 # MagicDNS domain for the hosted Tailscale tailnet (Settings > DNS in Tailscale admin).
 # FQDNs for physical nodes are <hostname>.<tailscale_hosted_domain>.
@@ -51,13 +48,11 @@ locations:
 
       alakazam-deploy:
         ip: 192.168.0.7
-        tailscale_ip: 100.64.1.7
         type: other
         ansible_user: ubuntu
 
       diglett:
         ip: 192.168.0.6
-        tailscale_ip: 100.64.1.6
         type: proxmox
         ansible_user: root
         bridge_port: nic0  # Proxmox renames NICs to nic0, nic1, etc. on UM790
@@ -66,7 +61,6 @@ locations:
         vms:
           diglett-dns:
             ip: 192.168.0.2
-            tailscale_ip: 100.64.1.2
             vm_id: 200
             vm_roles: [services]
             tailscale_exit_node: true
@@ -91,7 +85,6 @@ locations:
                 traefik: false
           diglett-infra:
             ip: 192.168.0.20
-            tailscale_ip: 100.64.1.20
             vm_id: 201
             vm_roles: [services]
             nfs_mounts:
@@ -129,7 +122,6 @@ locations:
                 traefik: false
           diglett-web:
             ip: 192.168.0.22
-            tailscale_ip: 100.64.1.22
             vm_id: 203
             vm_roles: [services]
             services:
@@ -147,7 +139,6 @@ locations:
 
       machamp:
         ip: 192.168.0.5
-        tailscale_ip: 100.64.1.5
         type: proxmox
         ansible_user: root
         bridge_port: nic0
@@ -160,7 +151,6 @@ locations:
         vms:
           machamp-media:
             ip: 192.168.0.30
-            tailscale_ip: 100.64.1.30
             vm_id: 100
             vm_roles: [media, gpu]
             pci_passthrough: [quadro-p2200]  # references pci_mappings id on parent node
@@ -250,7 +240,6 @@ locations:
                 authentik: none
           machamp-dev:
             ip: 192.168.0.31
-            tailscale_ip: 100.64.1.31
             vm_id: 101
             vm_roles: [dev]
 
@@ -264,18 +253,16 @@ locations:
 
     nodes:
       geodude:
-        tailscale_ip: 100.64.1.2   # Tailscale hosted IP -- used as ansible_host
         type: proxmox
         ansible_user: root
         bridge_port: nic0
-        connect_via_tailscale: true  # no ip: DHCP; reached via Tailscale only  # ansible_host = tailscale_ip; no LAN route
+        connect_via_tailscale: true  # no ip: DHCP; reached via Tailscale MagicDNS only
         tailscale_ssh: true
         disable_nic_offload: true
         vm_bridge_subnet: "10.0.3.0/24"
         vm_bridge_ip: "10.0.3.1"
         vms:
           geodude-dev:
-            tailscale_ip: 100.64.3.2
             bridge_ip: 10.0.3.2
             vm_id: 300
             vm_roles: [dev]

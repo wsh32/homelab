@@ -94,8 +94,6 @@ def build_inventory():
         managed_nodes = {h: a for h, a in nodes.items() if a.get('os') != 'truenas'}
 
         for hostname, attrs in managed_nodes.items():
-            ts_ip = attrs.get('tailscale_ip')
-
             connect_via_ts = attrs.get('connect_via_tailscale', False)
             if connect_via_ts:
                 fqdn = f"{hostname}.{tailscale_hosted_domain}" if tailscale_hosted_domain else hostname
@@ -110,8 +108,6 @@ def build_inventory():
                 hvars['static_ip'] = f"{attrs['ip']}/{subnet_prefix}"
             if 'ansible_user' in attrs:
                 hvars['ansible_user'] = attrs['ansible_user']
-            if ts_ip:
-                hvars['tailscale_ip'] = ts_ip
             if attrs.get('vm_bridge_subnet'):
                 hvars['ts_bridge_subnet'] = attrs['vm_bridge_subnet']
                 hvars['ts_bridge_ip'] = attrs['vm_bridge_ip']
@@ -143,8 +139,7 @@ def build_inventory():
                 if not vmattrs.get('ansible_managed', True):
                     continue
 
-                vm_ts_ip = vmattrs.get('tailscale_ip')
-                vm_ansible_host = vmattrs.get('ip') or vmattrs.get('bridge_ip') or vm_ts_ip
+                vm_ansible_host = vmattrs.get('ip') or vmattrs.get('bridge_ip')
                 if not vm_ansible_host:
                     continue
 
@@ -153,8 +148,6 @@ def build_inventory():
                     **loc_vars,
                     'all_location_services': all_location_services,
                 }
-                if vm_ts_ip:
-                    vmhvars['tailscale_ip'] = vm_ts_ip
                 if vmattrs.get('tailscale_exit_node'):
                     vmhvars['tailscale_exit_node'] = True
                 if 'tailscale_advertise_routes' in vmattrs:
