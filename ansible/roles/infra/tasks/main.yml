@@ -75,7 +75,7 @@
     group: "{{ item.owner }}"
     mode: "0755"
   loop:
-    - { path: /mnt/nas/docker/traefik/acme, owner: "0" }
+    - { path: /mnt/nas/docker/traefik/acme, owner: "1000" }
     # step-ca runs as uid 1000 and writes its config/certs here on first init
     - { path: /mnt/nas/docker/step-ca, owner: "1000" }
   become: true
