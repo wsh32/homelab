@@ -15,10 +15,6 @@ def load_yaml(path):
         return yaml.safe_load(f)
 
 
-def _last_octet(ip):
-    return ip.split('.')[-1]
-
-
 def build_inventory():
     script_dir = Path(__file__).resolve().parent  # ansible/inventory/
     ansible_dir = script_dir.parent               # ansible/
@@ -53,7 +49,6 @@ def build_inventory():
         nodes = loc.get('nodes', {})
         subnet_prefix = loc.get('subnet_prefix', 24)
         tailscale_domain = loc.get('tailscale_domain', '')
-        subnet_index = loc.get('tailscale_subnet_index', 0)
         traefik_vm_name = loc.get('traefik_vm', '')
 
         # Derive per-location shared values from the node/VM list
@@ -70,6 +65,8 @@ def build_inventory():
             for vm_name, vm_attrs in node_attrs.get('vms', {}).items():
                 if not vm_attrs.get('ansible_managed', True):
                     continue
+                if 'ip' not in vm_attrs:
+                    continue
                 if vm_name == traefik_vm_name:
                     traefik_ip = vm_attrs['ip']
                 vm_ip = vm_attrs['ip']
@@ -79,7 +76,7 @@ def build_inventory():
                     all_location_services.append({**svc, 'vm': vm_name, 'vm_ip': vm_ip})
 
         proxmox_nodes = [{'name': n, 'ip': a['ip']}
-                         for n, a in nodes.items() if a.get('type') == 'proxmox']
+                         for n, a in nodes.items() if a.get('type') == 'proxmox' and 'ip' in a]
 
         # Common extra vars for every host in this location
         loc_vars = {'location': loc_name, 'tailscale_domain': tailscale_domain}
@@ -97,10 +94,7 @@ def build_inventory():
         managed_nodes = {h: a for h, a in nodes.items() if a.get('os') != 'truenas'}
 
         for hostname, attrs in managed_nodes.items():
-            # Derive tailscale_ip if not explicitly set
             ts_ip = attrs.get('tailscale_ip')
-            if not ts_ip and subnet_index and 'ip' in attrs:
-                ts_ip = f"100.64.{subnet_index}.{_last_octet(attrs['ip'])}"
 
             connect_via_ts = attrs.get('connect_via_tailscale', False)
             if connect_via_ts:
@@ -148,10 +142,10 @@ def build_inventory():
             for vmname, vmattrs in attrs.get('vms', {}).items():
                 if not vmattrs.get('ansible_managed', True):
                     continue
+                if 'ip' not in vmattrs:
+                    continue
 
                 vm_ts_ip = vmattrs.get('tailscale_ip')
-                if not vm_ts_ip and subnet_index and 'ip' in vmattrs:
-                    vm_ts_ip = f"100.64.{subnet_index}.{_last_octet(vmattrs['ip'])}"
 
                 vmhvars = {
                     'ansible_host': vmattrs['ip'],
