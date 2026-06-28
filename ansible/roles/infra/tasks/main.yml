@@ -205,6 +205,13 @@
   become: true
   when: cloudflare_tunnel_token is defined
 
+- name: Add github.com to ubuntu known_hosts for tenderloin-sync SSH access
+  ansible.builtin.known_hosts:
+    name: github.com
+    key: "{{ lookup('pipe', 'ssh-keyscan github.com') }}"
+    path: /home/ubuntu/.ssh/known_hosts
+    state: present
+
 - name: Write tenderloin.ai Cloudflare Tunnel token to /etc/tenderloin-tunnel.env
   ansible.builtin.copy:
     dest: /etc/tenderloin-tunnel.env
