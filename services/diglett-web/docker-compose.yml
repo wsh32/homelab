@@ -19,13 +19,20 @@ services:
     volumes:
       - /var/lib/tenderloin-web:/repo
       - /home/ubuntu/.ssh/id_ed25519:/etc/git-sync-ssh/id_ed25519:ro
+    healthcheck:
+      test: ["CMD-SHELL", "test -L /repo/tenderloin && test -f /repo/tenderloin/index.html"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
 
   tenderloin-web:
     image: nginx:1.28.0-alpine
     container_name: tenderloin-web
     restart: unless-stopped
     depends_on:
-      - tenderloin-sync
+      tenderloin-sync:
+        condition: service_healthy
     ports:
       - "80:80"
     volumes:
