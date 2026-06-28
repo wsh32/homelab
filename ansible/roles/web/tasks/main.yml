@@ -1,0 +1,40 @@
+---
+- name: Create local web data directory
+  ansible.builtin.file:
+    path: /var/lib/tenderloin-web
+    state: directory
+    owner: "1000"
+    group: "1000"
+    mode: "0755"
+  become: true
+
+- name: Add github.com to ubuntu known_hosts
+  ansible.builtin.known_hosts:
+    name: github.com
+    key: "{{ lookup('pipe', 'ssh-keyscan github.com') }}"
+    path: /home/ubuntu/.ssh/known_hosts
+    state: present
+
+- name: Write tenderloin.ai Cloudflare Tunnel token
+  ansible.builtin.copy:
+    dest: /etc/tenderloin-tunnel.env
+    content: "TUNNEL_TOKEN={{ tenderloin_tunnel_token }}\n"
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+  when: tenderloin_tunnel_token is defined
+
+- name: Sync homelab repo to VM
+  ansible.posix.synchronize:
+    src: "{{ playbook_dir }}/../services/diglett-web/"
+    dest: /home/ubuntu/homelab/services/diglett-web/
+    delete: true
+    recursive: true
+
+- name: Start Docker Compose stack
+  community.docker.docker_compose_v2:
+    project_src: /home/ubuntu/homelab/services/diglett-web
+    state: present
+    pull: always
+  become: true
