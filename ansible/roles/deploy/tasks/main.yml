@@ -179,6 +179,7 @@
     --authkey={{ headscale_preauth_key }}
     --hostname=alakazam-deploy
     --accept-routes=false
+    --ssh
   become: true
   no_log: true
   when:
