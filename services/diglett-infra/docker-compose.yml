@@ -251,7 +251,7 @@ services:
       GITSYNC_SSH_KNOWN_HOSTS: "false"
       GITSYNC_ADD_USER: "true"
     volumes:
-      - /mnt/nas/docker/tenderloin-web:/repo
+      - /var/lib/tenderloin-web:/repo
       - /home/ubuntu/.ssh/id_ed25519:/etc/git-sync-ssh/id_ed25519:ro
 
   tenderloin-web:
@@ -262,7 +262,7 @@ services:
       - tenderloin-sync
     volumes:
       - ./tenderloin-web/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - /mnt/nas/docker/tenderloin-web/tenderloin:/usr/share/nginx/html:ro
+      - /var/lib/tenderloin-web/tenderloin:/usr/share/nginx/html:ro
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.tenderloin-home.rule=Host(`tenderloin.home`)"
