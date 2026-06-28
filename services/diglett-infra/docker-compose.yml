@@ -230,6 +230,24 @@ services:
       - "traefik.http.routers.ca-wsh-tls.tls.certresolver=step"
       - "traefik.http.services.ca-svc.loadbalancer.server.port=80"
 
+  # ── tenderloin.ai static site ─────────────────────────────────────────────
+  tenderloin-web:
+    image: nginx:1.28.0-alpine
+    container_name: tenderloin-web
+    restart: unless-stopped
+    volumes:
+      - ./tenderloin-web/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /mnt/nas/docker/tenderloin-web:/usr/share/nginx/html:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.tenderloin-home.rule=Host(`tenderloin.home`)"
+      - "traefik.http.routers.tenderloin-home.entrypoints=web"
+      - "traefik.http.routers.tenderloin-home-tls.rule=Host(`tenderloin.home`)"
+      - "traefik.http.routers.tenderloin-home-tls.entrypoints=websecure"
+      - "traefik.http.routers.tenderloin-home-tls.tls=true"
+      - "traefik.http.routers.tenderloin-home-tls.tls.certresolver=step"
+      - "traefik.http.services.tenderloin-svc.loadbalancer.server.port=80"
+
   # ── Cloudflare Tunnel ─────────────────────────────────────────────────────
   # Exposes only /application/o/ (Authentik OIDC) publicly via Cloudflare Tunnel.
   # Token written to /etc/cloudflare-tunnel.env by Ansible (ansible/roles/infra/tasks/main.yml).
