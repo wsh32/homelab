@@ -6,5 +6,10 @@ provider "proxmox" {
   ssh {
     agent    = true
     username = "root"
+    node {
+      name    = "geodude"
+      address = "geodude.corgi-census.ts.net"
+      port    = 22
+    }
   }
 }
