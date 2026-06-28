@@ -8,6 +8,22 @@
     mode: "0755"
   become: true
 
+- name: Create .ssh directory
+  ansible.builtin.file:
+    path: /home/{{ ansible_user }}/.ssh
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0700"
+
+- name: Copy SSH deploy key for git-sync
+  ansible.builtin.copy:
+    src: /home/ubuntu/.ssh/id_ed25519
+    dest: /home/{{ ansible_user }}/.ssh/id_ed25519
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0600"
+
 - name: Add github.com to ubuntu known_hosts
   ansible.builtin.known_hosts:
     name: github.com
