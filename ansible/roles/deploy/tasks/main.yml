@@ -186,37 +186,7 @@
     - not _ts2_enrolled
     - headscale_preauth_key | default('REPLACE_ME') != 'REPLACE_ME'
 
-# ── Remove legacy socat relay (no longer needed) ──────────────────────────────
-
-- name: Stop and disable legacy socat-geodude-ssh service
-  ansible.builtin.systemd:
-    name: socat-geodude-ssh
-    state: stopped
-    enabled: false
-  become: true
-  failed_when: false
-
-- name: Remove legacy socat-geodude-ssh service file
-  ansible.builtin.file:
-    path: /etc/systemd/system/socat-geodude-ssh.service
-    state: absent
-  become: true
-  notify: Reload systemd
-
 # ── SSH config ────────────────────────────────────────────────────────────────
-
-- name: Remove legacy per-host SSH stanzas written by older deploy role versions
-  ansible.builtin.blockinfile:
-    path: "{{ ansible_env.HOME }}/.ssh/config"
-    marker: "# {mark} ANSIBLE MANAGED BLOCK -- tailscale2-{{ item }}"
-    state: absent
-  loop: "{{ groups['tailscale_hosted'] | default([]) }}"
-
-- name: Remove legacy hosted-tailnet SSH ProxyCommand stanza
-  ansible.builtin.blockinfile:
-    path: "{{ ansible_env.HOME }}/.ssh/config"
-    marker: "# {mark} ANSIBLE MANAGED BLOCK -- tailscale2-proxy"
-    state: absent
 
 - name: Add tailscale2 alias to .bashrc
   ansible.builtin.lineinfile:
