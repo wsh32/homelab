@@ -144,7 +144,7 @@ def build_inventory():
                     continue
 
                 vm_ts_ip = vmattrs.get('tailscale_ip')
-                vm_ansible_host = vmattrs.get('ip') or vm_ts_ip
+                vm_ansible_host = vmattrs.get('ip') or vmattrs.get('bridge_ip') or vm_ts_ip
                 if not vm_ansible_host:
                     continue
 

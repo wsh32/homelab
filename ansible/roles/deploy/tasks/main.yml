@@ -1,6 +1,12 @@
 ---
 # Deploy role -- applied to alakazam-deploy on top of the base role.
 # Installs operator tooling: Terraform, Infisical CLI, Ansible (via pipx).
+#
+# Tailscale topology on the deploy VM:
+#   primary tailscaled  -- hosted Tailscale tailnet; accepts subnet routes from
+#                          physical nodes so Ansible/Terraform reach VMs directly
+#   tailscale2          -- Headscale (userspace); makes the deploy VM a peer on
+#                          the homelab tailnet so personal devices can SSH in
 
 - name: Install pipx and pip
   ansible.builtin.apt:
@@ -63,6 +69,53 @@
     state: present
   become: true
 
+# ── Primary tailscale: hosted tailnet ────────────────────────────────────────
+
+- name: Check primary tailscale enrollment status
+  ansible.builtin.command: tailscale status --json
+  register: _ts_status
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: Set primary tailscale enrolled fact
+  ansible.builtin.set_fact:
+    _ts_enrolled: "{{ _ts_status.rc == 0 and (_ts_status.stdout | from_json).get('BackendState') == 'Running' }}"
+
+- name: Generate hosted tailnet auth key for primary tailscale
+  ansible.builtin.uri:
+    url: "https://api.tailscale.com/api/v2/tailnet/{{ tailscale_tailnet }}/keys"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ tailscale_api_token }}"
+    body_format: json
+    body:
+      capabilities:
+        devices:
+          create:
+            reusable: false
+            ephemeral: false
+            preauthorized: true
+            tags: ["tag:infra"]
+      expirySeconds: 300
+    status_code: 200
+  register: _ts_key
+  no_log: true
+  when: not _ts_enrolled
+
+- name: Enroll primary tailscale in hosted tailnet
+  ansible.builtin.command: >-
+    tailscale up
+    --authkey={{ _ts_key.json.key }}
+    --hostname=alakazam-deploy
+    --advertise-tags=tag:infra
+    --accept-routes
+  become: true
+  no_log: true
+  when: not _ts_enrolled
+
+# ── tailscale2: Headscale (userspace) ────────────────────────────────────────
+
 - name: Create tailscale2 state directory
   ansible.builtin.file:
     path: /var/lib/tailscale2
@@ -72,7 +125,7 @@
     mode: "0700"
   become: true
 
-- name: Install tailscale2 systemd service (hosted tailnet, userspace mode)
+- name: Install tailscale2 systemd service (Headscale, userspace mode)
   ansible.builtin.copy:
     dest: /etc/systemd/system/tailscale2.service
     owner: root
@@ -80,7 +133,7 @@
     mode: "0644"
     content: |
       [Unit]
-      Description=Tailscale node agent (hosted tailnet)
+      Description=Tailscale node agent (Headscale tailnet)
       After=network-pre.target
       Wants=network-pre.target
 
@@ -118,67 +171,37 @@
   ansible.builtin.set_fact:
     _ts2_enrolled: "{{ _ts2_status.rc == 0 and (_ts2_status.stdout | from_json).get('BackendState') == 'Running' }}"
 
-- name: Generate hosted tailnet auth key for tailscale2
-  ansible.builtin.uri:
-    url: "https://api.tailscale.com/api/v2/tailnet/{{ tailscale_tailnet }}/keys"
-    method: POST
-    headers:
-      Authorization: "Bearer {{ tailscale_api_token }}"
-    body_format: json
-    body:
-      capabilities:
-        devices:
-          create:
-            reusable: false
-            ephemeral: false
-            preauthorized: true
-            tags: ["tag:infra"]
-      expirySeconds: 300
-    status_code: 200
-  register: _ts2_key
-  no_log: true
-  when: not _ts2_enrolled
-
-- name: Enroll tailscale2 in hosted tailnet
+- name: Enroll tailscale2 in Headscale
   ansible.builtin.command: >-
     tailscale --socket=/var/run/tailscale2.sock up
-    --authkey={{ _ts2_key.json.key }}
+    --login-server={{ headscale_public_url }}
+    --authkey={{ headscale_preauth_key }}
     --hostname=alakazam-deploy
-    --advertise-tags=tag:infra
-    --accept-routes
+    --accept-routes=false
   become: true
   no_log: true
-  when: not _ts2_enrolled
+  when:
+    - not _ts2_enrolled
+    - headscale_preauth_key | default('REPLACE_ME') != 'REPLACE_ME'
 
-- name: Install socat-geodude-ssh systemd service
-  ansible.builtin.copy:
-    dest: /etc/systemd/system/socat-geodude-ssh.service
-    owner: root
-    group: root
-    mode: "0644"
-    content: |
-      [Unit]
-      Description=SSH relay to geodude via tailscale2 HTTP CONNECT proxy
-      After=tailscale2.service
-      Requires=tailscale2.service
+# ── Remove legacy socat relay (no longer needed) ──────────────────────────────
 
-      [Service]
-      ExecStart=socat TCP-LISTEN:12222,fork,reuseaddr,bind=127.0.0.1 PROXY:127.0.0.1:geodude.corgi-census.ts.net:22,proxyport=1055
-      Restart=always
-      RestartSec=5
+- name: Stop and disable legacy socat-geodude-ssh service
+  ansible.builtin.systemd:
+    name: socat-geodude-ssh
+    state: stopped
+    enabled: false
+  become: true
+  failed_when: false
 
-      [Install]
-      WantedBy=multi-user.target
+- name: Remove legacy socat-geodude-ssh service file
+  ansible.builtin.file:
+    path: /etc/systemd/system/socat-geodude-ssh.service
+    state: absent
   become: true
   notify: Reload systemd
 
-- name: Enable and start socat-geodude-ssh service
-  ansible.builtin.systemd:
-    name: socat-geodude-ssh
-    state: started
-    enabled: true
-    daemon_reload: true
-  become: true
+# ── SSH config ────────────────────────────────────────────────────────────────
 
 - name: Remove legacy per-host SSH stanzas written by older deploy role versions
   ansible.builtin.blockinfile:
@@ -187,15 +210,11 @@
     state: absent
   loop: "{{ groups['tailscale_hosted'] | default([]) }}"
 
-- name: Configure SSH to route hosted tailnet via tailscale2 HTTP CONNECT proxy
+- name: Remove legacy hosted-tailnet SSH ProxyCommand stanza
   ansible.builtin.blockinfile:
     path: "{{ ansible_env.HOME }}/.ssh/config"
-    create: true
-    mode: "0600"
     marker: "# {mark} ANSIBLE MANAGED BLOCK -- tailscale2-proxy"
-    block: |
-      Host *.{{ tailscale_hosted_domain }} 100.64.*
-          ProxyCommand nc -X connect -x localhost:1055 %h %p
+    state: absent
 
 - name: Add tailscale2 alias to .bashrc
   ansible.builtin.lineinfile:

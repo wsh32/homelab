@@ -276,5 +276,6 @@ locations:
         vms:
           geodude-dev:
             tailscale_ip: 100.64.3.2
+            bridge_ip: 10.0.3.2
             vm_id: 300
             vm_roles: [dev]

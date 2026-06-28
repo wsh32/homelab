@@ -6,10 +6,5 @@ provider "proxmox" {
   ssh {
     agent    = true
     username = "root"
-    node {
-      name    = "geodude"
-      address = "127.0.0.1"
-      port    = 12222
-    }
   }
 }
