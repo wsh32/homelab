@@ -237,6 +237,7 @@ services:
     image: registry.k8s.io/git-sync/git-sync:v4.4.1
     container_name: tenderloin-sync
     restart: unless-stopped
+    user: "0:0"
     environment:
       GITSYNC_REPO: https://github.com/wsh32/tenderloin.git
       GITSYNC_ROOT: /repo
