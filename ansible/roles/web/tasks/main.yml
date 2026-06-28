@@ -31,9 +31,9 @@
     src: /home/{{ ansible_user }}/.ssh/tenderloin_deploy_key.pub
   register: deploy_key_pub
 
-- name: Register deploy key on wsh32/tenderloin
+- name: Register SSH key on GitHub account
   ansible.builtin.uri:
-    url: https://api.github.com/repos/wsh32/tenderloin/keys
+    url: https://api.github.com/user/keys
     method: POST
     headers:
       Authorization: "Bearer {{ github_token }}"
@@ -42,7 +42,6 @@
     body:
       title: diglett-web git-sync
       key: "{{ deploy_key_pub.content | b64decode | trim }}"
-      read_only: true
     status_code: [201, 422]  # 422 = key already registered
   delegate_to: localhost
   when: deploy_key.changed and (github_token | default('')) not in ['', 'REPLACE_ME']
