@@ -39,8 +39,8 @@
 
     - name: Set static IP fact
       ansible.builtin.set_fact:
-        static_ip: "{{ _all_nodes[inventory_hostname].ip }}/{{ subnet_prefix }}"
-      when: "'ip' in _all_nodes[inventory_hostname]"
+        static_ip: "{{ hostvars[inventory_hostname].static_ip }}"
+      when: hostvars[inventory_hostname].static_ip is defined
 
     - name: Set VM bridge IP fact
       ansible.builtin.set_fact:
