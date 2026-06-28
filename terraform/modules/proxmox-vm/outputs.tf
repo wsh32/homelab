@@ -10,7 +10,7 @@ output "name" {
 
 output "ip_address" {
   description = "VM IP address (without CIDR)"
-  value       = split("/", var.ip_address)[0]
+  value       = var.ip_address != null ? split("/", var.ip_address)[0] : null
 }
 
 output "ipv4_addresses" {
