@@ -1,5 +1,5 @@
 data "cloudflare_zone" "main" {
-  zone_id = var.cloudflare_zone_id
+  zone_id = var.cloudflare_homelab_zone_id
 }
 
 locals {
@@ -12,7 +12,7 @@ locals {
 # content is a placeholder; the cloudflare-ddns container updates it at runtime.
 # ignore_changes prevents Terraform from resetting the IP on subsequent applies.
 resource "cloudflare_record" "headscale" {
-  zone_id = var.cloudflare_zone_id
+  zone_id = var.cloudflare_homelab_zone_id
   name    = var.headscale_subdomain
   content = "0.0.0.0"
   type    = "A"
@@ -60,7 +60,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "authentik" {
 
 # CNAME auth.<zone> → <tunnel-id>.cfargotunnel.com (proxied through Cloudflare)
 resource "cloudflare_record" "authentik" {
-  zone_id = var.cloudflare_zone_id
+  zone_id = var.cloudflare_homelab_zone_id
   name    = var.authentik_subdomain
   content = "${cloudflare_zero_trust_tunnel_cloudflared.authentik.id}.cfargotunnel.com"
   type    = "CNAME"
@@ -77,4 +77,51 @@ output "authentik_tunnel_token" {
 output "authentik_public_url" {
   description = "Public Authentik OIDC base URL"
   value       = "https://${local.authentik_hostname}"
+}
+
+# ── tenderloin.ai ─────────────────────────────────────────────────────────────
+
+data "cloudflare_zone" "tenderloin" {
+  zone_id = var.cloudflare_tenderloin_zone_id
+}
+
+resource "cloudflare_zero_trust_tunnel_cloudflared" "tenderloin" {
+  account_id = data.cloudflare_zone.tenderloin.account_id
+  name       = "tenderloin-web"
+  secret     = random_id.tenderloin_tunnel_secret.b64_std
+}
+
+resource "random_id" "tenderloin_tunnel_secret" {
+  byte_length = 32
+}
+
+resource "cloudflare_zero_trust_tunnel_cloudflared_config" "tenderloin" {
+  account_id = data.cloudflare_zone.tenderloin.account_id
+  tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.tenderloin.id
+
+  config {
+    ingress_rule {
+      hostname = data.cloudflare_zone.tenderloin.name
+      service  = "http://tenderloin-web:80"
+    }
+    ingress_rule {
+      service = "http_status:404"
+    }
+  }
+}
+
+# CNAME tenderloin.ai → <tunnel-id>.cfargotunnel.com (proxied through Cloudflare)
+resource "cloudflare_record" "tenderloin_root" {
+  zone_id = var.cloudflare_tenderloin_zone_id
+  name    = "@"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.tenderloin.id}.cfargotunnel.com"
+  type    = "CNAME"
+  proxied = true
+  ttl     = 1  # auto TTL (required when proxied = true)
+}
+
+output "tenderloin_tunnel_token" {
+  description = "Cloudflare Tunnel token -- written to /etc/tenderloin-tunnel.env on diglett-infra by the infra Ansible role"
+  value       = cloudflare_zero_trust_tunnel_cloudflared.tenderloin.tunnel_token
+  sensitive   = true
 }

@@ -84,6 +84,30 @@ module "infra" {
   extra_runcmd = []
 }
 
+module "web" {
+  source = "../modules/proxmox-vm"
+
+  node_name     = local.node
+  vm_id         = local.vms["diglett-web"].vm_id
+  name          = "diglett-web"
+  description   = "Public web servers -- tenderloin.ai and future sites"
+  tags          = ["diglett", "web"]
+  image_file_id = proxmox_download_file.ubuntu_2404.id
+
+  cores        = 2
+  memory_mb    = 4096
+  disk_size_gb = 20
+  swap_size_gb = 1
+
+  ip_address         = "${local.vms["diglett-web"].ip}/24"
+  gateway            = local.loc.gateway
+  dns_servers        = [local.loc.dns.primary, local.loc.dns.fallback]
+  ssh_public_key     = var.ssh_public_key
+  vm_password        = var.vm_password
+  timezone           = var.timezone
+  extra_runcmd       = []
+}
+
 # TODO: Manage HAOS VM in Terraform.
 # HAOS image releases use .qcow2.xz compression which the bpg/proxmox provider
 # does not support (only gz/lzo/zst/bz2). For now, create the VM manually:
