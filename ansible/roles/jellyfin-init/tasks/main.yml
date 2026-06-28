@@ -13,16 +13,16 @@
   ansible.builtin.file:
     path: /mnt/nas/docker/jellyfin/config
     state: directory
-  become: true
+    owner: ubuntu
+    group: ubuntu
 
 - name: Deploy Jellyfin encoding.xml
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../services/machamp-media/config/jellyfin-encoding.xml"
     dest: /mnt/nas/docker/jellyfin/config/encoding.xml
-    owner: root
-    group: root
+    owner: ubuntu
+    group: ubuntu
     mode: "0644"
-  become: true
   register: _jellyfin_encoding_xml
 
 - name: Restart Jellyfin if encoding.xml changed
