@@ -1,8 +1,10 @@
 locals {
-  node = "diglett"
-  net  = yamldecode(file("${path.module}/../../network.yml"))
-  loc  = local.net.locations.bryant
-  vms  = local.loc.nodes[local.node].vms
+  node        = "diglett"
+  net         = yamldecode(file("${path.module}/../../network.yml"))
+  loc         = local.net.locations.bryant
+  vms         = local.loc.nodes[local.node].vms
+  node_cfg    = local.loc.nodes[local.node]
+  bridge_cidr = local.node_cfg.vm_bridge_subnet  # 10.0.1.0/24
 
   # Shared VM defaults -- keep in sync with modules/proxmox-vm/main.tf
   vm_defaults = {
@@ -41,12 +43,13 @@ module "dns" {
   disk_size_gb = 10
   swap_size_gb = 1
 
-  ip_address         = "${local.vms["diglett-dns"].ip}/24"
-  gateway            = local.loc.gateway
-  dns_servers        = [local.loc.dns.primary, local.loc.dns.fallback]
-  ssh_public_key     = var.ssh_public_key
-  vm_password        = var.vm_password
-  timezone           = var.timezone
+  ip_address           = "${local.vms["diglett-dns"].ip}/24"
+  gateway              = local.loc.gateway
+  dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
+  bridge_secondary_ip  = "${cidrhost(local.bridge_cidr, tonumber(split(".", local.vms["diglett-dns"].ip)[3]))}/${split("/", local.bridge_cidr)[1]}"
+  ssh_public_key       = var.ssh_public_key
+  vm_password          = var.vm_password
+  timezone             = var.timezone
   extra_runcmd = [
     "tailscale set --advertise-exit-node",
     # /etc/headscale.env is read by both the headscale and cloudflare-ddns containers.
@@ -75,12 +78,13 @@ module "infra" {
   disk_size_gb = 40
   swap_size_gb = 2
 
-  ip_address         = "${local.vms["diglett-infra"].ip}/24"
-  gateway            = local.loc.gateway
-  dns_servers        = [local.loc.dns.primary, local.loc.dns.fallback]
-  ssh_public_key     = var.ssh_public_key
-  vm_password        = var.vm_password
-  timezone           = var.timezone
+  ip_address           = "${local.vms["diglett-infra"].ip}/24"
+  gateway              = local.loc.gateway
+  dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
+  bridge_secondary_ip  = "${cidrhost(local.bridge_cidr, tonumber(split(".", local.vms["diglett-infra"].ip)[3]))}/${split("/", local.bridge_cidr)[1]}"
+  ssh_public_key       = var.ssh_public_key
+  vm_password          = var.vm_password
+  timezone             = var.timezone
   extra_runcmd = []
 }
 
@@ -99,13 +103,14 @@ module "web" {
   disk_size_gb = 20
   swap_size_gb = 1
 
-  ip_address         = "${local.vms["diglett-web"].ip}/24"
-  gateway            = local.loc.gateway
-  dns_servers        = [local.loc.dns.primary, local.loc.dns.fallback]
-  ssh_public_key     = var.ssh_public_key
-  vm_password        = var.vm_password
-  timezone           = var.timezone
-  extra_runcmd       = []
+  ip_address           = "${local.vms["diglett-web"].ip}/24"
+  gateway              = local.loc.gateway
+  dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
+  bridge_secondary_ip  = "${cidrhost(local.bridge_cidr, tonumber(split(".", local.vms["diglett-web"].ip)[3]))}/${split("/", local.bridge_cidr)[1]}"
+  ssh_public_key       = var.ssh_public_key
+  vm_password          = var.vm_password
+  timezone             = var.timezone
+  extra_runcmd         = []
 }
 
 # TODO: Manage HAOS VM in Terraform.

@@ -1,8 +1,10 @@
 locals {
-  node = "machamp"
-  net  = yamldecode(file("${path.module}/../../network.yml"))
-  loc  = local.net.locations.bryant
-  vms  = local.loc.nodes[local.node].vms
+  node        = "machamp"
+  net         = yamldecode(file("${path.module}/../../network.yml"))
+  loc         = local.net.locations.bryant
+  vms         = local.loc.nodes[local.node].vms
+  node_cfg    = local.loc.nodes[local.node]
+  bridge_cidr = local.node_cfg.vm_bridge_subnet  # 10.0.2.0/24
 }
 
 # Download Ubuntu 24.04 (Noble) cloud image to Machamp once.
@@ -34,12 +36,13 @@ module "dev" {
   disk_size_gb = 60
   swap_size_gb = 2
 
-  ip_address         = "${local.vms["machamp-dev"].ip}/24"
-  gateway            = local.loc.gateway
-  dns_servers        = [local.loc.dns.primary, local.loc.dns.fallback]
-  ssh_public_key     = var.ssh_public_key
-  vm_password        = var.vm_password
-  timezone           = var.timezone
+  ip_address           = "${local.vms["machamp-dev"].ip}/24"
+  gateway              = local.loc.gateway
+  dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
+  bridge_secondary_ip  = "${cidrhost(local.bridge_cidr, tonumber(split(".", local.vms["machamp-dev"].ip)[3]))}/${split("/", local.bridge_cidr)[1]}"
+  ssh_public_key       = var.ssh_public_key
+  vm_password          = var.vm_password
+  timezone             = var.timezone
 }
 
 module "services" {
@@ -56,12 +59,13 @@ module "services" {
   memory_mb    = 32768
   disk_size_gb = 40
 
-  ip_address         = "${local.vms["machamp-media"].ip}/24"
-  gateway            = local.loc.gateway
-  dns_servers        = [local.loc.dns.primary, local.loc.dns.fallback]
-  ssh_public_key     = var.ssh_public_key
-  vm_password        = var.vm_password
-  timezone           = var.timezone
+  ip_address           = "${local.vms["machamp-media"].ip}/24"
+  gateway              = local.loc.gateway
+  dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
+  bridge_secondary_ip  = "${cidrhost(local.bridge_cidr, tonumber(split(".", local.vms["machamp-media"].ip)[3]))}/${split("/", local.bridge_cidr)[1]}"
+  ssh_public_key       = var.ssh_public_key
+  vm_password          = var.vm_password
+  timezone             = var.timezone
   extra_runcmd = []
 
   machine          = "q35"
