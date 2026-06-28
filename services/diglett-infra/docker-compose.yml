@@ -246,6 +246,7 @@ services:
       GITSYNC_DEPTH: 1
       GITSYNC_SSH_KEY_FILE: /etc/git-sync-ssh/id_ed25519
       GITSYNC_KNOWN_HOSTS_FILE: /etc/git-sync-ssh/known_hosts
+      GITSYNC_ADD_USER: "true"
     volumes:
       - /mnt/nas/docker/tenderloin-web:/repo
       - /home/ubuntu/.ssh/id_ed25519:/etc/git-sync-ssh/id_ed25519:ro
