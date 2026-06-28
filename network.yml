@@ -124,7 +124,6 @@ locations:
               - name: tenderloin-web
                 hostname: tenderloin
                 port: 80
-                nfs_data: docker/tenderloin-web  # managed by tenderloin-sync (git-sync)
                 authentik: none
               - name: cloudflared
                 authentik: none
