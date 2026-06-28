@@ -8,8 +8,8 @@ provider "proxmox" {
     username = "root"
     node {
       name    = "geodude"
-      address = "geodude.corgi-census.ts.net"
-      port    = 22
+      address = "127.0.0.1"
+      port    = 12222
     }
   }
 }
