@@ -248,11 +248,11 @@ services:
       GITSYNC_PERIOD: 60s
       GITSYNC_DEPTH: 1
       GITSYNC_SSH_KEY_FILE: /etc/git-sync-ssh/id_ed25519
+      GITSYNC_SSH_KNOWN_HOSTS: "false"
       GITSYNC_ADD_USER: "true"
     volumes:
       - /mnt/nas/docker/tenderloin-web:/repo
       - /home/ubuntu/.ssh/id_ed25519:/etc/git-sync-ssh/id_ed25519:ro
-      - /home/ubuntu/.ssh/known_hosts:/tmp/.ssh/known_hosts:ro
 
   tenderloin-web:
     image: nginx:1.28.0-alpine
