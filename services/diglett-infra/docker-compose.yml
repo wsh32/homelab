@@ -248,8 +248,8 @@ services:
       GITSYNC_KNOWN_HOSTS_FILE: /etc/git-sync-ssh/known_hosts
     volumes:
       - /mnt/nas/docker/tenderloin-web:/repo
-      - /root/.ssh/id_ed25519:/etc/git-sync-ssh/id_ed25519:ro
-      - /root/.ssh/known_hosts:/etc/git-sync-ssh/known_hosts:ro
+      - /home/ubuntu/.ssh/id_ed25519:/etc/git-sync-ssh/id_ed25519:ro
+      - /home/ubuntu/.ssh/known_hosts:/etc/git-sync-ssh/known_hosts:ro
 
   tenderloin-web:
     image: nginx:1.28.0-alpine
