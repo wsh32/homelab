@@ -24,7 +24,7 @@ vm_password = "REPLACE_ME"
 cloudflare_api_token = "REPLACE_ME"
 
 # Cloudflare zone ID -- found in the right sidebar of the zone's Overview page
-cloudflare_zone_id = "REPLACE_ME"
+cloudflare_homelab_zone_id = "REPLACE_ME"
 
 # Subdomain for Headscale -- will create <headscale_subdomain>.<your-zone> in Cloudflare DNS
 headscale_subdomain = "headscale"
@@ -33,4 +33,4 @@ headscale_subdomain = "headscale"
 authentik_subdomain = "auth"
 
 # Cloudflare zone ID for tenderloin.ai -- found in the right sidebar of the zone's Overview page
-tenderloin_zone_id = "REPLACE_ME"
+cloudflare_tenderloin_zone_id = "REPLACE_ME"

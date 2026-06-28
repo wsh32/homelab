@@ -1,5 +1,5 @@
 data "cloudflare_zone" "main" {
-  zone_id = var.cloudflare_zone_id
+  zone_id = var.cloudflare_homelab_zone_id
 }
 
 locals {
@@ -12,7 +12,7 @@ locals {
 # content is a placeholder; the cloudflare-ddns container updates it at runtime.
 # ignore_changes prevents Terraform from resetting the IP on subsequent applies.
 resource "cloudflare_record" "headscale" {
-  zone_id = var.cloudflare_zone_id
+  zone_id = var.cloudflare_homelab_zone_id
   name    = var.headscale_subdomain
   content = "0.0.0.0"
   type    = "A"
@@ -60,7 +60,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "authentik" {
 
 # CNAME auth.<zone> → <tunnel-id>.cfargotunnel.com (proxied through Cloudflare)
 resource "cloudflare_record" "authentik" {
-  zone_id = var.cloudflare_zone_id
+  zone_id = var.cloudflare_homelab_zone_id
   name    = var.authentik_subdomain
   content = "${cloudflare_zero_trust_tunnel_cloudflared.authentik.id}.cfargotunnel.com"
   type    = "CNAME"
@@ -82,7 +82,7 @@ output "authentik_public_url" {
 # ── tenderloin.ai ─────────────────────────────────────────────────────────────
 
 data "cloudflare_zone" "tenderloin" {
-  zone_id = var.tenderloin_zone_id
+  zone_id = var.cloudflare_tenderloin_zone_id
 }
 
 resource "cloudflare_zero_trust_tunnel_cloudflared" "tenderloin" {
@@ -112,7 +112,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "tenderloin" {
 
 # CNAME tenderloin.ai → <tunnel-id>.cfargotunnel.com (proxied through Cloudflare)
 resource "cloudflare_record" "tenderloin_root" {
-  zone_id = var.tenderloin_zone_id
+  zone_id = var.cloudflare_tenderloin_zone_id
   name    = "@"
   content = "${cloudflare_zero_trust_tunnel_cloudflared.tenderloin.id}.cfargotunnel.com"
   type    = "CNAME"
