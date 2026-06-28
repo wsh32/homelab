@@ -150,6 +150,36 @@
   no_log: true
   when: not _ts2_enrolled
 
+- name: Install socat-geodude-ssh systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/socat-geodude-ssh.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=SSH relay to geodude via tailscale2 HTTP CONNECT proxy
+      After=tailscale2.service
+      Requires=tailscale2.service
+
+      [Service]
+      ExecStart=socat TCP-LISTEN:12222,fork,reuseaddr,bind=127.0.0.1 PROXY:127.0.0.1:geodude.corgi-census.ts.net:22,proxyport=1055
+      Restart=always
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+  become: true
+  notify: Reload systemd
+
+- name: Enable and start socat-geodude-ssh service
+  ansible.builtin.systemd:
+    name: socat-geodude-ssh
+    state: started
+    enabled: true
+    daemon_reload: true
+  become: true
+
 - name: Remove legacy per-host SSH stanzas written by older deploy role versions
   ansible.builtin.blockinfile:
     path: "{{ ansible_env.HOME }}/.ssh/config"
