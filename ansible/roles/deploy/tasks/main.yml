@@ -110,6 +110,7 @@
     --hostname=alakazam-deploy
     --advertise-tags=tag:infra
     --accept-routes
+    --ssh
   become: true
   no_log: true
   when: not _ts_enrolled
