@@ -142,13 +142,14 @@ def build_inventory():
             for vmname, vmattrs in attrs.get('vms', {}).items():
                 if not vmattrs.get('ansible_managed', True):
                     continue
-                if 'ip' not in vmattrs:
-                    continue
 
                 vm_ts_ip = vmattrs.get('tailscale_ip')
+                vm_ansible_host = vmattrs.get('ip') or vm_ts_ip
+                if not vm_ansible_host:
+                    continue
 
                 vmhvars = {
-                    'ansible_host': vmattrs['ip'],
+                    'ansible_host': vm_ansible_host,
                     **loc_vars,
                     'all_location_services': all_location_services,
                 }
