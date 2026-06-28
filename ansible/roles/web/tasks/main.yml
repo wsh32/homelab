@@ -18,9 +18,9 @@
 
 - name: Generate SSH deploy key for git-sync
   community.crypto.openssh_keypair:
-    path: /home/{{ ansible_user }}/.ssh/tenderloin_deploy_key
+    path: /home/{{ ansible_user }}/.ssh/diglett_web_id_ed25519
     type: ed25519
-    comment: diglett-web git-sync
+    comment: diglett-web
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: "0600"
@@ -28,7 +28,7 @@
 
 - name: Read public key
   ansible.builtin.slurp:
-    src: /home/{{ ansible_user }}/.ssh/tenderloin_deploy_key.pub
+    src: /home/{{ ansible_user }}/.ssh/diglett_web_id_ed25519.pub
   register: deploy_key_pub
 
 - name: Register SSH key on GitHub account
@@ -40,7 +40,7 @@
       Accept: application/vnd.github+json
     body_format: json
     body:
-      title: diglett-web git-sync
+      title: diglett-web
       key: "{{ deploy_key_pub.content | b64decode | trim }}"
     status_code: [201, 422]  # 422 = key already registered
   delegate_to: localhost
