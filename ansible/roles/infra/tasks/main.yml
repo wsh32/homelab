@@ -46,8 +46,9 @@
     mode: "{{ item.mode }}"
   loop:
     # PostgreSQL alpine image runs as uid 70 (alpine), not 999 (debian).
-    - { path: /var/lib/postgres,    owner: "70",  group: "70",  mode: "0750" }
-    - { path: /var/lib/vaultwarden, owner: "0",   group: "0",   mode: "0755" }
+    - { path: /var/lib/postgres,       owner: "70",   group: "70",   mode: "0750" }
+    - { path: /var/lib/vaultwarden,    owner: "0",    group: "0",    mode: "0755" }
+    - { path: /var/lib/tenderloin-web, owner: "1000", group: "1000", mode: "0755" }
   become: true
 
 - name: Create NFS sentinel directory
