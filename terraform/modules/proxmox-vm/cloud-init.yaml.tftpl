@@ -32,12 +32,15 @@ swap:
 
 %{ if bridge_secondary_ip != "" ~}
 write_files:
+  - path: /etc/udev/rules.d/70-bridge-nic.rules
+    content: |
+      SUBSYSTEM=="net", ACTION=="add", KERNELS=="0000:00:13.0", NAME="eth1"
   - path: /etc/netplan/51-bridge.yaml
     content: |
       network:
         version: 2
         ethernets:
-          ens19:
+          eth1:
             dhcp4: false
             addresses: [${bridge_secondary_ip}]
 

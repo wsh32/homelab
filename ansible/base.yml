@@ -14,6 +14,26 @@
     - role: docker
 
   tasks:
+    - name: Write udev rule to name bridge NIC eth1
+      ansible.builtin.copy:
+        dest: /etc/udev/rules.d/70-bridge-nic.rules
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          SUBSYSTEM=="net", ACTION=="add", KERNELS=="0000:00:13.0", NAME="eth1"
+      become: true
+      when: bridge_ip is defined
+
+    - name: Rename ens19 to eth1 if present
+      ansible.builtin.command: ip link set ens19 name eth1
+      become: true
+      when:
+        - bridge_ip is defined
+        - ansible_facts.interfaces is defined
+        - "'ens19' in ansible_facts.interfaces"
+      changed_when: true
+
     - name: Configure bridge NIC (eth1) via netplan
       ansible.builtin.copy:
         dest: /etc/netplan/51-bridge.yaml
@@ -24,7 +44,7 @@
           network:
             version: 2
             ethernets:
-              ens19:
+              eth1:
                 dhcp4: false
                 addresses: [{{ bridge_ip }}/24]
       become: true
