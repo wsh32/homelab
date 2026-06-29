@@ -148,6 +148,8 @@ def build_inventory():
                     **loc_vars,
                     'all_location_services': all_location_services,
                 }
+                if vmattrs.get('bridge_ip'):
+                    vmhvars['bridge_ip'] = vmattrs['bridge_ip']
                 if vmattrs.get('tailscale_exit_node'):
                     vmhvars['tailscale_exit_node'] = True
                 if 'tailscale_advertise_routes' in vmattrs:
