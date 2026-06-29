@@ -149,7 +149,7 @@
         --hostname={{ inventory_hostname }}
         --force-reauth
         --reset
-        {{ '--accept-dns=false' if inventory_hostname == headscale_vm | default('') else '' }}
+        {{ '--accept-dns=false' if (services | default([]) | selectattr('name', 'equalto', 'adguardhome') | list | length > 0) else '' }}
       become: true
       async: 120
       poll: 5

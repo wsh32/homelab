@@ -35,7 +35,6 @@ locations:
       primary: 192.168.0.2   # diglett-dns (AdGuard Home)
       fallback: 8.8.8.8
     traefik_vm: diglett-infra
-    headscale_vm: diglett-dns
 
     nodes:
       alakazam:
