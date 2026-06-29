@@ -149,6 +149,7 @@
         --hostname={{ inventory_hostname }}
         --force-reauth
         --reset
+        {{ '--accept-dns=false' if inventory_hostname == 'diglett-dns' else '' }}
       become: true
       async: 120
       poll: 5
