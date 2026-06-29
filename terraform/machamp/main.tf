@@ -37,6 +37,7 @@ module "dev" {
   ip_address           = "${local.vms["machamp-dev"].ip}/24"
   gateway              = local.loc.gateway
   dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
+  bridge_secondary     = "vmbr1"
   bridge_secondary_ip  = "${local.vms["machamp-dev"].bridge_ip}/24"
   ssh_public_key       = var.ssh_public_key
   vm_password          = var.vm_password
@@ -60,6 +61,7 @@ module "services" {
   ip_address           = "${local.vms["machamp-media"].ip}/24"
   gateway              = local.loc.gateway
   dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
+  bridge_secondary     = "vmbr1"
   bridge_secondary_ip  = "${local.vms["machamp-media"].bridge_ip}/24"
   ssh_public_key       = var.ssh_public_key
   vm_password          = var.vm_password

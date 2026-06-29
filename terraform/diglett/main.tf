@@ -44,6 +44,7 @@ module "dns" {
   ip_address           = "${local.vms["diglett-dns"].ip}/24"
   gateway              = local.loc.gateway
   dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
+  bridge_secondary     = "vmbr1"
   bridge_secondary_ip  = "${local.vms["diglett-dns"].bridge_ip}/24"
   ssh_public_key       = var.ssh_public_key
   vm_password          = var.vm_password
@@ -79,6 +80,7 @@ module "infra" {
   ip_address           = "${local.vms["diglett-infra"].ip}/24"
   gateway              = local.loc.gateway
   dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
+  bridge_secondary     = "vmbr1"
   bridge_secondary_ip  = "${local.vms["diglett-infra"].bridge_ip}/24"
   ssh_public_key       = var.ssh_public_key
   vm_password          = var.vm_password
@@ -104,6 +106,7 @@ module "web" {
   ip_address           = "${local.vms["diglett-web"].ip}/24"
   gateway              = local.loc.gateway
   dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
+  bridge_secondary     = "vmbr1"
   bridge_secondary_ip  = "${local.vms["diglett-web"].bridge_ip}/24"
   ssh_public_key       = var.ssh_public_key
   vm_password          = var.vm_password
