@@ -126,7 +126,8 @@ variable "bridge_secondary" {
 }
 
 variable "bridge_secondary_ip" {
-  description = "Static IP with CIDR for the second NIC (e.g. \"10.0.3.20/24\"). Written via netplan at first boot. Only used when bridge_secondary is set."
+  description = "Static IP/24 for the second NIC (e.g. \"10.0.3.20/24\"). Written via netplan at first boot. Only used when bridge_secondary is set."
   type        = string
   default     = ""
 }
+

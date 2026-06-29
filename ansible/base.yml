@@ -12,3 +12,26 @@
   roles:
     - role: base
     - role: docker
+
+  tasks:
+    - name: Configure bridge NIC (eth1) via netplan
+      ansible.builtin.copy:
+        dest: /etc/netplan/51-bridge.yaml
+        owner: root
+        group: root
+        mode: "0600"
+        content: |
+          network:
+            version: 2
+            ethernets:
+              eth1:
+                dhcp4: false
+                addresses: [{{ bridge_ip }}/24]
+      become: true
+      when: bridge_ip is defined
+      notify: Apply netplan
+
+  handlers:
+    - name: Apply netplan
+      ansible.builtin.command: netplan apply
+      become: true
