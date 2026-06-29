@@ -61,6 +61,7 @@ locations:
         vms:
           diglett-dns:
             ip: 192.168.0.2
+            bridge_ip: 10.0.1.2
             vm_id: 200
             vm_roles: [services]
             tailscale_exit_node: true
@@ -85,6 +86,7 @@ locations:
                 traefik: false
           diglett-infra:
             ip: 192.168.0.20
+            bridge_ip: 10.0.1.20
             vm_id: 201
             vm_roles: [services]
             nfs_mounts:
@@ -122,6 +124,7 @@ locations:
                 traefik: false
           diglett-web:
             ip: 192.168.0.22
+            bridge_ip: 10.0.1.22
             vm_id: 203
             vm_roles: [services]
             services:
@@ -151,6 +154,7 @@ locations:
         vms:
           machamp-media:
             ip: 192.168.0.30
+            bridge_ip: 10.0.2.30
             vm_id: 100
             vm_roles: [media, gpu]
             pci_passthrough: [quadro-p2200]  # references pci_mappings id on parent node
@@ -240,6 +244,7 @@ locations:
                 authentik: none
           machamp-dev:
             ip: 192.168.0.31
+            bridge_ip: 10.0.2.31
             vm_id: 101
             vm_roles: [dev]
 

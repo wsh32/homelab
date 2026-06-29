@@ -1,10 +1,8 @@
 locals {
-  node        = "machamp"
-  net         = yamldecode(file("${path.module}/../../network.yml"))
-  loc         = local.net.locations.bryant
-  vms         = local.loc.nodes[local.node].vms
-  node_cfg    = local.loc.nodes[local.node]
-  bridge_cidr = local.node_cfg.vm_bridge_subnet  # 10.0.2.0/24
+  node = "machamp"
+  net  = yamldecode(file("${path.module}/../../network.yml"))
+  loc  = local.net.locations.bryant
+  vms  = local.loc.nodes[local.node].vms
 }
 
 # Download Ubuntu 24.04 (Noble) cloud image to Machamp once.
@@ -39,7 +37,7 @@ module "dev" {
   ip_address           = "${local.vms["machamp-dev"].ip}/24"
   gateway              = local.loc.gateway
   dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
-  bridge_secondary_ip  = "${cidrhost(local.bridge_cidr, tonumber(split(".", local.vms["machamp-dev"].ip)[3]))}/${split("/", local.bridge_cidr)[1]}"
+  bridge_secondary_ip  = "${local.vms["machamp-dev"].bridge_ip}/24"
   ssh_public_key       = var.ssh_public_key
   vm_password          = var.vm_password
   timezone             = var.timezone
@@ -62,7 +60,7 @@ module "services" {
   ip_address           = "${local.vms["machamp-media"].ip}/24"
   gateway              = local.loc.gateway
   dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
-  bridge_secondary_ip  = "${cidrhost(local.bridge_cidr, tonumber(split(".", local.vms["machamp-media"].ip)[3]))}/${split("/", local.bridge_cidr)[1]}"
+  bridge_secondary_ip  = "${local.vms["machamp-media"].bridge_ip}/24"
   ssh_public_key       = var.ssh_public_key
   vm_password          = var.vm_password
   timezone             = var.timezone
