@@ -21,17 +21,20 @@
         group: root
         mode: "0644"
         content: |
-          SUBSYSTEM=="net", ACTION=="add", KERNELS=="0000:00:13.0", NAME="eth1"
+          SUBSYSTEM=="net", ACTION=="add", KERNELS=="*:13.0", NAME="eth1"
       become: true
       when: bridge_ip is defined
 
-    - name: Rename ens19 to eth1 if present
-      ansible.builtin.command: ip link set ens19 name eth1
+    - name: Rename bridge NIC to eth1 if present under predictable name
+      ansible.builtin.shell: |
+        iface=$(ls /sys/bus/pci/devices/ | grep ':13\.0$' | xargs -I{} sh -c 'ls /sys/bus/pci/devices/{}/net/ 2>/dev/null' | head -1)
+        if [ -n "$iface" ] && [ "$iface" != "eth1" ]; then
+          ip link set "$iface" name eth1
+        fi
       become: true
       when:
         - bridge_ip is defined
-        - ansible_facts.interfaces is defined
-        - "'ens19' in ansible_facts.interfaces"
+        - "'eth1' not in ansible_facts.interfaces"
       changed_when: true
 
     - name: Configure bridge NIC (eth1) via netplan
