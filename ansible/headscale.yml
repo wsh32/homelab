@@ -149,7 +149,7 @@
         --hostname={{ inventory_hostname }}
         --force-reauth
         --reset
-        {{ '--accept-dns=false' if inventory_hostname == 'diglett-dns' else '' }}
+        {{ '--accept-dns=false' if inventory_hostname == headscale_vm | default('') else '' }}
       become: true
       async: 120
       poll: 5

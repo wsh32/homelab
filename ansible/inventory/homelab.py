@@ -50,6 +50,7 @@ def build_inventory():
         subnet_prefix = loc.get('subnet_prefix', 24)
         tailscale_domain = loc.get('tailscale_domain', '')
         traefik_vm_name = loc.get('traefik_vm', '')
+        headscale_vm_name = loc.get('headscale_vm', '')
 
         # Derive per-location shared values from the node/VM list
         nas_ip = None
@@ -90,6 +91,8 @@ def build_inventory():
             loc_vars['dns_fallback'] = loc['dns']['fallback']
         if proxmox_nodes:
             loc_vars['proxmox_nodes'] = proxmox_nodes
+        if headscale_vm_name:
+            loc_vars['headscale_vm'] = headscale_vm_name
 
         managed_nodes = {h: a for h, a in nodes.items() if a.get('os') != 'truenas'}
 
