@@ -24,7 +24,7 @@
           network:
             version: 2
             ethernets:
-              eth1:
+              ens19:
                 dhcp4: false
                 addresses: [{{ bridge_ip }}/24]
       become: true
