@@ -4,7 +4,7 @@
 # First run requires INFISICAL_ADMIN_PASSWORD env var for infra.yml bootstrap.
 # Subsequent runs are fully idempotent with no env vars required.
 - import_playbook: proxmox-bridge.yml
-- import_playbook: physical.yml
+- import_playbook: proxmox.yml
 - import_playbook: base.yml
 - import_playbook: dns.yml
 - import_playbook: infra.yml
