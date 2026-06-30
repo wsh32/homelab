@@ -148,10 +148,9 @@
         {{ '--advertise-routes=' + (tailscale_advertise_routes | join(',')) if tailscale_advertise_routes | default([]) | length > 0 else '' }}
         --hostname={{ inventory_hostname }}
         --force-reauth
-        --reset
         {{ '--accept-dns=false' if (services | default([]) | selectattr('name', 'equalto', 'adguardhome') | list | length > 0) else '' }}
       become: true
-      async: 120
+      async: 300
       poll: 5
 
 - name: Join physical nodes to Headscale (no --reset, safe for Proxmox cluster)
@@ -217,6 +216,6 @@
         --hostname={{ inventory_hostname }}
         --force-reauth
       become: true
-      async: 120
+      async: 300
       poll: 5
 
