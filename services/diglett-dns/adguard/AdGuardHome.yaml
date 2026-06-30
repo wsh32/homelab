@@ -31,6 +31,7 @@ dns:
   ratelimit_whitelist: []
   refuse_any: true
   upstream_dns:
+    - '[/ts.home/]100.100.100.100'
     - 8.8.8.8
     - 8.8.4.4
   upstream_dns_file: ""
@@ -160,13 +161,12 @@ filtering:
   safebrowsing_block_host: standard-block.dns.adguard.com
   rewrites:
     # DNS rewrites — two-domain architecture:
-    #   *.wsh  → Traefik on diglett-infra via Tailscale IP (100.64.1.20).
-    #            Requires Tailscale to be connected. Direct peer-to-peer,
-    #            no subnet routing. step-ca HTTP-01 works because diglett-infra
-    #            can reach its own Tailscale IP locally.
+    #   *.wsh  → CNAME to diglett-infra's MagicDNS name, resolved via the
+    #            ts.home upstream (100.100.100.100, tailscale's local resolver).
+    #            Avoids hardcoding diglett-infra's dynamic Tailscale IP.
     #   *.home → LAN IP of diglett-infra, LAN-only
     - domain: '*.wsh'
-      answer: 100.64.1.20
+      answer: diglett-infra.ts.home
       enabled: true
     - domain: '*.home'
       answer: 192.168.0.20
