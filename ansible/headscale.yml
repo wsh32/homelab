@@ -115,38 +115,6 @@
         enabled: true
       become: true
 
-    - name: Point /etc/resolv.conf at systemd-resolved non-stub config
-      ansible.builtin.file:
-        src: /run/systemd/resolve/resolv.conf
-        dest: /etc/resolv.conf
-        state: link
-        force: true
-      become: true
-
-    - name: Look up existing headscale node by hostname
-      community.docker.docker_container_exec:
-        container: headscale
-        command: headscale nodes list --output json
-      register: _nodes_list
-      become: true
-      delegate_to: diglett-dns
-      until: _nodes_list is succeeded
-      retries: 5
-      delay: 3
-
-    - name: Delete existing headscale node for this host
-      community.docker.docker_container_exec:
-        container: headscale
-        command: "headscale nodes delete --identifier {{ item }} --force"
-      loop: >-
-        {{
-          _nodes_list.stdout | from_json
-          | selectattr('given_name', 'equalto', inventory_hostname)
-          | map(attribute='id') | list
-        }}
-      become: true
-      delegate_to: diglett-dns
-
     - name: Join tailscale network
       ansible.builtin.command: >-
         tailscale up
@@ -156,7 +124,6 @@
         {{ '--advertise-routes=' + (tailscale_advertise_routes | join(',')) if tailscale_advertise_routes | default([]) | length > 0 else '' }}
         --hostname={{ inventory_hostname }}
         --force-reauth
-        {{ '--accept-dns=false' if (services | default([]) | selectattr('name', 'equalto', 'adguardhome') | list | length > 0) else '' }}
       become: true
       async: 300
       poll: 5
