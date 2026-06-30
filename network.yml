@@ -124,8 +124,8 @@ locations:
                 authentik: none
                 traefik: false
           diglett-web:
-            ip: 192.168.0.22
-            bridge_ip: 10.0.1.22
+            ip: 192.168.0.21
+            bridge_ip: 10.0.1.21
             vm_id: 203
             vm_roles: [services]
             services:
