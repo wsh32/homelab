@@ -124,6 +124,7 @@
         {{ '--advertise-routes=' + (tailscale_advertise_routes | join(',')) if tailscale_advertise_routes | default([]) | length > 0 else '' }}
         --hostname={{ inventory_hostname }}
         --force-reauth
+        {{ '--accept-dns=false' if (services | default([]) | selectattr('name', 'equalto', 'adguardhome') | list | length > 0) else '' }}
       become: true
       async: 300
       poll: 5
