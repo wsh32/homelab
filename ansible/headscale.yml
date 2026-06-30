@@ -159,6 +159,15 @@
       delegate_to: diglett-dns
       when: tailscale_ip is defined and _ip_assigned.changed
 
+    - name: Wait for headscale to be ready after restart
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 443
+        timeout: 60
+      become: true
+      delegate_to: diglett-dns
+      when: tailscale_ip is defined and _ip_assigned.changed
+
     - name: Restart tailscaled to pick up corrected Tailscale IP
       ansible.builtin.systemd:
         name: tailscaled
