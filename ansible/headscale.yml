@@ -128,6 +128,34 @@
       async: 300
       poll: 5
 
+    - name: Assign static Tailscale IP in headscale DB
+      ansible.builtin.command: >-
+        sqlite3 /mnt/nas/docker/headscale/db.sqlite
+        "UPDATE nodes
+         SET ipv4 = '{{ tailscale_ip }}'
+         WHERE hostname = '{{ inventory_hostname }}'
+           AND ipv4 != '{{ tailscale_ip }}'"
+      become: true
+      delegate_to: diglett-dns
+      register: _ip_assigned
+      when: tailscale_ip is defined
+
+    - name: Restart headscale to apply updated IP
+      community.docker.docker_container:
+        name: headscale
+        state: started
+        restart: true
+      become: true
+      delegate_to: diglett-dns
+      when: tailscale_ip is defined and _ip_assigned.changed
+
+    - name: Restart tailscaled to pick up corrected Tailscale IP
+      ansible.builtin.systemd:
+        name: tailscaled
+        state: restarted
+      become: true
+      when: tailscale_ip is defined and _ip_assigned.changed
+
 - name: Join physical nodes to Headscale (no --reset, safe for Proxmox cluster)
   hosts: physical:!alakazam-deploy
   gather_facts: false
