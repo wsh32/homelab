@@ -66,25 +66,6 @@
         state: present
       become: true
 
-    - name: List existing headscale nodes
-      community.docker.docker_container_exec:
-        container: headscale
-        command: headscale nodes list --output json
-      register: _all_nodes
-      become: true
-
-    - name: Delete duplicate-suffixed headscale nodes for managed hosts
-      community.docker.docker_container_exec:
-        container: headscale
-        command: "headscale nodes delete --identifier {{ item }} --force"
-      loop: >-
-        {{
-          _all_nodes.stdout | from_json
-          | selectattr('given_name', 'match', '^(' + (groups['all'] | difference(['localhost']) | join('|')) + ')-[a-z0-9]{8}$')
-          | map(attribute='id') | list
-        }}
-      become: true
-
 - name: Join all hosts to Headscale
   hosts: all:!localhost:!physical:!alakazam-deploy
   gather_facts: false
@@ -115,6 +96,35 @@
         enabled: true
       become: true
 
+    - name: List existing headscale nodes
+      community.docker.docker_container_exec:
+        container: headscale
+        command: headscale nodes list --output json
+      register: _nodes_list
+      become: true
+      delegate_to: diglett-dns
+      until: _nodes_list is succeeded
+      retries: 5
+      delay: 3
+
+    - name: Delete all headscale nodes for this host (exact and suffixed)
+      community.docker.docker_container_exec:
+        container: headscale
+        command: "headscale nodes delete --identifier {{ item }} --force"
+      loop: >-
+        {{
+          _nodes_list.stdout | from_json
+          | selectattr('given_name', 'match', '^' + inventory_hostname + '(-[a-z0-9]+)?$')
+          | map(attribute='id') | list
+        }}
+      become: true
+      delegate_to: diglett-dns
+
+    - name: Log out of tailscale
+      ansible.builtin.command: tailscale logout
+      become: true
+      failed_when: false
+
     - name: Join tailscale network
       ansible.builtin.command: >-
         tailscale up
@@ -123,7 +133,6 @@
         {{ '--advertise-exit-node' if tailscale_exit_node | default(false) else '' }}
         {{ '--advertise-routes=' + (tailscale_advertise_routes | join(',')) if tailscale_advertise_routes | default([]) | length > 0 else '' }}
         --hostname={{ inventory_hostname }}
-        --force-reauth
         {{ '--accept-dns=false' if (services | default([]) | selectattr('name', 'equalto', 'adguardhome') | list | length > 0) else '' }}
       become: true
       async: 300
