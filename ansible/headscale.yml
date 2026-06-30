@@ -86,9 +86,7 @@
       become: true
 
 - name: Join all hosts to Headscale
-  # diglett-dns runs first (hosts: ordering) so its Headscale/AdGuard services
-  # are fully enrolled before other VMs try to resolve headscale.wesleysoohoo.me.
-  hosts: diglett-dns,all:!localhost:!physical:!alakazam-deploy
+  hosts: all:!localhost:!physical:!alakazam-deploy
   gather_facts: false
   serial: 1
 
