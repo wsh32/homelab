@@ -131,8 +131,8 @@ locations:
             vm_roles: [services]
             services:
               - name: tenderloin-web
-                hostname: tenderloin
                 port: 80
+                public_hostname: tenderloin.ai
                 authentik: none
               - name: cloudflared-tenderloin
                 authentik: none
