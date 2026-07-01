@@ -127,7 +127,6 @@
         {% if ts_bridge_subnet is defined %}--advertise-routes={{ ts_bridge_subnet }}{% endif %}
         {% if tailscale_ssh | default(false) %}--ssh{% endif %}
         --accept-routes=false
-        --accept-dns=false
       become: true
       no_log: true
       when: not _ts_enrolled
@@ -140,7 +139,6 @@
         {% if ts_bridge_subnet is defined %}--advertise-routes={{ ts_bridge_subnet }}{% endif %}
         {% if tailscale_ssh | default(false) %}--ssh{% endif %}
         --accept-routes=false
-        --accept-dns=false
         --reset
       become: true
       when: _ts_enrolled
