@@ -15,10 +15,6 @@ def load_yaml(path):
         return yaml.safe_load(f)
 
 
-def _last_octet(ip):
-    return ip.split('.')[-1]
-
-
 def build_inventory():
     script_dir = Path(__file__).resolve().parent  # ansible/inventory/
     ansible_dir = script_dir.parent               # ansible/
@@ -26,14 +22,19 @@ def build_inventory():
 
     network = load_yaml(repo_root / 'network.yml')
     group_config = load_yaml(ansible_dir / 'group_config.yml')
+    tailscale_hosted_domain = network.get('tailscale_hosted_domain', '')
 
     node_configs = group_config.get('nodes', {})
 
     hostvars = {}
     groups = {
-        'all': {'vars': {'ansible_python_interpreter': '/usr/bin/python3'}},
+        'all': {'vars': {
+            'ansible_python_interpreter': '/usr/bin/python3',
+            'tailscale_hosted_domain': tailscale_hosted_domain,
+        }},
         'physical': {'children': []},
         'vms': {'children': []},
+        'tailscale_hosted': {'hosts': []},
     }
     physical_type_groups = set()
 
@@ -48,7 +49,6 @@ def build_inventory():
         nodes = loc.get('nodes', {})
         subnet_prefix = loc.get('subnet_prefix', 24)
         tailscale_domain = loc.get('tailscale_domain', '')
-        subnet_index = loc.get('tailscale_subnet_index', 0)
         traefik_vm_name = loc.get('traefik_vm', '')
 
         # Derive per-location shared values from the node/VM list
@@ -65,6 +65,8 @@ def build_inventory():
             for vm_name, vm_attrs in node_attrs.get('vms', {}).items():
                 if not vm_attrs.get('ansible_managed', True):
                     continue
+                if 'ip' not in vm_attrs:
+                    continue
                 if vm_name == traefik_vm_name:
                     traefik_ip = vm_attrs['ip']
                 vm_ip = vm_attrs['ip']
@@ -74,7 +76,7 @@ def build_inventory():
                     all_location_services.append({**svc, 'vm': vm_name, 'vm_ip': vm_ip})
 
         proxmox_nodes = [{'name': n, 'ip': a['ip']}
-                         for n, a in nodes.items() if a.get('type') == 'proxmox']
+                         for n, a in nodes.items() if a.get('type') == 'proxmox' and 'ip' in a]
 
         # Common extra vars for every host in this location
         loc_vars = {'location': loc_name, 'tailscale_domain': tailscale_domain}
@@ -92,19 +94,29 @@ def build_inventory():
         managed_nodes = {h: a for h, a in nodes.items() if a.get('os') != 'truenas'}
 
         for hostname, attrs in managed_nodes.items():
-            # Derive tailscale_ip if not explicitly set
-            ts_ip = attrs.get('tailscale_ip')
-            if not ts_ip and subnet_index and 'ip' in attrs:
-                ts_ip = f"100.64.{subnet_index}.{_last_octet(attrs['ip'])}"
-
-            hvars = {'ansible_host': attrs['ip'], **loc_vars}
-            if attrs.get('bridge_port'):
+            connect_via_ts = attrs.get('connect_via_tailscale', False)
+            if connect_via_ts:
+                fqdn = f"{hostname}.{tailscale_hosted_domain}" if tailscale_hosted_domain else hostname
+                ansible_host = fqdn
+            else:
+                ansible_host = attrs['ip']
+            hvars = {'ansible_host': ansible_host, **loc_vars}
+            if connect_via_ts:
+                hvars['connect_via_tailscale'] = True
+                hvars['tailscale_fqdn'] = ansible_host
+            if attrs.get('bridge_port') and 'ip' in attrs:
                 hvars['static_ip'] = f"{attrs['ip']}/{subnet_prefix}"
             if 'ansible_user' in attrs:
                 hvars['ansible_user'] = attrs['ansible_user']
-            if ts_ip:
-                hvars['tailscale_ip'] = ts_ip
+            if attrs.get('vm_bridge_subnet'):
+                hvars['ts_bridge_subnet'] = attrs['vm_bridge_subnet']
+                hvars['ts_bridge_ip'] = attrs['vm_bridge_ip']
+            if attrs.get('tailscale_ssh'):
+                hvars['tailscale_ssh'] = True
             hostvars[hostname] = hvars
+
+            if attrs.get('type') == 'proxmox':
+                groups['tailscale_hosted']['hosts'].append(hostname)
 
             # Register physical type group
             ptype = attrs.get('type', 'other')
@@ -127,17 +139,23 @@ def build_inventory():
                 if not vmattrs.get('ansible_managed', True):
                     continue
 
-                vm_ts_ip = vmattrs.get('tailscale_ip')
-                if not vm_ts_ip and subnet_index and 'ip' in vmattrs:
-                    vm_ts_ip = f"100.64.{subnet_index}.{_last_octet(vmattrs['ip'])}"
+                # alakazam-deploy (Ansible controller) is on the hosted Tailscale
+                # tailnet. For VMs on connect_via_tailscale nodes, the bridge IP
+                # is routable via the node's advertised subnet route -- use that
+                # rather than the Headscale MagicDNS name which only works post-enrollment.
+                vm_ansible_host = vmattrs.get('ip') or vmattrs.get('bridge_ip')
+                if not vm_ansible_host:
+                    continue
 
                 vmhvars = {
-                    'ansible_host': vmattrs['ip'],
+                    'ansible_host': vm_ansible_host,
                     **loc_vars,
                     'all_location_services': all_location_services,
                 }
-                if vm_ts_ip:
-                    vmhvars['tailscale_ip'] = vm_ts_ip
+                if vmattrs.get('bridge_ip'):
+                    vmhvars['bridge_ip'] = vmattrs['bridge_ip']
+                if vmattrs.get('tailscale_ip'):
+                    vmhvars['tailscale_ip'] = vmattrs['tailscale_ip']
                 if vmattrs.get('tailscale_exit_node'):
                     vmhvars['tailscale_exit_node'] = True
                 if 'tailscale_advertise_routes' in vmattrs:

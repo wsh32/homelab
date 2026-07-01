@@ -1,0 +1,54 @@
+// Tailscale hosted tailnet ACL.
+// Managed as code; pushed to Tailscale API by ansible/tailscale-hosted.yml.
+{
+  "tagOwners": {
+    "tag:infra":    ["autogroup:network-admin"],
+    "tag:offsite":  ["autogroup:network-admin"]
+  },
+
+  "autoApprovers": {
+    // tag:infra nodes can advertise subnet routes and exit nodes without manual approval.
+    "exitNode": ["tag:infra"],
+    "routes": {
+      "10.0.1.0/24": ["tag:infra"],  // diglett VM bridge
+      "10.0.2.0/24": ["tag:infra"],  // machamp VM bridge
+      "10.0.3.0/24": ["tag:infra"]   // geodude VM bridge
+    }
+  },
+
+  "grants": [
+    // Admins can reach everything.
+    {
+      "src": ["autogroup:admin"],
+      "dst": ["*"],
+      "ip":  ["*"]
+    },
+    // infra nodes can reach each other for inter-node management.
+    {
+      "src": ["tag:infra"],
+      "dst": ["tag:infra"],
+      "ip":  ["*"]
+    },
+    // infra nodes can reach VMs via bridge subnet routes.
+    {
+      "src": ["tag:infra"],
+      "dst": ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"],
+      "ip":  ["*"]
+    }
+  ],
+
+  "ssh": [
+    {
+      "action": "accept",
+      "src":    ["autogroup:admin"],
+      "dst":    ["tag:infra"],
+      "users":  ["root", "autogroup:nonroot"]
+    },
+    {
+      "action": "accept",
+      "src":    ["tag:infra"],
+      "dst":    ["tag:infra"],
+      "users":  ["root", "autogroup:nonroot"]
+    }
+  ]
+}

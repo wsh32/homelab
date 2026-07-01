@@ -7,6 +7,16 @@ iface lo inet loopback
 iface {{ proxmox_bridge_port }} inet manual
 
 auto vmbr0
+{% if dhcp | default(false) %}
+iface vmbr0 inet dhcp
+        bridge-ports {{ proxmox_bridge_port }}
+        bridge-stp off
+        bridge-fd 0
+        bridge-vlan-aware yes
+{% if disable_nic_offload | default(false) %}
+        post-up ethtool -K {{ proxmox_bridge_port }} tso off gso off gro off
+{% endif %}
+{% else %}
 iface vmbr0 inet static
         address {{ static_ip }}
         gateway {{ gateway | default('192.168.0.1') }}
@@ -16,4 +26,14 @@ iface vmbr0 inet static
         bridge-vlan-aware yes
 {% if disable_nic_offload | default(false) %}
         post-up ethtool -K {{ proxmox_bridge_port }} tso off gso off gro off
+{% endif %}
+{% endif %}
+{% if ts_bridge_ip is defined %}
+
+auto vmbr1
+iface vmbr1 inet static
+        address {{ ts_bridge_ip }}/24
+        bridge-ports none
+        bridge-stp off
+        bridge-fd 0
 {% endif %}

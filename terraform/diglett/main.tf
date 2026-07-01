@@ -41,12 +41,14 @@ module "dns" {
   disk_size_gb = 10
   swap_size_gb = 1
 
-  ip_address         = "${local.vms["diglett-dns"].ip}/24"
-  gateway            = local.loc.gateway
-  dns_servers        = [local.loc.dns.primary, local.loc.dns.fallback]
-  ssh_public_key     = var.ssh_public_key
-  vm_password        = var.vm_password
-  timezone           = var.timezone
+  ip_address           = "${local.vms["diglett-dns"].ip}/24"
+  gateway              = local.loc.gateway
+  dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
+  bridge_secondary     = "vmbr1"
+  bridge_secondary_ip  = "${local.vms["diglett-dns"].bridge_ip}/24"
+  ssh_public_key       = var.ssh_public_key
+  vm_password          = var.vm_password
+  timezone             = var.timezone
   extra_runcmd = [
     "tailscale set --advertise-exit-node",
     # /etc/headscale.env is read by both the headscale and cloudflare-ddns containers.
@@ -75,12 +77,14 @@ module "infra" {
   disk_size_gb = 40
   swap_size_gb = 2
 
-  ip_address         = "${local.vms["diglett-infra"].ip}/24"
-  gateway            = local.loc.gateway
-  dns_servers        = [local.loc.dns.primary, local.loc.dns.fallback]
-  ssh_public_key     = var.ssh_public_key
-  vm_password        = var.vm_password
-  timezone           = var.timezone
+  ip_address           = "${local.vms["diglett-infra"].ip}/24"
+  gateway              = local.loc.gateway
+  dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
+  bridge_secondary     = "vmbr1"
+  bridge_secondary_ip  = "${local.vms["diglett-infra"].bridge_ip}/24"
+  ssh_public_key       = var.ssh_public_key
+  vm_password          = var.vm_password
+  timezone             = var.timezone
   extra_runcmd = []
 }
 
@@ -99,13 +103,15 @@ module "web" {
   disk_size_gb = 20
   swap_size_gb = 1
 
-  ip_address         = "${local.vms["diglett-web"].ip}/24"
-  gateway            = local.loc.gateway
-  dns_servers        = [local.loc.dns.primary, local.loc.dns.fallback]
-  ssh_public_key     = var.ssh_public_key
-  vm_password        = var.vm_password
-  timezone           = var.timezone
-  extra_runcmd       = []
+  ip_address           = "${local.vms["diglett-web"].ip}/24"
+  gateway              = local.loc.gateway
+  dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
+  bridge_secondary     = "vmbr1"
+  bridge_secondary_ip  = "${local.vms["diglett-web"].bridge_ip}/24"
+  ssh_public_key       = var.ssh_public_key
+  vm_password          = var.vm_password
+  timezone             = var.timezone
+  extra_runcmd         = []
 }
 
 # TODO: Manage HAOS VM in Terraform.

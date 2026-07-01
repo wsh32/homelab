@@ -278,6 +278,19 @@
     - not vaultwarden_db_check.stat.exists
     - vaultwarden_backup_check.stat.exists
 
+- name: Get docker group GID
+  ansible.builtin.getent:
+    database: group
+    key: docker
+  become: true
+
+- name: Patch Traefik group_add GID in docker-compose.yml
+  ansible.builtin.replace:
+    path: /home/{{ ansible_user }}/homelab/services/diglett-infra/docker-compose.yml
+    regexp: '(- )"[^"]*"(\s+# docker group GID)'
+    replace: '\g<1>"{{ getent_group.docker[1] }}"\g<2>'
+  become: true
+
 - name: Deploy infra stack
   ansible.builtin.include_tasks: ../../../tasks/compose-deploy.yml
   vars:

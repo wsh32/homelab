@@ -1,11 +1,11 @@
 ---
-# Configure static IP on Proxmox physical nodes.
+# Configure network bridges on Proxmox physical nodes (vmbr0 + vmbr1).
 # Safe to re-run -- ifreload -a applies changes without dropping connections
 # as long as the IP address is not changing.
 #
 # Usage:
-#   ansible-playbook ansible/network.yml
-#   ansible-playbook ansible/network.yml --limit machamp
+#   ansible-playbook ansible/proxmox-bridge.yml
+#   ansible-playbook ansible/proxmox-bridge.yml --limit machamp
 #
 # IPs and bridge ports are read from network.yml at the repo root.
 
@@ -35,6 +35,17 @@
       ansible.builtin.set_fact:
         proxmox_bridge_port: "{{ _all_nodes[inventory_hostname].bridge_port }}"
         disable_nic_offload: "{{ _all_nodes[inventory_hostname].get('disable_nic_offload', false) }}"
+        dhcp: "{{ 'ip' not in _all_nodes[inventory_hostname] }}"
+
+    - name: Set static IP fact
+      ansible.builtin.set_fact:
+        static_ip: "{{ hostvars[inventory_hostname].static_ip }}"
+      when: hostvars[inventory_hostname].static_ip is defined
+
+    - name: Set VM bridge IP fact
+      ansible.builtin.set_fact:
+        ts_bridge_ip: "{{ _all_nodes[inventory_hostname].vm_bridge_ip }}"
+      when: _all_nodes[inventory_hostname].vm_bridge_ip is defined
 
   roles:
     - role: network

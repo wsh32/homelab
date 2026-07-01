@@ -154,7 +154,7 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
 
 ### One-time manual steps (operator laptop)
 
-4. **Configure static IPs on physical nodes** -- `ansible-playbook ansible/network.yml`
+4. **Configure static IPs on physical nodes** -- `ansible-playbook ansible/proxmox-network.yml`
    for Machamp and Diglett; set static IP on Alakazam via TrueNAS UI.
 5. **Write `terraform.tfvars`** -- populate with Proxmox API tokens, SSH public key,
    and Cloudflare API token. This is the only manual credential entry in the bootstrap.
@@ -163,9 +163,7 @@ Full Proxmox cluster for single-pane management only. No HA or live migration.
    inside the network.
 7. **Bootstrap the deploy VM** -- run the bootstrap script from the operator laptop:
    ```
-   ssh ubuntu@192.168.0.7 \
-     TAILSCALE_AUTH_KEY=<headscale-preauth-key> \
-     bash -s < scripts/bootstrap-alakazam-deploy.sh
+   # See runbook.md § "Bootstrap the deploy VM" for the full step sequence.
    ```
    Then copy `terraform.tfvars` to `~/homelab/terraform/diglett/` and
    `~/homelab/terraform/machamp/` on the deploy VM.
@@ -628,8 +626,7 @@ Deploys are triggered manually from the alakazam-deploy VM. No webhook or CI aut
 
 The alakazam-deploy VM holds `terraform.tfvars` and all deploy credentials. It is not
 internet-facing -- only reachable over Tailscale or the local LAN. It is a TrueNAS SCALE
-KVM VM and is intentionally outside Terraform management -- bootstrapped once via
-`scripts/bootstrap-alakazam-deploy.sh`, then self-sufficient.
+KVM VM and is intentionally outside Terraform management -- bootstrapped once via the steps in `docs/runbook.md`, then self-sufficient.
 
 **Concurrency**: the deploy script holds a lock (`/var/lock/homelab-deploy.lock`)
 so concurrent runs are prevented rather than running in parallel.

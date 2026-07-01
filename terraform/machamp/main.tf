@@ -34,12 +34,14 @@ module "dev" {
   disk_size_gb = 60
   swap_size_gb = 2
 
-  ip_address         = "${local.vms["machamp-dev"].ip}/24"
-  gateway            = local.loc.gateway
-  dns_servers        = [local.loc.dns.primary, local.loc.dns.fallback]
-  ssh_public_key     = var.ssh_public_key
-  vm_password        = var.vm_password
-  timezone           = var.timezone
+  ip_address           = "${local.vms["machamp-dev"].ip}/24"
+  gateway              = local.loc.gateway
+  dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
+  bridge_secondary     = "vmbr1"
+  bridge_secondary_ip  = "${local.vms["machamp-dev"].bridge_ip}/24"
+  ssh_public_key       = var.ssh_public_key
+  vm_password          = var.vm_password
+  timezone             = var.timezone
 }
 
 module "services" {
@@ -56,12 +58,14 @@ module "services" {
   memory_mb    = 32768
   disk_size_gb = 40
 
-  ip_address         = "${local.vms["machamp-media"].ip}/24"
-  gateway            = local.loc.gateway
-  dns_servers        = [local.loc.dns.primary, local.loc.dns.fallback]
-  ssh_public_key     = var.ssh_public_key
-  vm_password        = var.vm_password
-  timezone           = var.timezone
+  ip_address           = "${local.vms["machamp-media"].ip}/24"
+  gateway              = local.loc.gateway
+  dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
+  bridge_secondary     = "vmbr1"
+  bridge_secondary_ip  = "${local.vms["machamp-media"].bridge_ip}/24"
+  ssh_public_key       = var.ssh_public_key
+  vm_password          = var.vm_password
+  timezone             = var.timezone
   extra_runcmd = []
 
   machine          = "q35"

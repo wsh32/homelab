@@ -12,3 +12,51 @@
   roles:
     - role: base
     - role: docker
+
+  tasks:
+    - name: Check if eth1 already exists
+      ansible.builtin.stat:
+        path: /sys/class/net/eth1
+      register: _eth1_exists
+      when: bridge_ip is defined
+
+    - name: Find secondary NIC MAC address
+      ansible.builtin.shell: |
+        primary=$(ip route show default | awk '{print $5; exit}')
+        iface=$(ls /sys/bus/virtio/drivers/virtio_net/ | xargs -I{} sh -c 'ls /sys/bus/virtio/drivers/virtio_net/{}/net/ 2>/dev/null' | grep -v "^$primary$" | head -1)
+        cat /sys/class/net/$iface/address
+      become: true
+      register: _bridge_nic_mac
+      changed_when: false
+      when:
+        - bridge_ip is defined
+        - not _eth1_exists.stat.exists
+
+    - name: Configure bridge NIC via netplan (match by MAC, set-name eth1)
+      ansible.builtin.copy:
+        dest: /etc/netplan/51-bridge.yaml
+        owner: root
+        group: root
+        mode: "0600"
+        content: |
+          network:
+            version: 2
+            ethernets:
+              bridge-nic:
+                match:
+                  macaddress: {{ _bridge_nic_mac.stdout | trim }}
+                set-name: eth1
+                dhcp4: false
+                addresses: [{{ bridge_ip }}/24]
+      become: true
+      when:
+        - bridge_ip is defined
+        - not _eth1_exists.stat.exists
+      notify: Apply netplan
+
+  handlers:
+    - name: Apply netplan
+      ansible.builtin.command: netplan apply
+      become: true
+      async: 30
+      poll: 0

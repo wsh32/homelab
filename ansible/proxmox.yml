@@ -1,11 +1,144 @@
 ---
-# Apply Proxmox-specific config to physical Proxmox VE nodes.
-# Usage: ansible-playbook ansible/proxmox.yml
-#        ansible-playbook ansible/proxmox.yml --limit diglett
+# Configure all Proxmox nodes.
+#
+# Play 1 (proxmox):          Base hardening and tooling.
+# Play 2 (proxmox):          Proxmox-specific tuning -- CPU governor, PCI mappings,
+#                            Terraform token permissions, SSH, IPv4 forwarding.
+# Play 3 (localhost):        Push Tailscale ACL to the hosted tailnet API.
+# Play 4 (tailscale_hosted): Enroll/configure nodes on the hosted tailnet.
+#
+# Prerequisites:
+#   ansible/secrets.yml must contain:
+#     tailscale_api_token: <API access token from Tailscale admin → Settings → Keys>
+#     tailscale_tailnet:   <tailnet name, e.g. "corgi-census.ts.net">
+#
+# Usage:
+#   ansible-playbook ansible/proxmox.yml
+#   ansible-playbook ansible/proxmox.yml --limit geodude
 
+# ── Play 1: Base config ───────────────────────────────────────────────────────
+- name: Configure Proxmox nodes (base)
+  hosts: proxmox
+  gather_facts: true
+
+  roles:
+    - role: base
+
+# ── Play 2: Proxmox node config ───────────────────────────────────────────────
 - name: Configure Proxmox nodes
   hosts: proxmox
   gather_facts: true
 
   roles:
     - role: proxmox
+
+# ── Play 3: Push ACL to Tailscale ────────────────────────────────────────────
+- name: Push Tailscale ACL
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/secrets.yml"
+
+  tasks:
+    - name: Get current ACL ETag
+      ansible.builtin.uri:
+        url: "https://api.tailscale.com/api/v2/tailnet/{{ tailscale_tailnet }}/acl"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ tailscale_api_token }}"
+          Accept: "application/hujson"
+        status_code: 200
+      register: _acl_current
+      no_log: true
+
+    - name: Push ACL file to Tailscale API
+      ansible.builtin.uri:
+        url: "https://api.tailscale.com/api/v2/tailnet/{{ tailscale_tailnet }}/acl"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tailscale_api_token }}"
+          Content-Type: "application/hujson"
+          If-Match: "{{ _acl_current.etag }}"
+        body: "{{ lookup('file', playbook_dir + '/../services/tailscale/acl.hujson') }}"
+        status_code: 200
+      no_log: true
+
+# ── Play 4: Tailscale hosted tailnet enrollment ───────────────────────────────
+- name: Configure Tailscale on hosted nodes
+  hosts: tailscale_hosted
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/secrets.yml"
+
+  tasks:
+    - name: Install tailscale via official install script
+      ansible.builtin.shell:
+        cmd: curl -fsSL https://tailscale.com/install.sh | sh
+        creates: /usr/bin/tailscale
+      become: true
+
+    - name: Enable and start tailscaled
+      ansible.builtin.systemd:
+        name: tailscaled
+        state: started
+        enabled: true
+      become: true
+
+    - name: Check Tailscale connection status
+      ansible.builtin.command: tailscale status --json
+      register: _ts_status
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Set enrolled fact
+      ansible.builtin.set_fact:
+        _ts_enrolled: "{{ _ts_status.rc == 0 and (_ts_status.stdout | from_json).get('BackendState') == 'Running' }}"
+
+    - name: Generate short-lived auth key
+      ansible.builtin.uri:
+        url: "https://api.tailscale.com/api/v2/tailnet/{{ tailscale_tailnet }}/keys"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tailscale_api_token }}"
+        body_format: json
+        body:
+          capabilities:
+            devices:
+              create:
+                reusable: false
+                ephemeral: false
+                preauthorized: true
+                tags: ["tag:infra"]
+          expirySeconds: 300
+        status_code: 200
+      register: _ts_key
+      no_log: true
+      delegate_to: localhost
+      when: not _ts_enrolled
+
+    - name: Enroll in Tailscale hosted tailnet
+      ansible.builtin.command: >-
+        tailscale up
+        --auth-key={{ _ts_key.json.key }}
+        --hostname={{ inventory_hostname }}
+        --advertise-tags=tag:infra
+        {% if ts_bridge_subnet is defined %}--advertise-routes={{ ts_bridge_subnet }}{% endif %}
+        {% if tailscale_ssh | default(false) %}--ssh{% endif %}
+        --accept-routes=false
+      become: true
+      no_log: true
+      when: not _ts_enrolled
+
+    - name: Apply Tailscale settings (already enrolled nodes)
+      ansible.builtin.command: >-
+        tailscale up
+        --hostname={{ inventory_hostname }}
+        --advertise-tags=tag:infra
+        {% if ts_bridge_subnet is defined %}--advertise-routes={{ ts_bridge_subnet }}{% endif %}
+        {% if tailscale_ssh | default(false) %}--ssh{% endif %}
+        --accept-routes=false
+        --reset
+      become: true
+      when: _ts_enrolled

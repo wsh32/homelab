@@ -107,8 +107,7 @@ cp terraform/diglett/terraform.tfvars.example terraform/diglett/terraform.tfvars
 cp terraform/machamp/terraform.tfvars.example terraform/machamp/terraform.tfvars
 # fill in Proxmox tokens, SSH key, Cloudflare API token
 
-# Bootstrap the VM (installs Terraform, Ansible, Tailscale, Infisical CLI; sets up NFS mount)
-ssh ubuntu@192.168.0.7 TAILSCALE_AUTH_KEY=<key> bash -s < scripts/bootstrap-alakazam-deploy.sh
+# Bootstrap the VM -- see docs/runbook.md § "Bootstrap the deploy VM"
 
 # Copy tfvars to the deploy VM
 scp terraform/diglett/terraform.tfvars ubuntu@192.168.0.7:~/homelab/terraform/diglett/

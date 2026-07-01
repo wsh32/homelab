@@ -1,12 +1,19 @@
 ---
 # Deploy role -- applied to alakazam-deploy on top of the base role.
 # Installs operator tooling: Terraform, Infisical CLI, Ansible (via pipx).
+#
+# Tailscale topology on the deploy VM:
+#   primary tailscaled  -- hosted Tailscale tailnet; accepts subnet routes from
+#                          physical nodes so Ansible/Terraform reach VMs directly
+#   tailscale2          -- Headscale (userspace); makes the deploy VM a peer on
+#                          the homelab tailnet so personal devices can SSH in
 
 - name: Install pipx and pip
   ansible.builtin.apt:
     name:
       - python3-pip
       - pipx
+      - socat
     state: present
     update_cache: true
   become: true
@@ -61,6 +68,132 @@
     name: bw
     state: present
   become: true
+
+# ── Primary tailscale: hosted tailnet ────────────────────────────────────────
+
+- name: Check primary tailscale enrollment status
+  ansible.builtin.command: tailscale status --json
+  register: _ts_status
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: Set primary tailscale enrolled fact
+  ansible.builtin.set_fact:
+    _ts_enrolled: "{{ _ts_status.rc == 0 and (_ts_status.stdout | from_json).get('BackendState') == 'Running' }}"
+
+- name: Generate hosted tailnet auth key for primary tailscale
+  ansible.builtin.uri:
+    url: "https://api.tailscale.com/api/v2/tailnet/{{ tailscale_tailnet }}/keys"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ tailscale_api_token }}"
+    body_format: json
+    body:
+      capabilities:
+        devices:
+          create:
+            reusable: false
+            ephemeral: false
+            preauthorized: true
+            tags: ["tag:infra"]
+      expirySeconds: 300
+    status_code: 200
+  register: _ts_key
+  no_log: true
+  when: not _ts_enrolled
+
+- name: Enroll primary tailscale in hosted tailnet
+  ansible.builtin.command: >-
+    tailscale up
+    --authkey={{ _ts_key.json.key }}
+    --hostname=alakazam-deploy
+    --advertise-tags=tag:infra
+    --accept-routes
+    --ssh
+  become: true
+  no_log: true
+  when: not _ts_enrolled
+
+# ── tailscale2: Headscale (userspace) ────────────────────────────────────────
+
+- name: Create tailscale2 state directory
+  ansible.builtin.file:
+    path: /var/lib/tailscale2
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  become: true
+
+- name: Install tailscale2 systemd service (Headscale, userspace mode)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/tailscale2.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Tailscale node agent (Headscale tailnet)
+      After=network-pre.target
+      Wants=network-pre.target
+
+      [Service]
+      ExecStart=/usr/sbin/tailscaled \
+        --state=/var/lib/tailscale2/tailscaled.state \
+        --socket=/var/run/tailscale2.sock \
+        --tun=userspace-networking \
+        --outbound-http-proxy-listen=localhost:1055
+      Restart=on-failure
+      RuntimeDirectory=tailscale2
+      RuntimeDirectoryMode=0755
+
+      [Install]
+      WantedBy=multi-user.target
+  become: true
+  notify: Reload systemd
+
+- name: Enable and start tailscale2 service
+  ansible.builtin.systemd:
+    name: tailscale2
+    state: started
+    enabled: true
+    daemon_reload: true
+  become: true
+
+- name: Check tailscale2 enrollment status
+  ansible.builtin.command: tailscale --socket=/var/run/tailscale2.sock status --json
+  register: _ts2_status
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: Set tailscale2 enrolled fact
+  ansible.builtin.set_fact:
+    _ts2_enrolled: "{{ _ts2_status.rc == 0 and (_ts2_status.stdout | from_json).get('BackendState') == 'Running' }}"
+
+- name: Enroll tailscale2 in Headscale
+  ansible.builtin.command: >-
+    tailscale --socket=/var/run/tailscale2.sock up
+    --login-server={{ headscale_public_url }}
+    --authkey={{ headscale_preauth_key }}
+    --hostname=alakazam-deploy
+    --accept-routes=false
+    --ssh
+  become: true
+  no_log: true
+  when:
+    - not _ts2_enrolled
+    - headscale_preauth_key | default('REPLACE_ME') != 'REPLACE_ME'
+
+# ── SSH config ────────────────────────────────────────────────────────────────
+
+- name: Add tailscale2 alias to .bashrc
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_env.HOME }}/.bashrc"
+    line: "alias tailscale2='tailscale --socket=/var/run/tailscale2.sock'"
+    regexp: "alias tailscale2="
+    state: present
 
 - name: Configure SSH agent in .bashrc
   ansible.builtin.blockinfile:
