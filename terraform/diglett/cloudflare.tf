@@ -91,7 +91,7 @@ locals {
   ]
 }
 
-# One data source per zone -- keyed by service name.
+# One data source per unique zone -- keyed by zone name (e.g. "tenderloin.ai").
 data "cloudflare_zone" "web" {
   for_each = var.cloudflare_web_zone_ids
   zone_id  = each.value
@@ -120,11 +120,14 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "diglett_web" {
 }
 
 # One CNAME per public service, pointing at the tunnel.
+# Record name is derived from the hostname: strip the zone suffix to get the
+# subdomain (e.g. "docs.tenderloin.ai" in zone "tenderloin.ai" → "docs"),
+# or "@" for the root (e.g. "tenderloin.ai" in zone "tenderloin.ai").
 resource "cloudflare_record" "web_public" {
   for_each = { for s in local.web_public_services : s.name => s }
 
-  zone_id = var.cloudflare_web_zone_ids[each.key]
-  name    = "@"
+  zone_id = var.cloudflare_web_zone_ids[each.value.cloudflare_zone]
+  name    = each.value.public_hostname == each.value.cloudflare_zone ? "@" : trimsuffix(each.value.public_hostname, ".${each.value.cloudflare_zone}")
   content = "${cloudflare_zero_trust_tunnel_cloudflared.diglett_web.id}.cfargotunnel.com"
   type    = "CNAME"
   proxied = true

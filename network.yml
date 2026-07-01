@@ -133,6 +133,12 @@ locations:
               - name: tenderloin-web
                 port: 80
                 public_hostname: tenderloin.ai
+                cloudflare_zone: tenderloin.ai
+                authentik: none
+              - name: docs-web
+                port: 80
+                public_hostname: docs.tenderloin.ai
+                cloudflare_zone: tenderloin.ai
                 authentik: none
               - name: cloudflared-tenderloin
                 authentik: none
