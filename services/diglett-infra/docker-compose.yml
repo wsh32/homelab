@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     user: "1000:1000"
     group_add:
-      - docker
+      - "999"  # docker group GID on Ubuntu (official Docker CE)
     cap_add:
       - NET_BIND_SERVICE
     depends_on:
