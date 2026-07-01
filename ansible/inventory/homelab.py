@@ -139,14 +139,11 @@ def build_inventory():
                 if not vmattrs.get('ansible_managed', True):
                     continue
 
-                if attrs.get('connect_via_tailscale'):
-                    # Parent node is only reachable via Tailscale MagicDNS;
-                    # use the VM's Headscale MagicDNS name so Ansible can
-                    # reach it from alakazam-deploy (bridge IP is not routable
-                    # from the Headscale tailnet).
-                    vm_ansible_host = f"{vmname}.ts.home"
-                else:
-                    vm_ansible_host = vmattrs.get('ip') or vmattrs.get('bridge_ip')
+                # alakazam-deploy (Ansible controller) is on the hosted Tailscale
+                # tailnet. For VMs on connect_via_tailscale nodes, the bridge IP
+                # is routable via the node's advertised subnet route -- use that
+                # rather than the Headscale MagicDNS name which only works post-enrollment.
+                vm_ansible_host = vmattrs.get('ip') or vmattrs.get('bridge_ip')
                 if not vm_ansible_host:
                     continue
 
