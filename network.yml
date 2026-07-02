@@ -149,8 +149,9 @@ locations:
             tailscale_ip: 100.64.1.30
             vm_id: 100
             vm_roles: [media, gpu]
-            pci_passthrough: [quadro-p2200]  # references pci_mappings id on parent node
-            nvidia_disable_gsp_firmware: true  # Pascal (GP10x) doesn't support GSP firmware in passthrough
+            pci_passthrough:
+              - mapping: quadro-p2200  # references pci_mappings id on parent node
+                nvidia_disable_gsp_firmware: true  # Pascal (GP10x) doesn't support GSP firmware in passthrough
             nfs_mounts:
               - export: docker
                 mount: /mnt/nas/docker
