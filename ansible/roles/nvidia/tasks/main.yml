@@ -45,6 +45,14 @@
   become: true
   register: daemon_json_raw
 
+- name: Disable GSP firmware for Pascal GPUs (not supported in passthrough)
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/nvidia-passthrough.conf
+    content: "options nvidia NVreg_EnableGpuFirmware=0\n"
+    mode: "0644"
+  become: true
+  notify: Update initramfs
+
 - name: Merge NVIDIA runtime into Docker daemon.json
   ansible.builtin.copy:
     dest: /etc/docker/daemon.json

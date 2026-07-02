@@ -1,4 +1,8 @@
 ---
+- name: Update initramfs
+  ansible.builtin.command: update-initramfs -u
+  become: true
+
 - name: Restart docker
   ansible.builtin.service:
     name: docker
