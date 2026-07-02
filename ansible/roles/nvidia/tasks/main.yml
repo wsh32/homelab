@@ -48,14 +48,15 @@
 - name: Disable GSP firmware for Pascal GPU passthrough
   ansible.builtin.copy:
     dest: /etc/modprobe.d/nvidia-passthrough.conf
-    # GSP firmware is unsupported on Pascal (GP10x) in VM passthrough -- driver
-    # default of 18 causes NVML to report "No devices found" even though the
-    # kernel module loads successfully. Revisit if an Ampere/Ada GPU is passed
-    # through instead.
+    # Pascal (GP10x) doesn't support GSP firmware in passthrough -- driver default
+    # of 18 causes NVML to report "No devices found" even though the kernel module
+    # loads. Not needed for Ampere/Ada GPUs; set nvidia_disable_gsp_firmware: true
+    # in network.yml per VM.
     content: "options nvidia NVreg_EnableGpuFirmware=0\n"
     mode: "0644"
   become: true
   notify: Update initramfs
+  when: nvidia_disable_gsp_firmware | default(false)
 
 - name: Merge NVIDIA runtime into Docker daemon.json
   ansible.builtin.copy:
