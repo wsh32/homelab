@@ -20,6 +20,11 @@
   gather_facts: true
 
   pre_tasks:
+    - name: Load Terraform outputs if present (terraform/diglett/outs/secrets.yml)
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/../terraform/diglett/outs/secrets.yml"
+      failed_when: false
+
     - name: Load local secrets file if present (ansible/secrets.yml -- gitignored)
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"

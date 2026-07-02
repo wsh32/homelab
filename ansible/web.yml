@@ -3,8 +3,7 @@
 #
 # Prerequisites:
 #   - diglett-web VM must be up and cloud-init must have completed
-#   - tenderloin_tunnel_token must be set in ansible/secrets.yml
-#   - SSH deploy key for wsh32/tenderloin must be at /home/ubuntu/.ssh/id_ed25519
+#   - terraform/diglett must have been applied (writes outs/secrets.yml with tunnel token)
 #
 # Usage:
 #   ansible-playbook ansible/web.yml
@@ -14,6 +13,11 @@
   gather_facts: true
 
   pre_tasks:
+    - name: Load Terraform outputs if present (terraform/diglett/outs/secrets.yml)
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/../terraform/diglett/outs/secrets.yml"
+      failed_when: false
+
     - name: Load local secrets file if present (ansible/secrets.yml -- gitignored)
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/secrets.yml"
