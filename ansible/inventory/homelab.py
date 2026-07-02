@@ -167,6 +167,11 @@ def build_inventory():
                         if role not in groups:
                             groups[role] = {'hosts': []}
                         groups[role]['hosts'].append(vmname)
+                pci_passthrough = vmattrs.get('pci_passthrough', {})
+                if pci_passthrough:
+                    vmhvars['pci_passthrough'] = pci_passthrough
+                    if pci_passthrough.get('nvidia_disable_gsp_firmware'):
+                        vmhvars['nvidia_disable_gsp_firmware'] = True
                 if vmattrs.get('services'):
                     vmhvars['services'] = vmattrs['services']
                 if vmattrs.get('nfs_mounts') and nas_ip and nfs_exports:
