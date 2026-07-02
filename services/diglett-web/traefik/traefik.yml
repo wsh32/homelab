@@ -1,0 +1,17 @@
+api:
+  dashboard: false
+
+entryPoints:
+  web:
+    address: ":80"
+
+# Docker provider discovers containers via labels on this host.
+# File provider not needed -- all services are local containers.
+providers:
+  docker:
+    exposedByDefault: false
+
+log:
+  level: INFO
+
+accessLog: {}

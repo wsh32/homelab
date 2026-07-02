@@ -79,49 +79,63 @@ output "authentik_public_url" {
   value       = "https://${local.authentik_hostname}"
 }
 
-# ── tenderloin.ai ─────────────────────────────────────────────────────────────
+# ── diglett-web public tunnel ─────────────────────────────────────────────────
+# One tunnel for all public web services on diglett-web.
+# Cloudflare forwards all traffic to Traefik; Traefik routes by Host header.
+# Services and their public hostnames are declared in network.yml.
 
-data "cloudflare_zone" "tenderloin" {
-  zone_id = var.cloudflare_tenderloin_zone_id
+locals {
+  web_public_services = [
+    for s in local.vms["diglett-web"].services : s
+    if lookup(s, "public_hostname", null) != null
+  ]
 }
 
-resource "cloudflare_zero_trust_tunnel_cloudflared" "tenderloin" {
-  account_id = data.cloudflare_zone.tenderloin.account_id
-  name       = "tenderloin-web"
-  secret     = random_id.tenderloin_tunnel_secret.b64_std
+# One data source per unique zone -- keyed by zone name (e.g. "tenderloin.ai").
+data "cloudflare_zone" "web" {
+  for_each = var.cloudflare_web_zone_ids
+  zone_id  = each.value
 }
 
-resource "random_id" "tenderloin_tunnel_secret" {
+resource "random_id" "diglett_web_tunnel_secret" {
   byte_length = 32
 }
 
-resource "cloudflare_zero_trust_tunnel_cloudflared_config" "tenderloin" {
-  account_id = data.cloudflare_zone.tenderloin.account_id
-  tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.tenderloin.id
+resource "cloudflare_zero_trust_tunnel_cloudflared" "diglett_web" {
+  account_id = data.cloudflare_zone.main.account_id
+  name       = "diglett-web"
+  secret     = random_id.diglett_web_tunnel_secret.b64_std
+}
+
+# Single catch-all ingress rule -- Traefik handles Host-based routing internally.
+resource "cloudflare_zero_trust_tunnel_cloudflared_config" "diglett_web" {
+  account_id = data.cloudflare_zone.main.account_id
+  tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.diglett_web.id
 
   config {
     ingress_rule {
-      hostname = data.cloudflare_zone.tenderloin.name
-      service  = "http://tenderloin-web:80"
-    }
-    ingress_rule {
-      service = "http_status:404"
+      service = "http://traefik:80"
     }
   }
 }
 
-# CNAME tenderloin.ai → <tunnel-id>.cfargotunnel.com (proxied through Cloudflare)
-resource "cloudflare_record" "tenderloin_root" {
-  zone_id = var.cloudflare_tenderloin_zone_id
-  name    = "@"
-  content = "${cloudflare_zero_trust_tunnel_cloudflared.tenderloin.id}.cfargotunnel.com"
+# One CNAME per public service, pointing at the tunnel.
+# Record name is derived from the hostname: strip the zone suffix to get the
+# subdomain (e.g. "docs.tenderloin.ai" in zone "tenderloin.ai" → "docs"),
+# or "@" for the root (e.g. "tenderloin.ai" in zone "tenderloin.ai").
+resource "cloudflare_record" "web_public" {
+  for_each = { for s in local.web_public_services : s.name => s }
+
+  zone_id = var.cloudflare_web_zone_ids[each.value.cloudflare_zone]
+  name    = each.value.public_hostname == each.value.cloudflare_zone ? "@" : trimsuffix(each.value.public_hostname, ".${each.value.cloudflare_zone}")
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.diglett_web.id}.cfargotunnel.com"
   type    = "CNAME"
   proxied = true
   ttl     = 1  # auto TTL (required when proxied = true)
 }
 
-output "tenderloin_tunnel_token" {
-  description = "Cloudflare Tunnel token -- written to /etc/tenderloin-tunnel.env on diglett-infra by the infra Ansible role"
-  value       = cloudflare_zero_trust_tunnel_cloudflared.tenderloin.tunnel_token
+output "diglett_web_tunnel_token" {
+  description = "Cloudflare Tunnel token -- written to /etc/tenderloin-tunnel.env on diglett-web by the web Ansible role"
+  value       = cloudflare_zero_trust_tunnel_cloudflared.diglett_web.tunnel_token
   sensitive   = true
 }

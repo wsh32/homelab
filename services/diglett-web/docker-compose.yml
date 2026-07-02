@@ -1,4 +1,17 @@
 services:
+  # ── Traefik ────────────────────────────────────────────────────────────────
+  # Receives all traffic from the Cloudflare Tunnel and routes by Host header.
+  # No TLS -- Cloudflare terminates TLS at the edge.
+  traefik:
+    image: traefik:v3.7.1
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+
   # ── tenderloin.ai static site ──────────────────────────────────────────────
   # git-sync pulls wsh32/tenderloin every 60s into /var/lib/tenderloin-web.
   # nginx serves from the symlink git-sync maintains at /var/lib/tenderloin-web/tenderloin.
@@ -33,14 +46,59 @@ services:
     depends_on:
       tenderloin-sync:
         condition: service_healthy
-    ports:
-      - "80:80"
     volumes:
       - ./tenderloin-web/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - /var/lib/tenderloin-web:/var/lib/tenderloin-web:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.tenderloin.rule=Host(`tenderloin.ai`)"
+      - "traefik.http.routers.tenderloin.entrypoints=web"
+      - "traefik.http.services.tenderloin-svc.loadbalancer.server.port=80"
 
-  # ── Cloudflare Tunnel (tenderloin.ai) ─────────────────────────────────────
-  # Token written to /etc/tenderloin-tunnel.env by Ansible (ansible/roles/web/tasks/main.yml).
+  # ── docs.tenderloin.ai static site ───────────────────────────────────────
+  docs-sync:
+    image: registry.k8s.io/git-sync/git-sync:v4.4.1
+    container_name: docs-sync
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      GITSYNC_REPO: git@github.com:wsh32/docs.git
+      GITSYNC_ROOT: /repo
+      GITSYNC_LINK: docs
+      GITSYNC_PERIOD: 60s
+      GITSYNC_DEPTH: 1
+      GITSYNC_SSH_KEY_FILE: /etc/git-sync-ssh/id_ed25519
+      GITSYNC_SSH_KNOWN_HOSTS: "false"
+      GITSYNC_ADD_USER: "true"
+    volumes:
+      - /var/lib/docs-web:/repo
+      - /home/ubuntu/.ssh/diglett_web_id_ed25519:/etc/git-sync-ssh/id_ed25519:ro
+    healthcheck:
+      test: ["CMD-SHELL", "test -L /repo/docs && test -d /repo/docs"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  docs-web:
+    image: nginx:1.28.0-alpine
+    container_name: docs-web
+    restart: unless-stopped
+    depends_on:
+      docs-sync:
+        condition: service_healthy
+    volumes:
+      - ./docs-web/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /var/lib/docs-web:/var/lib/docs-web:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.docs.rule=Host(`docs.tenderloin.ai`)"
+      - "traefik.http.routers.docs.entrypoints=web"
+      - "traefik.http.services.docs-svc.loadbalancer.server.port=80"
+
+  # ── Cloudflare Tunnel ─────────────────────────────────────────────────────
+  # Forwards all public traffic to Traefik. Token written to
+  # /etc/tenderloin-tunnel.env by Ansible (ansible/roles/web/tasks/main.yml).
   cloudflared-tenderloin:
     image: cloudflare/cloudflared:2026.5.0
     container_name: cloudflared-tenderloin
@@ -48,4 +106,4 @@ services:
     command: tunnel --no-autoupdate run
     env_file: /etc/tenderloin-tunnel.env
     depends_on:
-      - tenderloin-web
+      - traefik

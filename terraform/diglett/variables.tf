@@ -49,7 +49,8 @@ variable "authentik_subdomain" {
   default     = "auth"
 }
 
-variable "cloudflare_tenderloin_zone_id" {
-  description = "Cloudflare zone ID for tenderloin.ai"
-  type        = string
+variable "cloudflare_web_zone_ids" {
+  description = "Map of zone name to Cloudflare zone ID for diglett-web public services (e.g. { \"tenderloin.ai\" = \"abc123\" })"
+  type        = map(string)
+  default     = {}
 }

@@ -125,6 +125,25 @@ locations:
                 authentik: none
                 traefik: false
           diglett-web:
+            ip: 192.168.0.22
+            tailscale_ip: 100.64.1.22
+            vm_id: 203
+            vm_roles: [services]
+            services:
+              - name: tenderloin-web
+                port: 80
+                public_hostname: tenderloin.ai
+                cloudflare_zone: tenderloin.ai
+                authentik: none
+              - name: docs-web
+                port: 80
+                public_hostname: docs.tenderloin.ai
+                cloudflare_zone: tenderloin.ai
+                authentik: none
+              - name: cloudflared-tenderloin
+                authentik: none
+                traefik: false
+          diglett-web:
             ip: 192.168.0.21
             bridge_ip: 10.0.1.21
             vm_id: 203
