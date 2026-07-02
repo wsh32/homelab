@@ -143,19 +143,6 @@ locations:
               - name: cloudflared-tenderloin
                 authentik: none
                 traefik: false
-          diglett-web:
-            ip: 192.168.0.21
-            bridge_ip: 10.0.1.21
-            vm_id: 203
-            vm_roles: [services]
-            services:
-              - name: tenderloin-web
-                hostname: tenderloin
-                port: 80
-                authentik: none
-              - name: cloudflared-tenderloin
-                authentik: none
-                traefik: false
           diglett-haos:
             ip: 192.168.0.21
             vm_id: 202
