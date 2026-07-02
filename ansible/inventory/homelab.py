@@ -149,10 +149,10 @@ def build_inventory():
                         if role not in groups:
                             groups[role] = {'hosts': []}
                         groups[role]['hosts'].append(vmname)
-                pci_passthrough = vmattrs.get('pci_passthrough', [])
+                pci_passthrough = vmattrs.get('pci_passthrough', {})
                 if pci_passthrough:
                     vmhvars['pci_passthrough'] = pci_passthrough
-                    if any(d.get('nvidia_disable_gsp_firmware') for d in pci_passthrough):
+                    if pci_passthrough.get('nvidia_disable_gsp_firmware'):
                         vmhvars['nvidia_disable_gsp_firmware'] = True
                 if vmattrs.get('services'):
                     vmhvars['services'] = vmattrs['services']
