@@ -98,23 +98,35 @@
     _mappings: "{{ (_net.locations.values() | map(attribute='nodes') | map('default', {}) | map('dict2items') | flatten | selectattr('key', 'equalto', inventory_hostname) | map(attribute='value') | first | default({})).get('pci_mappings', []) }}"
   when: _mappings | length > 0
   block:
-    - name: Create PCI mapping if not present
+    - name: Create or update PCI mapping
       ansible.builtin.shell: |
-        if pvesh get /cluster/mapping/pci/{{ item.id }} >/dev/null 2>&1; then
-          echo "exists"
-          exit 0
+        set -e
+        IOMMU=$(find /sys/kernel/iommu_groups -name "*{{ item.path }}*" | grep -oP 'iommu_groups/\K[0-9]+' | head -1)
+        if [ -z "${IOMMU}" ]; then
+          echo "ERROR: could not determine IOMMU group for {{ item.path }}" >&2
+          exit 1
         fi
-        IOMMU=$(find /sys/kernel/iommu_groups -name "*{{ item.path }}*" | grep -oP 'iommu_groups/\K[0-9]+')
         VENDOR=$(lspci -n | awk '/^{{ item.path[5:] }}/ {print $3}')
         SUBSYSTEM=$(lspci -n -vmm -s {{ item.path[5:] }} | awk '/^SVendor:/{sv=$2} /^SDevice:/{sd=$2} END{print sv ":" sd}')
-        pvesh create /cluster/mapping/pci \
-          --id {{ item.id }} \
-          --map "node={{ inventory_hostname }},id=${VENDOR},path={{ item.path }},iommugroup=${IOMMU},subsystem-id=${SUBSYSTEM}" \
-          --description "{{ item.description }}"
-        echo "created"
+        MAP="node={{ inventory_hostname }},id=${VENDOR},path={{ item.path }},iommugroup=${IOMMU},subsystem-id=${SUBSYSTEM}"
+        if pvesh get /cluster/mapping/pci/{{ item.id }} --output-format json >/dev/null 2>&1; then
+          CURRENT_IOMMU=$(pvesh get /cluster/mapping/pci/{{ item.id }} --output-format json | grep -oP 'iommugroup=\K[0-9]+' | head -1)
+          if [ "${CURRENT_IOMMU}" = "${IOMMU}" ]; then
+            echo "ok"
+            exit 0
+          fi
+          pvesh set /cluster/mapping/pci/{{ item.id }} --map "${MAP}"
+          echo "updated"
+        else
+          pvesh create /cluster/mapping/pci \
+            --id {{ item.id }} \
+            --map "${MAP}" \
+            --description "{{ item.description }}"
+          echo "created"
+        fi
       loop: "{{ _mappings }}"
       register: _mapping_result
-      changed_when: "'created' in _mapping_result.stdout"
+      changed_when: "'created' in _mapping_result.stdout or 'updated' in _mapping_result.stdout"
       become: true
 
     - name: Grant terraform API token permission on PCI mappings
