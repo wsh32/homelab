@@ -398,7 +398,10 @@ ansible-playbook ansible/proxmox.yml
 
 This configures Machamp and Diglett: CPU governor, power tuning, and PCI hardware mappings
 (e.g. `quadro-p2200` on machamp). PCI mappings are defined under `pci_mappings` in
-`network.yml` and created idempotently -- safe to re-run.
+`network.yml` and reconciled idempotently -- safe to re-run. Each run re-reads the device's
+live IOMMU group and updates the stored mapping if it has drifted (IOMMU group numbers can
+change after a kernel or BIOS update), so re-running clears the "iommugroup does not match"
+error Proxmox raises at VM start.
 
 The Terraform token is also granted `PVEMappingUser` permission on each mapping so
 `terraform apply` can attach PCI devices without requiring root.
@@ -637,6 +640,18 @@ ssh ubuntu@192.168.0.30 nvidia-smi
 
 Jellyfin's `encoding.xml` is already bind-mounted with NVENC enabled. Check
 Jellyfin → Dashboard → Playback -- hardware acceleration should show NVENC/NVDEC.
+
+### Troubleshooting: "iommugroup does not match"
+
+If `terraform apply` (or starting machamp-media) fails with:
+
+```
+PCI device mapping invalid (hardware probably changed): 'iommugroup' does not match for 'quadro-p2200' (21 != 23)
+```
+
+the GPU's IOMMU group renumbered (typically after a kernel or BIOS update) and the stored
+Proxmox mapping is stale. Re-run `ansible-playbook ansible/proxmox.yml` -- the PCI mapping
+task re-reads the live IOMMU group and updates the mapping in place, then retry `terraform apply`.
 
 ---
 
