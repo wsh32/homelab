@@ -38,7 +38,7 @@ DHCP: `192.168.0.100 – 192.168.0.254` (Eero managed)
 
 Physical nodes get DHCP reservations in the Eero app. VMs get static IPs configured via cloud-init, outside the DHCP range.
 
-IP ranges: physical nodes `.4–.19` (`.7` = alakazam-deploy), diglett-dns VM special-cased at `.2`, Diglett VMs `.21–.29`, Machamp VMs `.30–.49`.
+IP ranges: physical nodes `.4–.19` (`.7` = alakazam-deploy, `.8` = dratini), diglett-dns VM special-cased at `.2`, Diglett VMs `.21–.29`, Machamp VMs `.30–.49`, Dratini VMs `.50–.59`.
 
 | Device | Hostname | IP | Notes |
 |--------|----------|----|-------|
@@ -48,6 +48,9 @@ IP ranges: physical nodes `.4–.19` (`.7` = alakazam-deploy), diglett-dns VM sp
 | Machamp | machamp | 192.168.0.5 | Static (Ansible -- `/etc/network/interfaces`) |
 | Diglett | diglett | 192.168.0.6 | Static (Ansible -- `/etc/network/interfaces`) |
 | alakazam-deploy | alakazam-deploy | 192.168.0.7 | Static (TrueNAS UI) -- deploy host (TrueNAS KVM) |
+| Dratini | dratini | 192.168.0.8 | Static (Ansible -- `/etc/network/interfaces`) -- game/streaming node |
+| dratini-server VM | dratini-server | 192.168.0.50 | Static (Terraform) -- Pelican + game servers |
+| dratini-host VM | dratini-host | 192.168.0.51 | Static (Terraform) -- Wolf/Moonlight; GPU passthrough |
 | diglett-haos VM | diglett-haos | 192.168.0.22 | Static (Terraform) -- Home Assistant OS |
 | machamp-media VM | machamp-media | 192.168.0.30 | Static (Terraform) |
 | machamp-dev VM | machamp-dev | 192.168.0.31 | Static (Terraform) |
@@ -134,6 +137,7 @@ Each service defaults to being exposed on both domains. To restrict:
 |------|------|--------|
 | Machamp | Compute -- GPU workloads, all Docker Compose services | Active |
 | Diglett | Always-on infrastructure | Active |
+| Dratini | Game servers (Pelican) + GPU streaming (Wolf/Moonlight) | Planned |
 
 Full Proxmox cluster for single-pane management only. No HA or live migration.
 
@@ -216,6 +220,17 @@ services that depend on those external keys.
 | machamp-media | 32GB | 8 | All Docker Compose services; GPU passthrough (Quadro P2200) for Jellyfin |
 | machamp-dev | 16GB | 6 | Development workstation |
 | Headroom | 64GB | -- | Future VMs / workloads |
+
+### Dratini (game / streaming node -- specs TBD)
+
+| VM | RAM | vCPU | Notes |
+|----|-----|------|-------|
+| Proxmox host | 4GB | -- | OS overhead |
+| dratini-server | 24GB | 8 | Pelican panel + Wings; hosts Minecraft, Palworld, etc. |
+| dratini-host | 16GB | 8 | Wolf for Moonlight streaming; GPU passthrough (`dratini-gpu`) |
+
+> VM resource figures are starting estimates -- adjust in `terraform/dratini/main.tf` once
+> the node's actual CPU/RAM are known.
 
 ### Services node (planned -- 128GB RAM, Ryzen 7 3700x 8c/16t)
 
@@ -308,6 +323,27 @@ Authentik provides OIDC SSO for internal services; configure OIDC clients post-d
 | Service | Notes |
 |---------|-------|
 | Ubuntu Server | Development workstation |
+
+### Dratini (game + streaming, planned)
+
+**dratini-server** (`192.168.0.50`):
+
+| Service | Notes |
+|---------|-------|
+| Pelican | Game server management panel; web UI behind Traefik (`games.home` / `games.wsh`) |
+| Pelican Wings | Node daemon; runs game servers (Minecraft, Palworld, etc.). Game + Wings ports exposed directly, not via Traefik |
+
+**dratini-host** (`192.168.0.51`):
+
+| Service | Notes |
+|---------|-------|
+| Wolf | Games-on-Whales streaming server for Moonlight clients; GPU passthrough (`dratini-gpu`). Uses the GameStream protocol on direct ports, not routed via Traefik |
+
+Adding a new Proxmox node requires one-time manual bootstrap (same as Machamp/Diglett):
+join `dratini` to the Proxmox cluster, create a Terraform service account + API token,
+add `proxmox_endpoint` / `proxmox_api_token` to `terraform.tfvars` in `terraform/dratini/`,
+and create the `dratini-gpu` Proxmox hardware mapping (`pvesh`) before applying GPU
+passthrough. See the GPU passthrough section in `docs/runbook.md`.
 
 ### Services node (planned)
 

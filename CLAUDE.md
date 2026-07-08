@@ -15,8 +15,8 @@ Infrastructure-as-code for a personal homelab. Proxmox + Terraform for compute, 
   - Infrastructure credentials (Proxmox API tokens, SSH key, Cloudflare API token) → `var.*` from `terraform.tfvars`, gitignored. Lives on the deploy VM.
   - Infisical bootstrap secrets (MongoDB password, auth/encryption keys, Vaultwarden token, Authentik keys) → `/etc/homelab.env` on diglett-infra (root:root, 0600). Generated once by the `infra` Ansible role; NFS-persisted at `/mnt/nas/docker/infisical-backups/.secrets.env` for rebuild safety. Deploy + bootstrap: `INFISICAL_ADMIN_PASSWORD=<pass> ansible-playbook ansible/infra.yml`.
   - Developer API keys (Claude, Codex, GitHub) → Infisical, entered manually via UI, accessed via `infisical run --` on the operator laptop.
-- **VM IDs**: Diglett VMs use 200–299, Machamp VMs use 100–199.
-- **IP addresses**: physical nodes use 192.168.0.4–19 (`.7` = alakazam-deploy), diglett-dns VM is special-cased at `.2`, Diglett VMs use 192.168.0.20–29, Machamp VMs use 192.168.0.30–49.
+- **VM IDs**: Diglett VMs use 200–299, Machamp VMs use 100–199, Dratini VMs use 400–499.
+- **IP addresses**: physical nodes use 192.168.0.4–19 (`.7` = alakazam-deploy, `.8` = dratini), diglett-dns VM is special-cased at `.2`, Diglett VMs use 192.168.0.20–29, Machamp VMs use 192.168.0.30–49, Dratini VMs use 192.168.0.50–59.
 - **Docker Compose**: persistent data always mounts to `/mnt/nas/<dataset>/<service>` (Alakazam NFS). Never use named volumes for stateful data -- it must survive VM recreation.
 - **Traefik routing**: Traefik runs on `diglett-infra` (192.168.0.20). Services co-located on diglett-infra use Docker Compose labels. Services on other VMs are declared as external backends via `ansible/roles/infra/templates/services-vm.yml.j2` — rendered by Ansible from `network.yml` at deploy time. Do not edit the rendered file on the VM directly. Both `.home` (LAN) and `.wsh` (Tailscale) routers are generated for each service. Current label pattern for co-located services:
   ```yaml

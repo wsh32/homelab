@@ -11,6 +11,7 @@
 #   .4–.19   physical nodes
 #   .20–.29  Diglett VMs (VM IDs 200–299)
 #   .30–.49  Machamp VMs (VM IDs 100–199)
+#   .50–.59  Dratini VMs (VM IDs 400–499)
 #   .100+    DHCP (router managed)
 #
 # Tailscale topology:
@@ -153,6 +154,54 @@ locations:
             ip: 192.168.0.21
             vm_id: 202
             ansible_managed: false  # HAOS -- no SSH access via Ansible
+
+      dratini:
+        ip: 192.168.0.8
+        type: proxmox
+        ansible_user: root
+        bridge_port: nic0
+        vm_bridge_subnet: "10.0.4.0/24"
+        vm_bridge_ip: "10.0.4.1"
+        pci_mappings:
+          - id: dratini-gpu
+            path: "0000:00:00.0"  # TODO: replace with the GPU's real address from `lspci -D` on dratini
+            description: "GPU for Wolf/Moonlight streaming"
+        vms:
+          dratini-server:
+            ip: 192.168.0.50
+            bridge_ip: 10.0.4.50
+            vm_id: 400
+            vm_roles: [services]
+            nfs_mounts:
+              - export: docker
+                mount: /mnt/nas/docker
+            services:
+              - name: pelican
+                hostname: games
+                port: 80
+                nfs_data: docker/pelican
+                authentik: none
+              - name: pelican-wings
+                port: 8080
+                nfs_data: docker/pelican-wings
+                authentik: none
+                traefik: false   # Wings daemon + game server ports exposed directly, not via Traefik
+          dratini-host:
+            ip: 192.168.0.51
+            bridge_ip: 10.0.4.51
+            vm_id: 401
+            vm_roles: [services, gpu]
+            pci_passthrough:
+              devices: [dratini-gpu]  # references pci_mappings id on parent node
+            nfs_mounts:
+              - export: docker
+                mount: /mnt/nas/docker
+            services:
+              - name: wolf
+                port: 47989
+                nfs_data: docker/wolf
+                authentik: none
+                traefik: false   # Moonlight/GameStream protocol -- direct ports, not HTTP via Traefik
 
       machamp:
         ip: 192.168.0.5
