@@ -71,14 +71,14 @@
 
 - name: Get Infisical access token via Universal Auth
   ansible.builtin.uri:
-    url: "{{ infisical_host | default('http://192.168.0.20:8080') }}/api/v1/auth/universal-auth/login"
+    url: "{{ infisical_host }}/api/v1/auth/universal-auth/login"
     method: POST
     body_format: json
     body:
       clientId: "{{ infisical_client_id }}"
       clientSecret: "{{ infisical_client_secret }}"
     status_code: 200
-  register: _infisical_ua_token
+  register: _inf_token
   delegate_to: localhost
   no_log: true
   when:
@@ -86,29 +86,54 @@
     - infisical_client_secret is defined
     - infisical_project_id is defined
 
-- name: Fetch all secrets from Infisical
+- name: Set Infisical facts for upsert
+  ansible.builtin.set_fact:
+    _inf_project_id: "{{ infisical_project_id }}"
+    _inf_environment: "{{ infisical_environment | default('prod') }}"
+  when: _inf_token is not skipped
+
+- name: Get SCRAMBLE_JWT_SECRET from Infisical
   ansible.builtin.uri:
-    url: "{{ infisical_host | default('http://192.168.0.20:8080') }}/api/v3/secrets/raw?workspaceId={{ infisical_project_id }}&environment={{ infisical_environment | default('prod') }}&secretPath=/"
+    url: "{{ infisical_host }}/api/v3/secrets/raw/SCRAMBLE_JWT_SECRET?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
     headers:
-      Authorization: "Bearer {{ _infisical_ua_token.json.accessToken }}"
-    status_code: 200
-  register: _infisical_secrets
+      Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+    status_code: [200, 404]
+  register: _scramble_jwt_get
   delegate_to: localhost
   no_log: true
-  when: _infisical_ua_token is not skipped
+  when: _inf_token is not skipped
 
-- name: Set SCRAMBLE_JWT_SECRET fact from Infisical secrets
+- name: Set SCRAMBLE_JWT_SECRET fact from Infisical
   ansible.builtin.set_fact:
-    scramble_jwt_secret: "{{ (_infisical_secrets.json.secrets | selectattr('secretKey', 'equalto', 'SCRAMBLE_JWT_SECRET') | map(attribute='secretValue') | first) | default('') }}"
+    scramble_jwt_secret: "{{ _scramble_jwt_get.json.secret.secretValue }}"
   no_log: true
-  when: _infisical_secrets is not skipped
+  when:
+    - _scramble_jwt_get is not skipped
+    - _scramble_jwt_get.status == 200
+
+- name: Generate SCRAMBLE_JWT_SECRET
+  ansible.builtin.set_fact:
+    scramble_jwt_secret: "{{ lookup('ansible.builtin.password', '/dev/null', length=64, chars=['ascii_letters', 'digits']) }}"
+  no_log: true
+  when:
+    - _scramble_jwt_get is not skipped
+    - _scramble_jwt_get.status == 404
+
+- name: Store SCRAMBLE_JWT_SECRET in Infisical
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/infisical-upsert.yml"
+  vars:
+    _inf_upsert_name: SCRAMBLE_JWT_SECRET
+    _inf_upsert_value: "{{ scramble_jwt_secret }}"
+  when:
+    - _scramble_jwt_get is not skipped
+    - _scramble_jwt_get.status == 404
 
 - name: Verify SCRAMBLE_JWT_SECRET is available
   ansible.builtin.assert:
     that:
       - scramble_jwt_secret is defined
       - scramble_jwt_secret | length > 0
-    fail_msg: "SCRAMBLE_JWT_SECRET must be set in Infisical (prod environment) before deploying scramble."
+    fail_msg: "SCRAMBLE_JWT_SECRET could not be fetched or generated -- check Infisical credentials (infisical_client_id/secret/project_id)."
 
 - name: Write scramble backend environment
   ansible.builtin.copy:
