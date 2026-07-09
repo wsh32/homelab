@@ -96,6 +96,96 @@ services:
       - "traefik.http.routers.docs.entrypoints=web"
       - "traefik.http.services.docs-svc.loadbalancer.server.port=80"
 
+  # ── scramble.tenderloin.ai (SF Scramble full-stack app) ──────────────────────
+  # git-sync pulls wsh32/scramble main every 60s into /var/lib/scramble-web.
+  # The backend runs the FastAPI server from the synced source; the build
+  # container compiles the Vite frontend into /var/lib/scramble-dist; nginx
+  # serves that SPA and proxies /api + /ws to the backend. All three track main
+  # automatically -- they re-run whenever git-sync checks out a new commit.
+  scramble-sync:
+    image: registry.k8s.io/git-sync/git-sync:v4.4.1
+    container_name: scramble-sync
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      GITSYNC_REPO: git@github.com:wsh32/scramble.git
+      GITSYNC_REF: main
+      GITSYNC_ROOT: /repo
+      GITSYNC_LINK: scramble
+      GITSYNC_PERIOD: 60s
+      GITSYNC_DEPTH: 1
+      GITSYNC_SSH_KEY_FILE: /etc/git-sync-ssh/id_ed25519
+      GITSYNC_SSH_KNOWN_HOSTS: "false"
+      GITSYNC_ADD_USER: "true"
+    volumes:
+      - /var/lib/scramble-web:/repo
+      - /home/ubuntu/.ssh/diglett_web_id_ed25519:/etc/git-sync-ssh/id_ed25519:ro
+    healthcheck:
+      test: ["CMD-SHELL", "test -L /repo/scramble && test -f /repo/scramble/backend/requirements.txt"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  scramble-backend:
+    image: python:3.12-slim
+    container_name: scramble-backend
+    restart: unless-stopped
+    depends_on:
+      scramble-sync:
+        condition: service_healthy
+    working_dir: /repo/scramble/backend
+    env_file: /etc/scramble.env
+    environment:
+      SCRAMBLE_DATABASE_URL: sqlite:////data/scramble.db
+    entrypoint: ["/bin/sh", "/scramble/backend-entrypoint.sh"]
+    volumes:
+      - ./scramble/backend-entrypoint.sh:/scramble/backend-entrypoint.sh:ro
+      - /var/lib/scramble-web:/repo:ro
+      - /var/lib/scramble-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health').status==200 else 1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  scramble-frontend-build:
+    image: node:20-alpine
+    container_name: scramble-frontend-build
+    restart: unless-stopped
+    depends_on:
+      scramble-sync:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/scramble/frontend-build.sh"]
+    volumes:
+      - ./scramble/frontend-build.sh:/scramble/frontend-build.sh:ro
+      - /var/lib/scramble-web:/repo:ro
+      - /var/lib/scramble-dist:/dist
+      - scramble-build:/build
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /dist/index.html"]
+      interval: 10s
+      timeout: 3s
+      retries: 60
+      start_period: 30s
+
+  scramble-web:
+    image: nginx:1.28.0-alpine
+    container_name: scramble-web
+    restart: unless-stopped
+    depends_on:
+      scramble-frontend-build:
+        condition: service_healthy
+    volumes:
+      - ./scramble/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /var/lib/scramble-dist:/usr/share/nginx/html:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.scramble.rule=Host(`scramble.tenderloin.ai`)"
+      - "traefik.http.routers.scramble.entrypoints=web"
+      - "traefik.http.services.scramble-svc.loadbalancer.server.port=80"
+
   # ── Cloudflare Tunnel ─────────────────────────────────────────────────────
   # Forwards all public traffic to Traefik. Token written to
   # /etc/tenderloin-tunnel.env by Ansible (ansible/roles/web/tasks/main.yml).
@@ -107,3 +197,8 @@ services:
     env_file: /etc/tenderloin-tunnel.env
     depends_on:
       - traefik
+
+# Frontend build workspace (npm install + Vite output staging). Derived data
+# only -- safe to lose; not persistent game state.
+volumes:
+  scramble-build:

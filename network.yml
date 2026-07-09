@@ -141,6 +141,11 @@ locations:
                 public_hostname: docs.tenderloin.ai
                 cloudflare_zone: tenderloin.ai
                 authentik: none
+              - name: scramble-web
+                port: 80
+                public_hostname: scramble.tenderloin.ai
+                cloudflare_zone: tenderloin.ai
+                authentik: none
               - name: cloudflared-tenderloin
                 authentik: none
                 traefik: false
