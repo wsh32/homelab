@@ -1,0 +1,35 @@
+services:
+  # ── Ollama ───────────────────────────────────────────────────────────────────
+  # LLM inference server. Models live on the local NVMe root disk (/var/lib/ollama)
+  # -- not NFS -- so weights page into VRAM at full speed. Models are re-pullable,
+  # so a VM rebuild just re-downloads them.
+  ollama:
+    image: ollama/ollama:0.31.2
+    container_name: ollama
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "11434:11434"
+    volumes:
+      - /var/lib/ollama:/root/.ollama
+    environment:
+      OLLAMA_HOST: 0.0.0.0
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+
+  # ── Open WebUI ───────────────────────────────────────────────────────────────
+  # Web frontend for Ollama. Authentication is handled by Authentik forwardAuth at
+  # Traefik (authentik: proxy in network.yml), so the app's own auth is disabled.
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:v0.10.2
+    container_name: open-webui
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    ports:
+      - "8080:8080"
+    volumes:
+      - /mnt/nas/docker/open-webui:/app/backend/data
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      WEBUI_AUTH: "False"

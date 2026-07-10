@@ -1,0 +1,62 @@
+---
+# Configure machamp-ai: NVIDIA drivers (via gpu.yml import), NFS mount,
+# and the Ollama + Open WebUI compose stack.
+# Run after base.yml (Docker must be installed first).
+#
+# Usage:
+#   ansible-playbook ansible/ai.yml
+
+# NVIDIA drivers first -- installs drivers and reboots if needed so Docker
+# picks up the nvidia runtime on a clean kernel load.
+- import_playbook: gpu.yml
+
+- name: Configure machamp-ai (NFS, Ollama compose stack)
+  hosts: machamp-ai
+  gather_facts: true
+
+  tasks:
+
+    - name: Mount NFS shares
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/nfs-mount.yml"
+      vars:
+        nfs_mount_path: "{{ item.mount }}"
+        nfs_source_path: "{{ item.source }}"
+      loop: "{{ nfs_mounts }}"
+
+    - name: Create Ollama local model directory
+      ansible.builtin.file:
+        path: /var/lib/ollama
+        state: directory
+        mode: "0755"
+      become: true
+
+    - name: Create Open WebUI data directory on NFS
+      ansible.builtin.file:
+        path: /mnt/nas/docker/open-webui
+        state: directory
+      become: true
+
+    - name: Ensure homelab services directory exists on VM
+      ansible.builtin.file:
+        path: /home/{{ ansible_user }}/homelab/services/machamp-ai
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+      become: true
+
+    - name: Sync machamp-ai compose stack to VM
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../services/machamp-ai/"
+        dest: /home/{{ ansible_user }}/homelab/services/machamp-ai/
+        delete: true
+        recursive: true
+        rsync_opts:
+          - "--chown={{ ansible_user }}:{{ ansible_user }}"
+
+    - name: Start machamp-ai compose stack
+      community.docker.docker_compose_v2:
+        project_src: /home/{{ ansible_user }}/homelab/services/machamp-ai
+        state: present
+        pull: missing
+      become: true

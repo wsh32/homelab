@@ -51,7 +51,7 @@ IP ranges: physical nodes `.4–.19` (`.7` = alakazam-deploy), diglett-dns VM sp
 | diglett-haos VM | diglett-haos | 192.168.0.22 | Static (Terraform) -- Home Assistant OS |
 | machamp-media VM | machamp-media | 192.168.0.30 | Static (Terraform) |
 | machamp-dev VM | machamp-dev | 192.168.0.31 | Static (Terraform) |
-| machamp-infra VM | machamp-infra | 192.168.0.32 | Static (Terraform) -- Infisical + Vaultwarden + Authentik |
+| machamp-ai VM | machamp-ai | 192.168.0.32 | Static (Terraform) -- Ollama LLM host (RTX 6000 Ada) |
 
 ---
 
@@ -212,10 +212,10 @@ services that depend on those external keys.
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
 | Proxmox host | 4GB | -- | OS overhead |
-| machamp-infra | 12GB | 4 | Infisical + Vaultwarden + Authentik |
 | machamp-media | 32GB | 8 | All Docker Compose services; GPU passthrough (Quadro P2200) for Jellyfin |
 | machamp-dev | 16GB | 6 | Development workstation |
-| Headroom | 64GB | -- | Future VMs / workloads |
+| machamp-ai | 64GB | 16 | Ollama LLM host; GPU passthrough (RTX 6000 Ada). RAM pinned (no ballooning under passthrough) |
+| Headroom | 12GB | -- | Future VMs / workloads |
 
 ### Services node (planned -- 128GB RAM, Ryzen 7 3700x 8c/16t)
 
@@ -308,6 +308,18 @@ Authentik provides OIDC SSO for internal services; configure OIDC clients post-d
 | Service | Notes |
 |---------|-------|
 | Ubuntu Server | Development workstation |
+
+**machamp-ai** (`192.168.0.32`):
+
+| Service | Notes |
+|---------|-------|
+| Ollama | LLM inference server; RTX 6000 Ada passthrough. Models stored on the local NVMe root disk (re-pullable on rebuild) |
+| Open WebUI | Web chat frontend for Ollama; access gated by Authentik forwardAuth |
+
+GPU passthrough uses the `rtx-6000-ada` Proxmox hardware mapping. Unlike the Pascal
+P2200 on machamp-media, the Ada GPU supports GSP firmware in passthrough, so
+`nvidia_disable_gsp_firmware` is left unset. 64GB RAM is pinned (PCIe passthrough
+disables ballooning), which is why the VM takes a fixed 64GB rather than 96GB.
 
 ### Services node (planned)
 

@@ -20,3 +20,10 @@ vm_password = "REPLACE_ME"
 # Proxmox hardware mapping name(s) for GPU passthrough -- see docs/runbook.md for setup steps.
 # The mapping must be created via pvesh on the Proxmox host before applying.
 services_gpu_mappings = ["quadro-p2200"]
+
+# GPU passthrough for machamp-ai (RTX 6000 Ada). Same setup as above.
+ai_gpu_mappings = ["rtx-6000-ada"]
+
+# Datastore for machamp-ai's 512GB model disk. Point this at an NVMe-backed
+# datastore -- the model store will not fit on the boot SSD's local-lvm.
+ai_disk_datastore = "local-lvm"
