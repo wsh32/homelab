@@ -29,9 +29,10 @@ module "server" {
   image_file_id = proxmox_download_file.ubuntu_2404.id
 
   cores        = 8
-  memory_mb    = 24576
+  memory_mb    = 65536
   disk_size_gb = 100
   swap_size_gb = 2
+  datastore    = var.vm_datastore
 
   ip_address          = "${local.vms["dratini-server"].ip}/24"
   gateway             = local.loc.gateway
@@ -53,10 +54,11 @@ module "host" {
   tags          = ["dratini", "services", "gpu"]
   image_file_id = proxmox_download_file.ubuntu_2404.id
 
-  cores        = 8
+  cores        = 6
   memory_mb    = 16384
   disk_size_gb = 80
   swap_size_gb = 2
+  datastore    = var.vm_datastore
 
   ip_address          = "${local.vms["dratini-host"].ip}/24"
   gateway             = local.loc.gateway

@@ -221,16 +221,17 @@ services that depend on those external keys.
 | machamp-dev | 16GB | 6 | Development workstation |
 | Headroom | 64GB | -- | Future VMs / workloads |
 
-### Dratini (game / streaming node -- specs TBD)
+### Dratini (128GB RAM, Ryzen 7 3700X 8c/16t)
+
+Storage: 1TB SSD for Proxmox OS (`local-lvm`); 2TB SSD for VM disks + game data
+(point `vm_datastore` in `terraform/dratini` at its pool once created in the Proxmox UI).
 
 | VM | RAM | vCPU | Notes |
 |----|-----|------|-------|
 | Proxmox host | 4GB | -- | OS overhead |
-| dratini-server | 24GB | 8 | Pelican panel + Wings; hosts Minecraft, Palworld, etc. |
-| dratini-host | 16GB | 8 | Wolf for Moonlight streaming; GPU passthrough (`dratini-gpu`) |
-
-> VM resource figures are starting estimates -- adjust in `terraform/dratini/main.tf` once
-> the node's actual CPU/RAM are known.
+| dratini-server | 64GB | 8 | Pelican panel + Wings; hosts Minecraft, Palworld, etc. |
+| dratini-host | 16GB | 6 | Wolf for Moonlight streaming; GPU passthrough (`dratini-gpu`) |
+| Headroom | 44GB | -- | Buffer / future game servers |
 
 ### Services node (planned -- 128GB RAM, Ryzen 7 3700x 8c/16t)
 
