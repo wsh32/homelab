@@ -99,9 +99,10 @@ services:
   # ── scramble.tenderloin.ai (SF Scramble full-stack app) ──────────────────────
   # git-sync pulls wsh32/scramble main every 60s into /var/lib/scramble-web.
   # The backend runs the FastAPI server from the synced source; the build
-  # container compiles the Vite frontend into /var/lib/scramble-dist; nginx
-  # serves that SPA and proxies /api + /ws to the backend. All three track main
-  # automatically -- they re-run whenever git-sync checks out a new commit.
+  # container compiles the game SPA (root) and the neighborhood-builder tool
+  # (/builder) into /var/lib/scramble-dist; nginx serves those and proxies
+  # /api + /ws to the backend. All three track main automatically -- they
+  # re-run whenever git-sync checks out a new commit.
   scramble-sync:
     image: registry.k8s.io/git-sync/git-sync:v4.4.1
     container_name: scramble-sync
