@@ -157,10 +157,37 @@
     dest: /home/{{ ansible_user }}/homelab/services/diglett-web/
     delete: true
     recursive: true
+  register: _web_sync
+
+- name: Record scramble container state before deploy
+  community.docker.docker_container_info:
+    name: "{{ item }}"
+  loop:
+    - scramble-frontend-build
+    - scramble-backend
+    - scramble-web
+  register: _scramble_before
+  become: true
 
 - name: Start Docker Compose stack
   community.docker.docker_compose_v2:
     project_src: /home/{{ ansible_user }}/homelab/services/diglett-web
     state: present
     pull: always
+
+# docker compose does not recreate a container when only a bind-mounted file
+# (entrypoint script, nginx.conf) changes, so containers already running keep
+# their old mounts. Restart them to pick up synced config changes.
+- name: Restart scramble containers to apply bind-mounted config changes
+  community.docker.docker_container:
+    name: "{{ item.item }}"
+    state: started
+    restart: true
+  loop: "{{ _scramble_before.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  become: true
+  when:
+    - _web_sync is changed
+    - item.exists
   become: true
