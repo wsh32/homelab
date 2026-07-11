@@ -173,6 +173,7 @@
     project_src: /home/{{ ansible_user }}/homelab/services/diglett-web
     state: present
     pull: always
+  become: true
 
 # docker compose does not recreate a container when only a bind-mounted file
 # (entrypoint script, nginx.conf) changes, so a container that is already
