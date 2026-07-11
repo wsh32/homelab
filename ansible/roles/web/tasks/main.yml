@@ -9,6 +9,9 @@
   loop:
     - /var/lib/tenderloin-web
     - /var/lib/docs-web
+    - /var/lib/scramble-web
+    - /var/lib/scramble-data
+    - /var/lib/scramble-dist
   become: true
 
 - name: Create .ssh directory
@@ -66,6 +69,82 @@
   become: true
   when: tenderloin_tunnel_token is defined
 
+- name: Get Infisical access token via Universal Auth
+  ansible.builtin.uri:
+    url: "{{ infisical_host }}/api/v1/auth/universal-auth/login"
+    method: POST
+    body_format: json
+    body:
+      clientId: "{{ infisical_client_id }}"
+      clientSecret: "{{ infisical_client_secret }}"
+    status_code: 200
+  register: _inf_token
+  delegate_to: localhost
+  no_log: true
+  when:
+    - infisical_client_id is defined
+    - infisical_client_secret is defined
+    - infisical_project_id is defined
+
+- name: Set Infisical facts for upsert
+  ansible.builtin.set_fact:
+    _inf_project_id: "{{ infisical_project_id }}"
+    _inf_environment: "{{ infisical_environment | default('prod') }}"
+  when: _inf_token is not skipped
+
+- name: Get SCRAMBLE_JWT_SECRET from Infisical
+  ansible.builtin.uri:
+    url: "{{ infisical_host }}/api/v3/secrets/raw/SCRAMBLE_JWT_SECRET?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
+    headers:
+      Authorization: "Bearer {{ _inf_token.json.accessToken }}"
+    status_code: [200, 404]
+  register: _scramble_jwt_get
+  delegate_to: localhost
+  no_log: true
+  when: _inf_token is not skipped
+
+- name: Set SCRAMBLE_JWT_SECRET fact from Infisical
+  ansible.builtin.set_fact:
+    scramble_jwt_secret: "{{ _scramble_jwt_get.json.secret.secretValue }}"
+  no_log: true
+  when:
+    - _scramble_jwt_get is not skipped
+    - _scramble_jwt_get.status == 200
+
+- name: Generate SCRAMBLE_JWT_SECRET
+  ansible.builtin.set_fact:
+    scramble_jwt_secret: "{{ lookup('ansible.builtin.password', '/dev/null', length=64, chars=['ascii_letters', 'digits']) }}"
+  no_log: true
+  when:
+    - _scramble_jwt_get is not skipped
+    - _scramble_jwt_get.status == 404
+
+- name: Store SCRAMBLE_JWT_SECRET in Infisical
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/infisical-upsert.yml"
+  vars:
+    _inf_upsert_name: SCRAMBLE_JWT_SECRET
+    _inf_upsert_value: "{{ scramble_jwt_secret }}"
+  when:
+    - _scramble_jwt_get is not skipped
+    - _scramble_jwt_get.status == 404
+
+- name: Verify SCRAMBLE_JWT_SECRET is available
+  ansible.builtin.assert:
+    that:
+      - scramble_jwt_secret is defined
+      - scramble_jwt_secret | length > 0
+    fail_msg: "SCRAMBLE_JWT_SECRET could not be fetched or generated -- check Infisical credentials (infisical_client_id/secret/project_id)."
+
+- name: Write scramble backend environment
+  ansible.builtin.copy:
+    dest: /etc/scramble.env
+    content: "SCRAMBLE_JWT_SECRET={{ scramble_jwt_secret }}\n"
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+  no_log: true
+
 - name: Create services directory
   ansible.builtin.file:
     path: /home/{{ ansible_user }}/homelab/services/diglett-web
@@ -79,9 +158,68 @@
     delete: true
     recursive: true
 
+- name: Record scramble container state before deploy
+  community.docker.docker_container_info:
+    name: "{{ item }}"
+  loop:
+    - scramble-frontend-build
+    - scramble-backend
+    - scramble-web
+  register: _scramble_before
+  become: true
+
 - name: Start Docker Compose stack
   community.docker.docker_compose_v2:
     project_src: /home/{{ ansible_user }}/homelab/services/diglett-web
     state: present
     pull: always
+  become: true
+
+# docker compose does not recreate a container when only a bind-mounted file
+# (entrypoint script, nginx.conf) changes, so a container that is already
+# running keeps its old mounts. Compare a hash of the scramble bind-mounts
+# against the last applied hash and restart the pre-existing containers when it
+# differs, so config edits take effect on the next deploy.
+- name: Hash scramble bind-mounted config
+  ansible.builtin.stat:
+    path: "/home/{{ ansible_user }}/homelab/services/diglett-web/scramble/{{ item }}"
+    checksum_algorithm: sha1
+  loop:
+    - frontend-build.sh
+    - backend-entrypoint.sh
+    - nginx.conf
+  register: _scramble_cfg
+
+- name: Read last applied scramble config hash
+  ansible.builtin.slurp:
+    src: /etc/scramble-deploy.hash
+  register: _scramble_applied
+  become: true
+  failed_when: false
+
+- name: Compute scramble config hashes
+  ansible.builtin.set_fact:
+    _scramble_cfg_hash: "{{ _scramble_cfg.results | map(attribute='stat.checksum') | join(',') | hash('sha1') }}"
+    _scramble_applied_hash: "{{ (_scramble_applied.content | b64decode | trim) if (_scramble_applied.content is defined) else '' }}"
+
+- name: Restart scramble containers to apply bind-mounted config changes
+  community.docker.docker_container:
+    name: "{{ item.item }}"
+    state: started
+    restart: true
+  loop: "{{ _scramble_before.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  become: true
+  when:
+    - item.exists
+    - _scramble_cfg_hash != _scramble_applied_hash
+
+- name: Record applied scramble config hash
+  ansible.builtin.copy:
+    dest: /etc/scramble-deploy.hash
+    content: "{{ _scramble_cfg_hash }}\n"
+    owner: root
+    group: root
+    mode: "0644"
   become: true
