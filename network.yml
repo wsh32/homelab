@@ -166,10 +166,7 @@ locations:
             path: "0000:41:00.0"
             description: "Quadro P2200 GPU"
           - id: rtx-6000-ada
-            # PLACEHOLDER path -- confirm the real PCI address on the host before applying:
-            #   ssh root@machamp lspci -nn | grep -i 'RTX 6000 Ada'
-            # The proxmox role derives the IOMMU group from this path via pvesh.
-            path: "0000:XX:00.0"
+            path: "0000:61:00.0"
             description: "RTX 6000 Ada GPU"
         vms:
           machamp-media:
