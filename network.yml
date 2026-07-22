@@ -146,7 +146,7 @@ locations:
                 public_hostname: bryant.wesleysoohoo.me
                 cloudflare_zone: wesleysoohoo.me
                 authentik: none
-              - name: cloudflared-tenderloin
+              - name: cloudflared
                 authentik: none
                 traefik: false
           diglett-haos:

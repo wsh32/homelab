@@ -129,7 +129,7 @@ resource "cloudflare_record" "web_public" {
 }
 
 output "diglett_web_tunnel_token" {
-  description = "Cloudflare Tunnel token -- written to /etc/tenderloin-tunnel.env on diglett-web by the web Ansible role"
+  description = "Cloudflare Tunnel token -- written to /etc/cloudflared.env on diglett-web by the web Ansible role"
   value       = cloudflare_zero_trust_tunnel_cloudflared.diglett_web.tunnel_token
   sensitive   = true
 }

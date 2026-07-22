@@ -153,13 +153,15 @@ services:
       - "traefik.http.services.choreboard-svc.loadbalancer.server.port=8000"
 
   # ── Cloudflare Tunnel ─────────────────────────────────────────────────────
-  # Forwards all public traffic to Traefik. Token written to
-  # /etc/tenderloin-tunnel.env by Ansible (ansible/roles/web/tasks/main.yml).
-  cloudflared-tenderloin:
+  # One tunnel for all diglett-web public hostnames (tenderloin.ai, docs,
+  # bryant.wesleysoohoo.me, ...) -- forwards everything to Traefik, which routes
+  # by Host header. Token written to /etc/cloudflared.env by Ansible
+  # (ansible/roles/web/tasks/main.yml).
+  cloudflared:
     image: cloudflare/cloudflared:2026.5.0
-    container_name: cloudflared-tenderloin
+    container_name: cloudflared
     restart: unless-stopped
     command: tunnel --no-autoupdate run
-    env_file: /etc/tenderloin-tunnel.env
+    env_file: /etc/cloudflared.env
     depends_on:
       - traefik
