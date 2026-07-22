@@ -675,6 +675,38 @@ cd ~/homelab
 ansible-playbook ansible/base.yml --limit geodude_vms
 ```
 
+**Deploy diglett-web public sites (tenderloin.ai, docs, choreboard):**
+```bash
+ssh ubuntu@192.168.0.7
+cd ~/homelab && git pull
+cd terraform/diglett && terraform apply   # creates/updates the public CNAMEs
+cd ~/homelab && ansible-playbook ansible/web.yml
+```
+Public hostnames are declared per-service in `network.yml` under `diglett-web.services`
+(`public_hostname` + `cloudflare_zone`). Terraform derives one proxied CNAME per service
+pointing at the shared diglett-web Cloudflare Tunnel; `web.yml` syncs
+`services/diglett-web/`, writes the tunnel token and any service env files, and runs
+`docker compose up`. git-sync pulls each site's source from its GitHub repo's default
+branch using the deploy key registered on first run.
+
+**Add a public site to diglett-web:**
+1. Add the service to `network.yml` under `diglett-web.services` with `public_hostname`
+   and `cloudflare_zone`. If the zone is new, add it to `cloudflare_web_zone_ids` in
+   `terraform/diglett/terraform.tfvars` (the homelab zone, `wesleysoohoo.me`, is already
+   there and serves both headscale/auth and public sites).
+2. Add the container(s) to `services/diglett-web/docker-compose.yml` with a Traefik
+   host router matching `public_hostname` on the `web` entrypoint. Static sites use the
+   git-sync + nginx pattern; dynamic apps (e.g. Choreboard) use git-sync + a runtime
+   image that installs deps and serves the app.
+3. Deploy with the block above (`terraform apply` then `ansible-playbook ansible/web.yml`).
+
+Choreboard specifics: its SQLite DB lives on local VM disk at `/var/lib/choreboard-data`
+(diglett-web mounts no NFS, matching the "SQLite off NFS" rule), so it survives container
+recreation but not a VM rebuild. Its admin password comes from `/etc/choreboard.env`, set
+via `choreboard_admin_password` in `ansible/secrets.yml`. App code updates are fetched by
+git-sync within ~60s but need `docker compose restart choreboard` on the VM to reload the
+running uvicorn process.
+
 **Add a new VM:**
 1. Add a `module "<name>"` block in `terraform/<node>/main.tf`
 2. Add IP and VM ID to `network.yml` under `nodes.<node>.vms` (inventory updates automatically)
