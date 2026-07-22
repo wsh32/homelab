@@ -21,8 +21,8 @@ module "dev" {
   source = "../modules/proxmox-vm"
 
   node_name     = local.node
-  vm_id         = local.vms["geodude-dev"].vm_id
-  name          = "geodude-dev"
+  vm_id         = local.vms["geodude-bridge"].vm_id
+  name          = "geodude-bridge"
   description   = "Offsite development / test VM"
   tags          = ["bedrock", "dev"]
   image_file_id = proxmox_download_file.ubuntu_2404.id
@@ -39,5 +39,5 @@ module "dev" {
   # Second NIC on vmbr1 so geodude's Tailscale subnet route covers this VM.
   # IP last octet mirrors the LAN IP (192.168.1.20 → 10.0.3.20).
   bridge_secondary    = "vmbr1"
-  bridge_secondary_ip = "${local.vms["geodude-dev"].bridge_ip}/24"
+  bridge_secondary_ip = "${local.vms["geodude-bridge"].bridge_ip}/24"
 }
