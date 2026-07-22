@@ -1,10 +1,18 @@
-data "cloudflare_zone" "main" {
-  zone_id = var.cloudflare_homelab_zone_id
+# One data source per zone declared in cloudflare_web_zone_ids -- keyed by zone
+# name (e.g. "wesleysoohoo.me", "tenderloin.ai"). Provides zone name + account_id.
+data "cloudflare_zone" "web" {
+  for_each = var.cloudflare_web_zone_ids
+  zone_id  = each.value
 }
 
 locals {
-  headscale_hostname  = "${var.headscale_subdomain}.${data.cloudflare_zone.main.name}"
-  authentik_hostname  = "${var.authentik_subdomain}.${data.cloudflare_zone.main.name}"
+  # The homelab zone hosts headscale.* and auth.*. Its ID and the Cloudflare
+  # account ID are looked up from cloudflare_web_zone_ids via var.homelab_zone.
+  homelab_zone_id       = var.cloudflare_web_zone_ids[var.homelab_zone]
+  cloudflare_account_id = data.cloudflare_zone.web[var.homelab_zone].account_id
+
+  headscale_hostname = "${var.headscale_subdomain}.${var.homelab_zone}"
+  authentik_hostname = "${var.authentik_subdomain}.${var.homelab_zone}"
 }
 
 # DNS-only A record pointing at the home IP.
@@ -12,7 +20,7 @@ locals {
 # content is a placeholder; the cloudflare-ddns container updates it at runtime.
 # ignore_changes prevents Terraform from resetting the IP on subsequent applies.
 resource "cloudflare_record" "headscale" {
-  zone_id = var.cloudflare_homelab_zone_id
+  zone_id = local.homelab_zone_id
   name    = var.headscale_subdomain
   content = "0.0.0.0"
   type    = "A"
@@ -33,7 +41,7 @@ output "headscale_url" {
 # Only /application/o/ is exposed publicly -- everything else returns 404.
 # This allows OIDC device enrollment from outside the LAN without a port forward.
 resource "cloudflare_zero_trust_tunnel_cloudflared" "authentik" {
-  account_id = data.cloudflare_zone.main.account_id
+  account_id = local.cloudflare_account_id
   name       = "authentik-oidc"
   secret     = random_id.tunnel_secret.b64_std
 }
@@ -43,7 +51,7 @@ resource "random_id" "tunnel_secret" {
 }
 
 resource "cloudflare_zero_trust_tunnel_cloudflared_config" "authentik" {
-  account_id = data.cloudflare_zone.main.account_id
+  account_id = local.cloudflare_account_id
   tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.authentik.id
 
   config {
@@ -60,7 +68,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "authentik" {
 
 # CNAME auth.<zone> → <tunnel-id>.cfargotunnel.com (proxied through Cloudflare)
 resource "cloudflare_record" "authentik" {
-  zone_id = var.cloudflare_homelab_zone_id
+  zone_id = local.homelab_zone_id
   name    = var.authentik_subdomain
   content = "${cloudflare_zero_trust_tunnel_cloudflared.authentik.id}.cfargotunnel.com"
   type    = "CNAME"
@@ -91,25 +99,19 @@ locals {
   ]
 }
 
-# One data source per unique zone -- keyed by zone name (e.g. "tenderloin.ai").
-data "cloudflare_zone" "web" {
-  for_each = var.cloudflare_web_zone_ids
-  zone_id  = each.value
-}
-
 resource "random_id" "diglett_web_tunnel_secret" {
   byte_length = 32
 }
 
 resource "cloudflare_zero_trust_tunnel_cloudflared" "diglett_web" {
-  account_id = data.cloudflare_zone.main.account_id
+  account_id = local.cloudflare_account_id
   name       = "diglett-web"
   secret     = random_id.diglett_web_tunnel_secret.b64_std
 }
 
 # Single catch-all ingress rule -- Traefik handles Host-based routing internally.
 resource "cloudflare_zero_trust_tunnel_cloudflared_config" "diglett_web" {
-  account_id = data.cloudflare_zone.main.account_id
+  account_id = local.cloudflare_account_id
   tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.diglett_web.id
 
   config {
