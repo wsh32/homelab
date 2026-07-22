@@ -32,8 +32,13 @@ variable "cloudflare_api_token" {
   sensitive   = true
 }
 
-variable "cloudflare_homelab_zone_id" {
-  description = "Cloudflare zone ID for the domain used for Headscale"
+variable "cloudflare_account_id" {
+  description = "Cloudflare account ID -- owns the Zero Trust tunnels (found in the dashboard URL or any zone's Overview sidebar)"
+  type        = string
+}
+
+variable "homelab_zone" {
+  description = "Zone name (key in cloudflare_web_zone_ids) hosting Headscale and Authentik, e.g. 'wesleysoohoo.me'"
   type        = string
 }
 
@@ -50,7 +55,11 @@ variable "authentik_subdomain" {
 }
 
 variable "cloudflare_web_zone_ids" {
-  description = "Map of zone name to Cloudflare zone ID for diglett-web public services (e.g. { \"tenderloin.ai\" = \"abc123\" })"
+  description = "Map of zone name to Cloudflare zone ID for every zone this stack manages -- the homelab zone (var.homelab_zone) plus any diglett-web public zones (e.g. { \"wesleysoohoo.me\" = \"abc123\", \"tenderloin.ai\" = \"def456\" })"
   type        = map(string)
-  default     = {}
+
+  validation {
+    condition     = contains(keys(var.cloudflare_web_zone_ids), var.homelab_zone)
+    error_message = "cloudflare_web_zone_ids must include an entry for var.homelab_zone (${var.homelab_zone})."
+  }
 }

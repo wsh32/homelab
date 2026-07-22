@@ -96,14 +96,79 @@ services:
       - "traefik.http.routers.docs.entrypoints=web"
       - "traefik.http.services.docs-svc.loadbalancer.server.port=80"
 
+  # ── bryant.wesleysoohoo.me (Choreboard) ────────────────────────────────────
+  # Dynamic FastAPI app -- unlike the static sites above, git-sync pulls the
+  # source and a Python runtime installs deps and serves it with uvicorn.
+  # The app resolves its templates/static dirs from __file__ once at import, so
+  # it must NOT run directly out of git-sync's swapping symlink: git-sync rotates
+  # and deletes old worktrees, which would pull those dirs out from under the
+  # long-lived process. Instead the runtime copies the synced tree to a stable
+  # path (/srv/app) at startup and serves from there; picking up new code is a
+  # container restart (same as the static sites needing a re-sync).
+  # SQLite DB lives on local VM disk (/var/lib/choreboard-data), following the
+  # same "SQLite off NFS" rule as Vaultwarden (docs/plan.md) to avoid soft-mount
+  # corruption -- diglett-web mounts no NFS.
+  choreboard-sync:
+    image: registry.k8s.io/git-sync/git-sync:v4.4.1
+    container_name: choreboard-sync
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      GITSYNC_REPO: git@github.com:wsh32/choreboard.git
+      GITSYNC_REF: main
+      GITSYNC_ROOT: /repo
+      GITSYNC_LINK: choreboard
+      GITSYNC_PERIOD: 60s
+      GITSYNC_DEPTH: 1
+      GITSYNC_SSH_KEY_FILE: /etc/git-sync-ssh/id_ed25519
+      GITSYNC_SSH_KNOWN_HOSTS: "false"
+      GITSYNC_ADD_USER: "true"
+    volumes:
+      - /var/lib/choreboard-web:/repo
+      - /home/ubuntu/.ssh/diglett_web_id_ed25519:/etc/git-sync-ssh/id_ed25519:ro
+    healthcheck:
+      test: ["CMD-SHELL", "test -L /repo/choreboard && test -f /repo/choreboard/app.py"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  choreboard:
+    image: python:3.12-slim
+    container_name: choreboard
+    restart: unless-stopped
+    depends_on:
+      choreboard-sync:
+        condition: service_healthy
+    working_dir: /srv/app
+    command:
+      - sh
+      - -c
+      - "cp -a /app/choreboard/. /srv/app/ && pip install --no-cache-dir -r requirements.txt && exec uvicorn app:app --host 0.0.0.0 --port 8000"
+    environment:
+      CHOREBOARD_DB: /data/choreboard.db
+    env_file:
+      - path: /etc/choreboard.env
+        required: false
+    volumes:
+      - /var/lib/choreboard-web:/app:ro
+      - /var/lib/choreboard-data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.choreboard.rule=Host(`bryant.wesleysoohoo.me`)"
+      - "traefik.http.routers.choreboard.entrypoints=web"
+      - "traefik.http.services.choreboard-svc.loadbalancer.server.port=8000"
+
   # ── Cloudflare Tunnel ─────────────────────────────────────────────────────
-  # Forwards all public traffic to Traefik. Token written to
-  # /etc/tenderloin-tunnel.env by Ansible (ansible/roles/web/tasks/main.yml).
-  cloudflared-tenderloin:
+  # One tunnel for all diglett-web public hostnames (tenderloin.ai, docs,
+  # bryant.wesleysoohoo.me, ...) -- forwards everything to Traefik, which routes
+  # by Host header. Token written to /etc/cloudflared.env by Ansible
+  # (ansible/roles/web/tasks/main.yml).
+  cloudflared:
     image: cloudflare/cloudflared:2026.5.0
-    container_name: cloudflared-tenderloin
+    container_name: cloudflared
     restart: unless-stopped
     command: tunnel --no-autoupdate run
-    env_file: /etc/tenderloin-tunnel.env
+    env_file: /etc/cloudflared.env
     depends_on:
       - traefik
