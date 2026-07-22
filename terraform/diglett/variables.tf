@@ -32,6 +32,11 @@ variable "cloudflare_api_token" {
   sensitive   = true
 }
 
+variable "cloudflare_account_id" {
+  description = "Cloudflare account ID -- owns the Zero Trust tunnels (found in the dashboard URL or any zone's Overview sidebar)"
+  type        = string
+}
+
 variable "homelab_zone" {
   description = "Zone name (key in cloudflare_web_zone_ids) hosting Headscale and Authentik, e.g. 'wesleysoohoo.me'"
   type        = string

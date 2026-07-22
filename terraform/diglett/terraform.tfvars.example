@@ -23,6 +23,10 @@ vm_password = "REPLACE_ME"
 # Used by Terraform to manage DNS records and the Authentik Cloudflare Tunnel.
 cloudflare_api_token = "REPLACE_ME"
 
+# Cloudflare account ID -- owns the Zero Trust tunnels.
+# Found in the dashboard URL (dash.cloudflare.com/<account_id>) or any zone's Overview sidebar.
+cloudflare_account_id = "REPLACE_ME"
+
 # Zone name that hosts Headscale (headscale.<zone>) and Authentik (auth.<zone>).
 # Must be a key in cloudflare_web_zone_ids below.
 homelab_zone = "wesleysoohoo.me"
