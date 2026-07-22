@@ -99,6 +99,12 @@ services:
   # ── bryant.wesleysoohoo.me (Choreboard) ────────────────────────────────────
   # Dynamic FastAPI app -- unlike the static sites above, git-sync pulls the
   # source and a Python runtime installs deps and serves it with uvicorn.
+  # The app resolves its templates/static dirs from __file__ once at import, so
+  # it must NOT run directly out of git-sync's swapping symlink: git-sync rotates
+  # and deletes old worktrees, which would pull those dirs out from under the
+  # long-lived process. Instead the runtime copies the synced tree to a stable
+  # path (/srv/app) at startup and serves from there; picking up new code is a
+  # container restart (same as the static sites needing a re-sync).
   # SQLite DB lives on local VM disk (/var/lib/choreboard-data), following the
   # same "SQLite off NFS" rule as Vaultwarden (docs/plan.md) to avoid soft-mount
   # corruption -- diglett-web mounts no NFS.
@@ -109,6 +115,7 @@ services:
     user: "1000:1000"
     environment:
       GITSYNC_REPO: git@github.com:wsh32/choreboard.git
+      GITSYNC_REF: main
       GITSYNC_ROOT: /repo
       GITSYNC_LINK: choreboard
       GITSYNC_PERIOD: 60s
@@ -133,11 +140,11 @@ services:
     depends_on:
       choreboard-sync:
         condition: service_healthy
-    working_dir: /app/choreboard
+    working_dir: /srv/app
     command:
       - sh
       - -c
-      - "pip install --no-cache-dir -r requirements.txt && exec uvicorn app:app --host 0.0.0.0 --port 8000"
+      - "cp -a /app/choreboard/. /srv/app/ && pip install --no-cache-dir -r requirements.txt && exec uvicorn app:app --host 0.0.0.0 --port 8000"
     environment:
       CHOREBOARD_DB: /data/choreboard.db
     env_file:
