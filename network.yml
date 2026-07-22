@@ -141,6 +141,11 @@ locations:
                 public_hostname: docs.tenderloin.ai
                 cloudflare_zone: tenderloin.ai
                 authentik: none
+              - name: choreboard
+                port: 8000
+                public_hostname: bryant.wesleysoohoo.me
+                cloudflare_zone: wesleysoohoo.me
+                authentik: none
               - name: cloudflared-tenderloin
                 authentik: none
                 traefik: false

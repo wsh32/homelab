@@ -33,8 +33,9 @@ headscale_subdomain = "headscale"
 authentik_subdomain = "auth"
 
 # Cloudflare zone IDs for diglett-web public services.
-# Keys must match service names in network.yml under diglett-web.services.
+# Keys must match the cloudflare_zone values in network.yml under diglett-web.services.
 # Zone ID found in the right sidebar of each zone's Overview page in the Cloudflare dashboard.
 cloudflare_web_zone_ids = {
-  "tenderloin.ai" = "REPLACE_ME"
+  "tenderloin.ai"   = "REPLACE_ME"
+  "wesleysoohoo.me" = "REPLACE_ME"
 }

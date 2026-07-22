@@ -9,6 +9,16 @@
   loop:
     - /var/lib/tenderloin-web
     - /var/lib/docs-web
+    - /var/lib/choreboard-web
+  become: true
+
+- name: Create Choreboard data directory
+  ansible.builtin.file:
+    path: /var/lib/choreboard-data
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
   become: true
 
 - name: Create .ssh directory
@@ -65,6 +75,16 @@
     mode: "0600"
   become: true
   when: tenderloin_tunnel_token is defined
+
+- name: Write Choreboard environment file
+  ansible.builtin.copy:
+    dest: /etc/choreboard.env
+    content: "CHOREBOARD_ADMIN_PASSWORD={{ choreboard_admin_password }}\n"
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+  when: choreboard_admin_password is defined
 
 - name: Create services directory
   ansible.builtin.file:
