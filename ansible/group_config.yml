@@ -19,6 +19,12 @@ nodes:
       proxmox_node: machamp
       ansible_user: ubuntu
 
+  dratini:
+    group: dratini_vms
+    vars:
+      proxmox_node: dratini
+      ansible_user: ubuntu
+
   geodude:
     group: geodude_vms
     vars:
