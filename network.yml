@@ -165,6 +165,9 @@ locations:
           - id: quadro-p2200
             path: "0000:41:00.0"
             description: "Quadro P2200 GPU"
+          - id: rtx-6000-ada
+            path: "0000:61:00.0"
+            description: "RTX 6000 Ada GPU"
         vms:
           machamp-media:
             ip: 192.168.0.30
@@ -258,6 +261,27 @@ locations:
                 port: 3000
                 nfs_data: docker/grafana
                 authentik: none
+          machamp-ai:
+            ip: 192.168.0.32
+            bridge_ip: 10.0.2.32
+            vm_id: 102
+            vm_roles: [ai, gpu]
+            pci_passthrough:
+              devices: [rtx-6000-ada]  # references pci_mappings id on parent node
+              # RTX 6000 Ada (Ada Lovelace) supports GSP firmware in passthrough --
+              # do NOT set nvidia_disable_gsp_firmware (that flag is Pascal-only).
+            nfs_mounts:
+              - export: docker
+                mount: /mnt/nas/docker
+            services:
+              - name: ollama
+                port: 11434
+                authentik: none
+              - name: open-webui
+                hostname: chat
+                port: 8080
+                nfs_data: docker/open-webui
+                authentik: proxy
           machamp-dev:
             ip: 192.168.0.31
             bridge_ip: 10.0.2.31

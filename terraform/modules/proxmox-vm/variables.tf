@@ -113,10 +113,28 @@ variable "machine" {
   default     = null
 }
 
+variable "bios" {
+  description = "Firmware type: 'seabios' (default) or 'ovmf' (UEFI). OVMF is required to POST modern GPUs with UEFI-only VBIOS (e.g. RTX 6000 Ada) on passthrough. Changing this recreates the VM."
+  type        = string
+  default     = "seabios"
+}
+
 variable "hostpci_mappings" {
   description = "List of Proxmox hardware mapping names to pass through (e.g. [\"quadro-p2200\"]). Create mappings via pvesh before use."
   type        = list(string)
   default     = []
+}
+
+variable "hostpci_rombar" {
+  description = "Expose the passthrough device's option ROM to the guest. Default true."
+  type        = bool
+  default     = true
+}
+
+variable "hostpci_romfile" {
+  description = "VBIOS ROM filename under /usr/share/kvm on the Proxmox node, applied to the passthrough device(s). Needed when the on-card ROM can't be executed under OVMF (e.g. RTX 6000 Ada hangs OVMF; a dumped ROM file executes cleanly). Empty uses the on-card ROM."
+  type        = string
+  default     = ""
 }
 
 variable "bridge_secondary" {

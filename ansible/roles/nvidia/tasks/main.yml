@@ -71,3 +71,30 @@
         nvidia:
           path: nvidia-container-runtime
           runtimeArgs: []
+
+# Apply any pending initramfs/reboot handlers before checking the driver, then
+# reboot to load the module if it is not already active. This self-heals the
+# case where the driver was installed on an earlier run that failed before the
+# reboot handler flushed -- apt reports the package as already present on reruns,
+# so the "changed"-triggered reboot never fires and the module stays unloaded.
+- name: Apply pending driver changes before verifying
+  ansible.builtin.meta: flush_handlers
+
+- name: Check whether the NVIDIA driver is loaded
+  ansible.builtin.command: nvidia-smi -L
+  register: _nvidia_smi_check
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: Reboot to load the NVIDIA driver
+  ansible.builtin.reboot:
+    reboot_timeout: 300
+  become: true
+  when: _nvidia_smi_check.rc != 0
+
+- name: Verify the NVIDIA driver loads after reboot
+  ansible.builtin.command: nvidia-smi -L
+  changed_when: false
+  become: true
+  when: _nvidia_smi_check.rc != 0

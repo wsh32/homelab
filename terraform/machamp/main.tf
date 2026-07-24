@@ -44,6 +44,50 @@ module "dev" {
   timezone             = var.timezone
 }
 
+module "ai" {
+  source = "../modules/proxmox-vm"
+
+  node_name     = local.node
+  vm_id         = local.vms["machamp-ai"].vm_id
+  name          = "machamp-ai"
+  description   = "AI VM -- Ollama LLM host (RTX 6000 Ada passthrough)"
+  tags          = ["machamp", "gpu", "ai"]
+  image_file_id = proxmox_download_file.ubuntu_2404.id
+
+  # 64GB RAM: Machamp has 128GB; machamp-media (32) + machamp-dev (16) + host
+  # overhead (~4) leaves ~76GB. PCIe passthrough pins guest RAM (no ballooning),
+  # so 96GB would not fit alongside the other VMs -- 64GB leaves headroom.
+  cores     = 16
+  memory_mb = 65536
+  cpu_type  = "host"  # expose AVX2/AVX-512 for any CPU-offloaded model layers
+
+  # Large root disk holds the Ollama model store on local NVMe (not NFS -- models
+  # are re-pullable and NFS is too slow to page weights into VRAM). Point
+  # ai_disk_datastore at an NVMe-backed datastore; the boot SSD is too small.
+  disk_size_gb = 512
+  datastore    = var.ai_disk_datastore
+
+  ip_address           = "${local.vms["machamp-ai"].ip}/24"
+  gateway              = local.loc.gateway
+  dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
+  bridge_secondary     = "vmbr1"
+  bridge_secondary_ip  = "${local.vms["machamp-ai"].bridge_ip}/24"
+  ssh_public_key       = var.ssh_public_key
+  vm_password          = var.vm_password
+  timezone             = var.timezone
+
+  machine          = "q35"
+  bios             = "ovmf"  # UEFI -- SeaBIOS can't execute the Ada's UEFI-only VBIOS
+  hostpci_mappings = var.ai_gpu_mappings
+  # Dumped VBIOS at /usr/share/kvm/rtx6000ada.rom on the machamp host. The Ada's
+  # on-card ROM hangs OVMF during POST; the dumped file executes cleanly and gives
+  # the guest driver its VBIOS. See docs/runbook.md for the one-time dump steps.
+  hostpci_romfile = "rtx6000ada.rom"
+  # Fill in ai_gpu_mappings in terraform.tfvars after creating the Proxmox
+  # hardware mapping. See GPU passthrough section in docs/runbook.md.
+  # Applying this to a running VM requires a full VM restart.
+}
+
 module "services" {
   source = "../modules/proxmox-vm"
 

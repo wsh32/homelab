@@ -25,6 +25,10 @@ authentik_app_bindings:
   - slug: n8n
     groups: [admins]
 
+  # AI services -- admins only
+  - slug: open-webui
+    groups: [admins]
+
   # arr/media services -- admins only (web-facing management UIs)
   - slug: prowlarr
     groups: [admins]

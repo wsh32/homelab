@@ -40,6 +40,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
   description = var.description
   tags        = var.tags
   machine     = var.machine
+  bios        = var.bios
 
   on_boot = true
 
@@ -60,6 +61,18 @@ resource "proxmox_virtual_environment_vm" "vm" {
     size         = var.disk_size_gb
     discard      = "on"
     iothread     = true
+  }
+
+  # OVMF (UEFI) needs an EFI vars disk. pre_enrolled_keys = false keeps Secure
+  # Boot from blocking the unsigned NVIDIA DKMS module on GPU passthrough VMs.
+  dynamic "efi_disk" {
+    for_each = var.bios == "ovmf" ? [1] : []
+    content {
+      datastore_id      = var.datastore
+      file_format       = "raw"
+      type              = "4m"
+      pre_enrolled_keys = false
+    }
   }
 
   network_device {
@@ -111,10 +124,11 @@ resource "proxmox_virtual_environment_vm" "vm" {
   dynamic "hostpci" {
     for_each = var.hostpci_mappings
     content {
-      device  = "hostpci${hostpci.key}"
-      mapping = hostpci.value
-      pcie    = true
-      rombar  = true
+      device   = "hostpci${hostpci.key}"
+      mapping  = hostpci.value
+      pcie     = true
+      rombar   = var.hostpci_rombar
+      rom_file = var.hostpci_romfile != "" ? var.hostpci_romfile : null
     }
   }
 

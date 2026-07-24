@@ -11,6 +11,7 @@
 - import_playbook: infra.yml
 - import_playbook: gpu.yml
 - import_playbook: media.yml
+- import_playbook: ai.yml
 - import_playbook: arr-init.yml
 # Two-pass OIDC injection: dns.yml skips OIDC (NFS env files not yet written),
 # infra.yml writes headplane/headscale OIDC env files to NFS, then this play
