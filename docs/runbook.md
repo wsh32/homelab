@@ -653,6 +653,61 @@ the GPU's IOMMU group renumbered (typically after a kernel or BIOS update) and t
 Proxmox mapping is stale. Re-run `ansible-playbook ansible/proxmox.yml` -- the PCI mapping
 task re-reads the live IOMMU group and updates the mapping in place, then retry `terraform apply`.
 
+## GPU passthrough (RTX 6000 Ada → machamp-ai)
+
+The `rtx-6000-ada` PCI mapping is created by `ansible/proxmox.yml`, same as the P2200.
+The Ada needs three things the P2200 does not, all handled in Terraform (`bios = "ovmf"`,
+`hostpci_romfile = "rtx6000ada.rom"`):
+
+- **OVMF (UEFI), not SeaBIOS** -- the Ada ships a UEFI-only VBIOS. Under SeaBIOS the GPU
+  never POSTs in the guest and the driver fails with `NVRM: RmInitAdapter failed`.
+- **A dumped VBIOS `romfile`** -- under OVMF the card's *on-card* ROM hangs the guest
+  firmware during POST (black screen, VM never boots). A dumped ROM file executes cleanly
+  and also gives the Linux driver its VBIOS.
+
+### One-time VBIOS dump (per machamp host)
+
+The `.rom` lives on the Proxmox host at `/usr/share/kvm/`, outside the repo, so it must be
+dumped once (and re-dumped after a host rebuild). With machamp-ai stopped:
+
+```bash
+ssh root@machamp '
+  qm stop 102
+  echo "0000:61:00.0" > /sys/bus/pci/drivers/vfio-pci/unbind
+  echo 1 > /sys/bus/pci/devices/0000:61:00.0/rom
+  cat /sys/bus/pci/devices/0000:61:00.0/rom > /usr/share/kvm/rtx6000ada.rom
+  echo 0 > /sys/bus/pci/devices/0000:61:00.0/rom
+'
+```
+
+Verify the dump contains a UEFI/GOP image (code type 3) -- OVMF needs it:
+
+```bash
+# a valid dump is a few hundred KB and holds two images: legacy (type 0) + EFI GOP (type 3)
+ls -l /usr/share/kvm/rtx6000ada.rom
+```
+
+If the file is 0 bytes (the card won't surrender its ROM), pull the matching VBIOS for
+subsystem `10de:16a1` from the TechPowerUp VBIOS database and place it at the same path.
+
+Then `terraform apply` (attaches the GPU with OVMF + romfile) and `ansible-playbook ansible/ai.yml`.
+
+### Verify
+
+```bash
+ssh ubuntu@192.168.0.32 nvidia-smi
+# Expected: RTX 6000 Ada Generation listed
+```
+
+### Troubleshooting: black console / VM won't boot
+
+A black console under OVMF with the GPU attached is the on-card ROM hanging firmware --
+confirm `/usr/share/kvm/rtx6000ada.rom` exists and the `hostpci0` line includes
+`romfile=rtx6000ada.rom`. Removing the GPU (`qm set 102 --delete hostpci0`) should let the
+VM boot, which isolates the GPU POST as the cause. NVIDIA cards only reset on a full
+power-off (soft `poweroff` cutting the 12V rail is enough; a warm reboot is not), so
+cold-boot the host if the card gets wedged after a failed init.
+
 ---
 
 ## Day-2 operations

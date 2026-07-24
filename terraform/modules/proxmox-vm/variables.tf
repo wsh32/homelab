@@ -125,6 +125,18 @@ variable "hostpci_mappings" {
   default     = []
 }
 
+variable "hostpci_rombar" {
+  description = "Expose the passthrough device's option ROM to the guest. Default true."
+  type        = bool
+  default     = true
+}
+
+variable "hostpci_romfile" {
+  description = "VBIOS ROM filename under /usr/share/kvm on the Proxmox node, applied to the passthrough device(s). Needed when the on-card ROM can't be executed under OVMF (e.g. RTX 6000 Ada hangs OVMF; a dumped ROM file executes cleanly). Empty uses the on-card ROM."
+  type        = string
+  default     = ""
+}
+
 variable "bridge_secondary" {
   description = "Bridge name for a second NIC (e.g. \"vmbr1\" for the VM bridge subnet). Null disables the second NIC."
   type        = string

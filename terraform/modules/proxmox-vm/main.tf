@@ -124,10 +124,11 @@ resource "proxmox_virtual_environment_vm" "vm" {
   dynamic "hostpci" {
     for_each = var.hostpci_mappings
     content {
-      device  = "hostpci${hostpci.key}"
-      mapping = hostpci.value
-      pcie    = true
-      rombar  = true
+      device   = "hostpci${hostpci.key}"
+      mapping  = hostpci.value
+      pcie     = true
+      rombar   = var.hostpci_rombar
+      rom_file = var.hostpci_romfile != "" ? var.hostpci_romfile : null
     }
   }
 

@@ -79,6 +79,10 @@ module "ai" {
   machine          = "q35"
   bios             = "ovmf"  # UEFI -- SeaBIOS can't execute the Ada's UEFI-only VBIOS
   hostpci_mappings = var.ai_gpu_mappings
+  # Dumped VBIOS at /usr/share/kvm/rtx6000ada.rom on the machamp host. The Ada's
+  # on-card ROM hangs OVMF during POST; the dumped file executes cleanly and gives
+  # the guest driver its VBIOS. See docs/runbook.md for the one-time dump steps.
+  hostpci_romfile = "rtx6000ada.rom"
   # Fill in ai_gpu_mappings in terraform.tfvars after creating the Proxmox
   # hardware mapping. See GPU passthrough section in docs/runbook.md.
   # Applying this to a running VM requires a full VM restart.
