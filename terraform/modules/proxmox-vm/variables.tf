@@ -113,6 +113,12 @@ variable "machine" {
   default     = null
 }
 
+variable "bios" {
+  description = "Firmware type: 'seabios' (default) or 'ovmf' (UEFI). OVMF is required to POST modern GPUs with UEFI-only VBIOS (e.g. RTX 6000 Ada) on passthrough. Changing this recreates the VM."
+  type        = string
+  default     = "seabios"
+}
+
 variable "hostpci_mappings" {
   description = "List of Proxmox hardware mapping names to pass through (e.g. [\"quadro-p2200\"]). Create mappings via pvesh before use."
   type        = list(string)

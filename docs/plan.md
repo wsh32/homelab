@@ -318,8 +318,11 @@ Authentik provides OIDC SSO for internal services; configure OIDC clients post-d
 
 GPU passthrough uses the `rtx-6000-ada` Proxmox hardware mapping. Unlike the Pascal
 P2200 on machamp-media, the Ada GPU supports GSP firmware in passthrough, so
-`nvidia_disable_gsp_firmware` is left unset. 64GB RAM is pinned (PCIe passthrough
-disables ballooning), which is why the VM takes a fixed 64GB rather than 96GB.
+`nvidia_disable_gsp_firmware` is left unset. The VM boots **OVMF (UEFI)**, not
+SeaBIOS -- the Ada ships a UEFI-only VBIOS that SeaBIOS cannot POST, which surfaces
+as `NVRM: RmInitAdapter failed` in the guest. Secure Boot is left unenrolled so the
+unsigned NVIDIA DKMS module can load. 64GB RAM is pinned (PCIe passthrough disables
+ballooning), which is why the VM takes a fixed 64GB rather than 96GB.
 
 ### Services node (planned)
 

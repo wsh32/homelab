@@ -77,6 +77,7 @@ module "ai" {
   timezone             = var.timezone
 
   machine          = "q35"
+  bios             = "ovmf"  # UEFI -- SeaBIOS can't execute the Ada's UEFI-only VBIOS
   hostpci_mappings = var.ai_gpu_mappings
   # Fill in ai_gpu_mappings in terraform.tfvars after creating the Proxmox
   # hardware mapping. See GPU passthrough section in docs/runbook.md.
