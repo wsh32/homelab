@@ -235,6 +235,29 @@ services:
       - "traefik.http.routers.ca-wsh-tls.tls.certresolver=step"
       - "traefik.http.services.ca-svc.loadbalancer.server.port=80"
 
+  # ── Uptime Kuma (service monitoring) ──────────────────────────────────────
+  uptime-kuma:
+    image: louislam/uptime-kuma:1.23.16
+    container_name: uptime-kuma
+    restart: unless-stopped
+    volumes:
+      - /mnt/nas/docker/uptime-kuma:/app/data
+    ports:
+      - "3001:3001"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.uptime-home.rule=Host(`uptime.home`)"
+      - "traefik.http.routers.uptime-home.entrypoints=web"
+      - "traefik.http.routers.uptime-home-tls.rule=Host(`uptime.home`)"
+      - "traefik.http.routers.uptime-home-tls.entrypoints=websecure"
+      - "traefik.http.routers.uptime-home-tls.tls=true"
+      - "traefik.http.routers.uptime-home-tls.tls.certresolver=step"
+      - "traefik.http.routers.uptime-wsh-tls.rule=Host(`uptime.wsh`)"
+      - "traefik.http.routers.uptime-wsh-tls.entrypoints=websecure"
+      - "traefik.http.routers.uptime-wsh-tls.tls=true"
+      - "traefik.http.routers.uptime-wsh-tls.tls.certresolver=step"
+      - "traefik.http.services.uptime-svc.loadbalancer.server.port=3001"
+
   # ── Cloudflare Tunnel (Authentik OIDC) ────────────────────────────────────
   # Exposes only /application/o/ (Authentik OIDC) publicly via Cloudflare Tunnel.
   # Token written to /etc/cloudflare-tunnel.env by Ansible (ansible/roles/infra/tasks/main.yml).

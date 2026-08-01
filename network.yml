@@ -121,6 +121,11 @@ locations:
                 port: 9000
                 nfs_data: docker/authentik
                 authentik: none
+              - name: uptime-kuma
+                hostname: uptime
+                port: 3001
+                nfs_data: docker/uptime-kuma
+                authentik: none
               - name: cloudflared
                 authentik: none
                 traefik: false

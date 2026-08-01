@@ -67,6 +67,13 @@
     - /mnt/nas/docker/vaultwarden-backup
   become: true
 
+- name: Create Uptime Kuma NFS data directory
+  ansible.builtin.file:
+    path: /mnt/nas/docker/uptime-kuma
+    state: directory
+    mode: "0755"
+  become: true
+
 - name: Create Traefik and step-ca NFS directories
   ansible.builtin.file:
     path: "{{ item.path }}"

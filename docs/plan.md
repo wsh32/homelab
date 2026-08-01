@@ -404,6 +404,19 @@ implementing Bitwarden's full crypto client. Accepted as a one-time manual boots
 - Signups lock automatically after first account; `SIGNUPS_ALLOWED=false` enforced by env var on restart
 - Account persists on Alakazam NFS -- survives all VM rebuilds, never repeated
 
+### Uptime Kuma
+
+Runs on diglett-infra alongside the rest of the infra stack. Uptime Kuma exposes
+no REST API -- setup and monitor management go over socket.io, so configuration is
+driven by the `uptime-kuma-api` library from an idempotent Ansible role.
+
+- Role: `ansible/roles/uptime-kuma-init/` (playbook `ansible/uptime-kuma-init.yml`)
+- Admin account created headlessly on a fresh instance; password from
+  `uptime_kuma_admin_password` (secrets.yml), also stored in Vaultwarden
+- One TCP port monitor per service in `network.yml`, targeting `<vm_ip>:<port>`
+  directly (bypasses Traefik/Authentik so a monitor tests the service itself)
+- Idempotent: monitors are keyed by name; re-runs add only the missing ones
+
 ### CouchDB (Obsidian LiveSync)
 
 Admin credentials set via env vars. Single-node initialization and CORS configuration

@@ -1,0 +1,133 @@
+---
+# Uptime Kuma initialization role.
+# - Waits for Uptime Kuma to be reachable
+# - Creates the admin account headlessly on a fresh instance
+# - Reconciles one TCP port monitor per service declared in network.yml
+#
+# Uptime Kuma exposes no REST API for setup or monitor management -- everything
+# goes over socket.io. The uptime-kuma-api library wraps that protocol; it runs
+# in a dedicated venv on diglett-infra and drives an idempotent sync script.
+
+- name: Wait for Uptime Kuma to accept HTTP connections
+  ansible.builtin.uri:
+    url: "http://localhost:3001"
+    status_code: 200
+  register: _uk_ready
+  until: _uk_ready.status == 200
+  retries: 30
+  delay: 5
+
+- name: Skip setup when no admin password is configured
+  ansible.builtin.debug:
+    msg: >
+      uptime_kuma_admin_password is empty -- skipping headless setup.
+      Set it in ansible/secrets.yml and store it in Vaultwarden, then re-run.
+  when: uptime_kuma_admin_password | default('') == ''
+
+- name: Configure Uptime Kuma
+  when: uptime_kuma_admin_password | default('') != ''
+  block:
+    - name: Install Python venv and pip
+      ansible.builtin.apt:
+        name:
+          - python3-venv
+          - python3-pip
+        state: present
+      become: true
+
+    - name: Install uptime-kuma-api into a dedicated venv
+      ansible.builtin.pip:
+        name: uptime-kuma-api==1.2.1
+        virtualenv: /opt/uptime-kuma-init-venv
+        virtualenv_command: python3 -m venv
+      become: true
+
+    - name: Build monitor definitions from network.yml services
+      ansible.builtin.set_fact:
+        _uk_monitors: >-
+          {%- set result = [] -%}
+          {%- for svc in all_location_services -%}
+          {%-   if svc.port is defined -%}
+          {%-     set _ = result.append({
+                    'name': svc.name,
+                    'hostname': svc.vm_ip,
+                    'port': svc.host_port | default(svc.port)
+                  }) -%}
+          {%-   endif -%}
+          {%- endfor -%}
+          {{ result }}
+
+    - name: Write Uptime Kuma sync config
+      ansible.builtin.copy:
+        dest: /tmp/uptime_kuma_sync.json
+        mode: "0600"
+        content: "{{ {
+          'url': 'http://localhost:3001',
+          'username': uptime_kuma_admin_username | default('admin'),
+          'password': uptime_kuma_admin_password,
+          'monitors': _uk_monitors,
+        } | to_json }}"
+      become: true
+      no_log: true
+
+    - name: Write Uptime Kuma sync script
+      ansible.builtin.copy:
+        dest: /tmp/uptime_kuma_sync.py
+        mode: "0700"
+        content: |
+          #!/usr/bin/env python3
+          """Idempotently set up Uptime Kuma and reconcile TCP port monitors.
+
+          Reads a JSON config: {url, username, password, monitors:[{name,hostname,port}]}.
+          Creates the admin account on a fresh instance, then adds any monitor whose
+          name is not already present. Prints ADDED=<comma-separated names>.
+          """
+          import json
+          import sys
+
+          from uptime_kuma_api import UptimeKumaApi, MonitorType
+
+          cfg = json.load(open(sys.argv[1]))
+          api = UptimeKumaApi(cfg["url"])
+          try:
+              if api.need_setup():
+                  api.setup(cfg["username"], cfg["password"])
+              api.login(cfg["username"], cfg["password"])
+
+              existing = {m["name"] for m in api.get_monitors()}
+              added = []
+              for mon in cfg["monitors"]:
+                  if mon["name"] in existing:
+                      continue
+                  api.add_monitor(
+                      type=MonitorType.PORT,
+                      name=mon["name"],
+                      hostname=mon["hostname"],
+                      port=int(mon["port"]),
+                      interval=60,
+                      maxretries=2,
+                  )
+                  added.append(mon["name"])
+              print("ADDED=" + ",".join(added))
+          finally:
+              api.disconnect()
+      become: true
+
+    - name: Run Uptime Kuma sync
+      ansible.builtin.command: /opt/uptime-kuma-init-venv/bin/python /tmp/uptime_kuma_sync.py /tmp/uptime_kuma_sync.json
+      become: true
+      register: _uk_sync
+      changed_when: _uk_sync.stdout is search('ADDED=.+')
+
+    - name: Report monitors added
+      ansible.builtin.debug:
+        msg: "{{ _uk_sync.stdout }}"
+
+    - name: Remove Uptime Kuma sync config and script
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/uptime_kuma_sync.json
+        - /tmp/uptime_kuma_sync.py
+      become: true

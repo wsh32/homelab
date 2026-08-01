@@ -9,6 +9,7 @@
 - import_playbook: base.yml
 - import_playbook: dns.yml
 - import_playbook: infra.yml
+- import_playbook: uptime-kuma-init.yml
 - import_playbook: gpu.yml
 - import_playbook: media.yml
 - import_playbook: arr-init.yml
