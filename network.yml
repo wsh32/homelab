@@ -121,6 +121,11 @@ locations:
                 port: 9000
                 nfs_data: docker/authentik
                 authentik: none
+              - name: firefly
+                hostname: finances
+                port: 8080
+                nfs_data: docker/firefly
+                authentik: proxy
               - name: cloudflared
                 authentik: none
                 traefik: false

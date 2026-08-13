@@ -61,6 +61,7 @@ services:
       POSTGRES_DB: postgres
       # Passed through so the init script can create per-service users.
       AUTHENTIK_DB_PASSWORD: ${AUTHENTIK_DB_PASSWORD}
+      FIREFLY_DB_PASSWORD: ${FIREFLY_DB_PASSWORD}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -211,6 +212,62 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /mnt/nas/docker/authentik/media:/media
       - /mnt/nas/docker/authentik/custom-templates:/templates
+
+  # ── Firefly III (personal finance) ────────────────────────────────────────
+  # Auth is delegated to Authentik via forward-auth (authentik@file middleware).
+  # remote_user_guard trusts the X-authentik-* headers the outpost injects, so
+  # Firefly never renders its own login. Reachable only over Tailscale (.wsh).
+  firefly:
+    image: fireflyiii/core:version-6.6.6
+    container_name: firefly
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - /mnt/nas/docker/firefly:/var/www/html/storage/upload
+    environment:
+      APP_KEY: ${FIREFLY_APP_KEY}
+      APP_URL: https://finances.wsh
+      TRUSTED_PROXIES: "**"
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: firefly
+      DB_USERNAME: firefly
+      DB_PASSWORD: ${FIREFLY_DB_PASSWORD}
+      AUTHENTICATION_GUARD: remote_user_guard
+      AUTHENTICATION_GUARD_HEADER: HTTP_X_AUTHENTIK_USERNAME
+      AUTHENTICATION_GUARD_EMAIL: HTTP_X_AUTHENTIK_EMAIL
+      STATIC_CRON_TOKEN: ${FIREFLY_STATIC_CRON_TOKEN}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.finances-wsh-tls.rule=Host(`finances.wsh`)"
+      - "traefik.http.routers.finances-wsh-tls.entrypoints=websecure"
+      - "traefik.http.routers.finances-wsh-tls.tls=true"
+      - "traefik.http.routers.finances-wsh-tls.tls.certresolver=step"
+      - "traefik.http.routers.finances-wsh-tls.middlewares=authentik@file"
+      - "traefik.http.services.finances-svc.loadbalancer.server.port=8080"
+
+  # Firefly's scheduled jobs (recurring transactions, bill reminders). The cron
+  # endpoint is token-gated and bypasses the auth guard, so an internal request
+  # to the container is sufficient.
+  firefly-cron:
+    image: alpine:3.22
+    container_name: firefly-cron
+    restart: unless-stopped
+    depends_on:
+      - firefly
+    environment:
+      STATIC_CRON_TOKEN: ${FIREFLY_STATIC_CRON_TOKEN}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sleep 120
+        while true; do
+          wget -q -O /dev/null "http://firefly:8080/api/v1/cron/$${STATIC_CRON_TOKEN}" || true
+          sleep 86400
+        done
 
   # ── CA certificate install page ───────────────────────────────────────────
   ca-page:

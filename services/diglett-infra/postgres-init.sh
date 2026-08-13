@@ -8,6 +8,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
 
     CREATE USER authentik WITH PASSWORD '${AUTHENTIK_DB_PASSWORD}';
     CREATE DATABASE authentik OWNER authentik;
+
+    CREATE USER firefly WITH PASSWORD '${FIREFLY_DB_PASSWORD}';
+    CREATE DATABASE firefly OWNER firefly;
 EOSQL
 
 # Authentik requires pg_trgm and pg_crypto extensions in its database.

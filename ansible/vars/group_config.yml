@@ -11,6 +11,9 @@
 authentik_groups:
   - name: users
   - name: admins
+  # Firefly III access. Admins are granted via the app binding below; add
+  # non-admin members to this group in the Authentik UI to grant them access.
+  - name: firefly-users
 
 # slug must match the Authentik application slug.
 # groups is a list -- an app can be bound to multiple groups.
@@ -36,6 +39,14 @@ authentik_app_bindings:
     groups: [admins]
   - slug: qbittorrent
     groups: [admins]
+
+  # finance -- admins plus manually maintained firefly-users members.
+  # The proxy loop creates a .home and a .wsh app; finances.wsh is gated by the
+  # -wsh app, so both are bound (an unbound Authentik app is open to all users).
+  - slug: firefly
+    groups: [firefly-users, admins]
+  - slug: firefly-wsh
+    groups: [firefly-users, admins]
 
   # user tier -- all authenticated users
   - slug: jellyfin

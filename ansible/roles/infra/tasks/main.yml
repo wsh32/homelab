@@ -93,6 +93,15 @@
     - /mnt/nas/docker/authentik/custom-templates
   become: true
 
+- name: Create Firefly NFS upload directory (owned by uid 33 -- www-data in the Firefly image)
+  ansible.builtin.file:
+    path: /mnt/nas/docker/firefly
+    state: directory
+    owner: "33"
+    group: "33"
+    mode: "0755"
+  become: true
+
 - name: Check for inconsistent state (data dir exists but NFS sentinel missing)
   ansible.builtin.shell: |
     sentinel=/mnt/nas/docker/infisical-backups/.secrets.env
@@ -144,6 +153,33 @@
   register: secrets_result
   changed_when: "'changed' in secrets_result.stdout"
   become: true
+
+- name: Generate Firefly III secrets (idempotent -- skipped if already present)
+  ansible.builtin.shell: |
+    nfs=/mnt/nas/docker/infisical-backups/.secrets.env
+    local_env=/etc/homelab.env
+    src=""
+    grep -qs '^FIREFLY_APP_KEY=' "$nfs" && src="$nfs"
+    grep -qs '^FIREFLY_APP_KEY=' "$local_env" && src="$local_env"
+    if [ -z "$src" ]; then
+      src=$(mktemp)
+      printf "FIREFLY_DB_PASSWORD=%s\n"       "$(openssl rand -hex 16)"    >> "$src"
+      printf "FIREFLY_APP_KEY=base64:%s\n"    "$(openssl rand -base64 32)" >> "$src"
+      printf "FIREFLY_STATIC_CRON_TOKEN=%s\n" "$(openssl rand -hex 16)"    >> "$src"
+    fi
+    changed=0
+    for f in "$local_env" "$nfs"; do
+      [ -f "$f" ] || continue
+      if ! grep -q '^FIREFLY_APP_KEY=' "$f"; then
+        grep '^FIREFLY_' "$src" >> "$f"
+        changed=1
+      fi
+    done
+    [ "$changed" = 1 ] && echo changed || true
+  register: firefly_secrets
+  changed_when: "'changed' in firefly_secrets.stdout"
+  become: true
+  no_log: true
 
 - name: Write AUTHENTIK_HOST to homelab.env (sets canonical public URL for OIDC token issuers)
   ansible.builtin.lineinfile:
@@ -602,6 +638,38 @@
   delay: 3
   until: pg_ready.rc == 0
   changed_when: false
+
+- name: Create Firefly database role on running postgres
+  ansible.builtin.shell: |
+    pw=$(grep '^FIREFLY_DB_PASSWORD=' /etc/homelab.env | cut -d= -f2-)
+    exists=$(docker exec postgres psql -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='firefly'")
+    if [ "$exists" != "1" ]; then
+      docker exec postgres psql -U postgres -c "CREATE ROLE firefly LOGIN PASSWORD '$pw'"
+      echo changed
+    fi
+  register: firefly_role
+  changed_when: "'changed' in firefly_role.stdout"
+  become: true
+  no_log: true
+
+- name: Create Firefly database on running postgres
+  ansible.builtin.shell: |
+    exists=$(docker exec postgres psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='firefly'")
+    if [ "$exists" != "1" ]; then
+      docker exec postgres psql -U postgres -c "CREATE DATABASE firefly OWNER firefly"
+      echo changed
+    fi
+  register: firefly_db
+  changed_when: "'changed' in firefly_db.stdout"
+  become: true
+
+- name: Restart Firefly to run migrations after database creation
+  community.docker.docker_container:
+    name: firefly
+    state: started
+    restart: true
+  become: true
+  when: firefly_db.changed
 
 - name: Wait for Infisical to be healthy, unlocking migration table on each retry (up to 5 minutes)
   ansible.builtin.shell: |
