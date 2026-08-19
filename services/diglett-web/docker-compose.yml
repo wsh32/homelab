@@ -164,12 +164,11 @@ services:
   # The backend runs the FastAPI server from a stable copy of the synced source
   # (git-sync rotates and deletes old worktrees, so a long-lived process must not
   # run out of the swapping symlink -- same rationale as Choreboard above); the
-  # build container compiles the game SPA (root) and the neighborhood-builder tool
-  # (/builder) into /var/lib/scramble-dist; nginx serves those and proxies
-  # /api + /ws to the backend. All three track main automatically -- they re-run
-  # whenever git-sync checks out a new commit. SQLite DB lives on local VM disk
-  # (/var/lib/scramble-data), following the same "SQLite off NFS" rule as
-  # Choreboard -- diglett-web mounts no NFS.
+  # build container compiles the Vite SPA into /var/lib/scramble-dist; nginx
+  # serves it and proxies /api + /ws to the backend. All three track main
+  # automatically -- they re-run whenever git-sync checks out a new commit.
+  # SQLite DB lives on local VM disk (/var/lib/scramble-data), following the same
+  # "SQLite off NFS" rule as Choreboard -- diglett-web mounts no NFS.
   scramble-sync:
     image: registry.k8s.io/git-sync/git-sync:v4.4.1
     container_name: scramble-sync
