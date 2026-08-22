@@ -157,6 +157,8 @@
       - scramble_jwt_secret | length > 0
     fail_msg: "SCRAMBLE_JWT_SECRET could not be fetched or generated -- check Infisical credentials (infisical_client_id/secret/project_id)."
 
+# Prefer an explicitly provided scramble_maps_api_key (ansible/secrets.yml or
+# -e on the command line); fall back to Infisical when it is not set.
 - name: Get VITE_GOOGLE_MAPS_API_KEY from Infisical
   ansible.builtin.uri:
     url: "{{ infisical_host }}/api/v3/secrets/raw/VITE_GOOGLE_MAPS_API_KEY?workspaceId={{ _inf_project_id }}&environment={{ _inf_environment }}&secretPath=/"
@@ -166,12 +168,15 @@
   register: _scramble_maps_get
   delegate_to: localhost
   no_log: true
-  when: _inf_token is not skipped
+  when:
+    - scramble_maps_api_key is not defined
+    - _inf_token is not skipped
 
 - name: Set VITE_GOOGLE_MAPS_API_KEY fact from Infisical
   ansible.builtin.set_fact:
-    scramble_maps_api_key: "{{ _scramble_maps_get.json.secret.secretValue if (_scramble_maps_get is not skipped and _scramble_maps_get.status == 200) else '' }}"
+    scramble_maps_api_key: "{{ _scramble_maps_get.json.secret.secretValue if (_scramble_maps_get.status == 200) else '' }}"
   no_log: true
+  when: _scramble_maps_get is not skipped
 
 - name: Write scramble environment
   ansible.builtin.copy:
