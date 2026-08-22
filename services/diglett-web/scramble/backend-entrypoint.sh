@@ -4,18 +4,20 @@
 #
 # git-sync rotates and deletes old worktrees under the swapping /repo/scramble
 # symlink, so a long-lived process must not run directly out of it. Copy the
-# synced backend to a stable path (/srv/app) before each (re)start and run from
-# there. The symlink target changes on every new commit, which is how we detect
-# updates.
+# whole repo to a stable path (/srv/app) before each (re)start and run the
+# backend from /srv/app/backend. The full tree is copied -- not just backend/ --
+# because the app resolves sibling paths like <repo>/tools/geojson relative to
+# its own location. The symlink target changes on every new commit, which is how
+# we detect updates.
 set -eu
 
-SRC=/repo/scramble/backend
-APP=/srv/app
+SRC=/repo/scramble        # full repo checkout (git-sync symlink)
+APP=/srv/app              # stable copy we run from
 
 checkout() { readlink /repo/scramble 2>/dev/null || echo none; }
 
 echo "scramble-backend: waiting for git-sync to populate the repo..."
-while [ ! -f "$SRC/requirements.txt" ]; do sleep 2; done
+while [ ! -f "$SRC/backend/requirements.txt" ]; do sleep 2; done
 
 APP_PID=""
 start() {
@@ -27,8 +29,8 @@ start() {
   mkdir -p "$APP"
   cp -a "$SRC/." "$APP/"
   echo "scramble-backend: installing dependencies..."
-  pip install --no-cache-dir --root-user-action=ignore -r "$APP/requirements.txt"
-  ( cd "$APP" && exec python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 ) &
+  pip install --no-cache-dir --root-user-action=ignore -r "$APP/backend/requirements.txt"
+  ( cd "$APP/backend" && exec python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 ) &
   APP_PID=$!
 }
 
