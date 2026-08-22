@@ -173,6 +173,18 @@
     state: directory
     mode: "0755"
 
+# docker auto-creates a missing bind-mount source as a root-owned directory, so
+# a compose up that ran before the files synced leaves root-owned stubs the
+# deploy user's rsync cannot replace. Reclaim ownership before syncing.
+- name: Reclaim ownership of the diglett-web services tree
+  ansible.builtin.file:
+    path: /home/{{ ansible_user }}/homelab/services/diglett-web
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    recurse: true
+  become: true
+
 - name: Sync services/diglett-web/ from deploy VM
   ansible.posix.synchronize:
     src: "{{ playbook_dir }}/../services/diglett-web/"
