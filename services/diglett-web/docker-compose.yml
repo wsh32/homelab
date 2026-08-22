@@ -201,7 +201,6 @@ services:
     depends_on:
       scramble-sync:
         condition: service_healthy
-    working_dir: /srv/app
     env_file: /etc/scramble.env
     environment:
       SCRAMBLE_DATABASE_URL: sqlite:////data/scramble.db

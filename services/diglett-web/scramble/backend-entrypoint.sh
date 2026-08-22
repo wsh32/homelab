@@ -19,6 +19,9 @@ while [ ! -f "$SRC/requirements.txt" ]; do sleep 2; done
 
 APP_PID=""
 start() {
+  # Move out of $APP before removing it: it may be the current directory, and
+  # deleting the cwd breaks pip and uvicorn ("folder ... can no longer be found").
+  cd /
   # Refresh the stable copy from the current checkout, then run from it.
   rm -rf "$APP"
   mkdir -p "$APP"
