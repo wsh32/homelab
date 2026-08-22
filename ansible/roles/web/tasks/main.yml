@@ -207,6 +207,7 @@
     project_src: /home/{{ ansible_user }}/homelab/services/diglett-web
     state: present
     pull: always
+    remove_orphans: true
   become: true
 
 # docker compose does not recreate a container when only a bind-mounted file
