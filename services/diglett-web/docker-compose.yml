@@ -223,6 +223,10 @@ services:
     depends_on:
       scramble-sync:
         condition: service_healthy
+    # VITE_GOOGLE_MAPS_API_KEY is read here: vite inlines VITE_-prefixed env vars
+    # into the bundle at build time. SCRAMBLE_JWT_SECRET in the same file is
+    # ignored (not VITE_-prefixed, so never inlined).
+    env_file: /etc/scramble.env
     entrypoint: ["/bin/sh", "/scramble/frontend-build.sh"]
     volumes:
       - ./scramble/frontend-build.sh:/scramble/frontend-build.sh:ro
