@@ -19,9 +19,8 @@ services:
       OVERPASS_MODE: "init"
       OVERPASS_META: "no"
       OVERPASS_COMPRESSION: "gz"
-      # TODO: replace <STATE> with the Geofabrik state slug (e.g. california).
-      OVERPASS_PLANET_URL: "https://download.geofabrik.de/north-america/us/<STATE>-latest.osm.pbf"
-      OVERPASS_DIFF_URL: "https://download.geofabrik.de/north-america/us/<STATE>-updates/"
+      OVERPASS_PLANET_URL: "https://download.geofabrik.de/north-america/us/california-latest.osm.pbf"
+      OVERPASS_DIFF_URL: "https://download.geofabrik.de/north-america/us/california-updates/"
       OVERPASS_UPDATE_SLEEP: "86400"
       OVERPASS_RULES_LOAD: "10"
     volumes:
