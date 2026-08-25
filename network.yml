@@ -146,6 +146,11 @@ locations:
                 public_hostname: bryant.wesleysoohoo.me
                 cloudflare_zone: wesleysoohoo.me
                 authentik: none
+              - name: scramble-web
+                port: 80
+                public_hostname: scramble.tenderloin.ai
+                cloudflare_zone: tenderloin.ai
+                authentik: none
               - name: cloudflared
                 authentik: none
                 traefik: false
