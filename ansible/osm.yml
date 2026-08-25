@@ -1,0 +1,48 @@
+---
+# Configure machamp-osm: sync the Overpass compose stack and bring it up.
+# Run after base.yml (installs Docker) has been applied to the VM.
+#
+# Overpass has no machine-consumed secrets and no web UI admin password, so
+# there is no Infisical export or Vaultwarden step. Its database lives on local
+# disk (/var/lib/overpass-db) and is reproducible from the Geofabrik extract, so
+# there are no NFS mounts either.
+#
+# Usage:
+#   ansible-playbook ansible/osm.yml
+
+- name: Configure machamp-osm (Overpass compose stack)
+  hosts: machamp-osm
+  gather_facts: true
+
+  tasks:
+    - name: Ensure Overpass database directory exists on local disk
+      ansible.builtin.file:
+        path: /var/lib/overpass-db
+        state: directory
+        mode: "0755"
+      become: true
+
+    - name: Ensure homelab services directory exists on VM
+      ansible.builtin.file:
+        path: /home/{{ ansible_user }}/homelab/services/machamp-osm
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+      become: true
+
+    - name: Sync machamp-osm compose stack to VM
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../services/machamp-osm/"
+        dest: /home/{{ ansible_user }}/homelab/services/machamp-osm/
+        delete: true
+        recursive: true
+        rsync_opts:
+          - "--chown={{ ansible_user }}:{{ ansible_user }}"
+
+    - name: Start machamp-osm compose stack
+      community.docker.docker_compose_v2:
+        project_src: /home/{{ ansible_user }}/homelab/services/machamp-osm
+        state: present
+        pull: missing
+      become: true

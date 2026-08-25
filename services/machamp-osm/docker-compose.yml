@@ -1,0 +1,27 @@
+services:
+  # Overpass API -- self-hosted OpenStreetMap query engine.
+  #
+  # Single US state extract, current-geometry only (no metadata/history), gzip
+  # compressed, daily diff updates. The database lives on local VM disk and is
+  # reproducible from the Geofabrik extract, so it is not backed up -- on a VM
+  # rebuild the container re-downloads and re-imports.
+  #
+  # OVERPASS_MODE=init builds the DB from a regional extract (clone mode is
+  # planet-only). First boot runs a one-time import; the container is unhealthy
+  # until it finishes.
+  overpass:
+    image: wiktorn/overpass-api:v0.7.62.11
+    container_name: overpass
+    restart: unless-stopped
+    ports:
+      - "8082:80"
+    environment:
+      OVERPASS_MODE: "init"
+      OVERPASS_META: "no"
+      OVERPASS_COMPRESSION: "gz"
+      OVERPASS_PLANET_URL: "https://download.geofabrik.de/north-america/us/california-latest.osm.pbf"
+      OVERPASS_DIFF_URL: "https://download.geofabrik.de/north-america/us/california-updates/"
+      OVERPASS_UPDATE_SLEEP: "86400"
+      OVERPASS_RULES_LOAD: "10"
+    volumes:
+      - /var/lib/overpass-db:/db

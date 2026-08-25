@@ -74,3 +74,27 @@ module "services" {
   # hardware mapping. See GPU passthrough section in docs/runbook.md.
   # Applying this to a running VM requires a full VM restart.
 }
+
+module "osm" {
+  source = "../modules/proxmox-vm"
+
+  node_name     = local.node
+  vm_id         = local.vms["machamp-osm"].vm_id
+  name          = "machamp-osm"
+  description   = "Overpass API -- self-hosted OpenStreetMap query engine"
+  tags          = ["machamp", "osm"]
+  image_file_id = proxmox_download_file.ubuntu_2404.id
+
+  cores        = 4
+  memory_mb    = 8192
+  disk_size_gb = 30
+
+  ip_address           = "${local.vms["machamp-osm"].ip}/24"
+  gateway              = local.loc.gateway
+  dns_servers          = [local.loc.dns.primary, local.loc.dns.fallback]
+  bridge_secondary     = "vmbr1"
+  bridge_secondary_ip  = "${local.vms["machamp-osm"].bridge_ip}/24"
+  ssh_public_key       = var.ssh_public_key
+  vm_password          = var.vm_password
+  timezone             = var.timezone
+}
