@@ -395,6 +395,77 @@
       become: true
       when: jellyfin_db_prestart.stat.exists
 
+    # ── Jellyfin pre-upgrade snapshot ───────────────────────────────────────────
+    # Jellyfin major upgrades migrate the SQLite schema in place and cannot be
+    # rolled back. When the compose image differs from the running container,
+    # stop Jellyfin and archive the full local data directory to NFS before
+    # compose recreates the container on the new image.
+
+    - name: Read Jellyfin image from compose file
+      ansible.builtin.command:
+        cmd: docker compose config --format json
+        chdir: /home/{{ ansible_user }}/homelab/services/machamp-media
+      register: _media_compose_config
+      changed_when: false
+      become: true
+
+    - name: Read Jellyfin image from running container
+      community.docker.docker_container_info:
+        name: jellyfin
+      register: _jellyfin_container_info
+      become: true
+
+    - name: Set Jellyfin image facts
+      ansible.builtin.set_fact:
+        _jellyfin_desired_image: "{{ (_media_compose_config.stdout | from_json).services.jellyfin.image }}"
+        _jellyfin_current_image: "{{ _jellyfin_container_info.container.Config.Image if _jellyfin_container_info.exists else '' }}"
+
+    - name: Snapshot Jellyfin data before image change
+      when:
+        - _jellyfin_current_image != ''
+        - _jellyfin_current_image != _jellyfin_desired_image
+        - jellyfin_db_check.stat.exists
+      block:
+        - name: Create Jellyfin upgrade backup directory on NFS
+          ansible.builtin.file:
+            path: /mnt/nas/docker/jellyfin-upgrade-backups
+            state: directory
+            mode: "0700"
+          become: true
+
+        - name: Stop Jellyfin for a consistent snapshot
+          community.docker.docker_container:
+            name: jellyfin
+            state: stopped
+          become: true
+
+        - name: Archive Jellyfin data directory to NFS
+          ansible.builtin.command:
+            cmd: >-
+              tar -czf /mnt/nas/docker/jellyfin-upgrade-backups/jellyfin-data_{{ _jellyfin_current_image | regex_replace('[/:]', '_') }}_{{ ansible_date_time.iso8601_basic_short }}.tar.gz
+              -C /var/lib jellyfin-data
+          become: true
+
+        # Plugins are built against one Jellyfin ABI and must not be present
+        # while a new major version migrates its database. jellyfin-init
+        # reinstalls the pinned SSO plugin; its configuration XML is kept.
+        - name: Find SSO plugin directories
+          ansible.builtin.find:
+            paths: /mnt/nas/docker/jellyfin/plugins
+            patterns: "SSO-Auth_*"
+            file_type: directory
+          register: _jellyfin_sso_plugin_dirs
+          become: true
+
+        - name: Remove SSO plugin directories
+          ansible.builtin.file:
+            path: "{{ item.path }}"
+            state: absent
+          loop: "{{ _jellyfin_sso_plugin_dirs.files }}"
+          loop_control:
+            label: "{{ item.path }}"
+          become: true
+
     - name: Start machamp-media compose stack
       community.docker.docker_compose_v2:
         project_src: /home/{{ ansible_user }}/homelab/services/machamp-media

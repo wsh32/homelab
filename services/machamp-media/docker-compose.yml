@@ -1,7 +1,7 @@
 services:
   # ── Jellyfin ───────────────────────────────────────────────────────────────
   jellyfin:
-    image: jellyfin/jellyfin:10.11.11
+    image: jellyfin/jellyfin:12.1.20260915-010956
     container_name: jellyfin
     restart: unless-stopped
     runtime: nvidia
