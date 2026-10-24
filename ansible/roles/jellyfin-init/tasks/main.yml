@@ -94,6 +94,8 @@
   register: _jf_startup_user
   when: jellyfin_wizard.status == 200
 
+# Jellyfin 12+ returns 403 when the first user already has a password, which
+# happens when a previous run set it but failed before completing the wizard.
 - name: Set Jellyfin initial user credentials via POST /Startup/User
   ansible.builtin.uri:
     url: "{{ jellyfin_url }}/Startup/User"
@@ -104,7 +106,7 @@
     body:
       name: "{{ jellyfin_admin_username | default('admin') }}"
       password: "{{ jellyfin_admin_password }}"
-    status_code: 204
+    status_code: [204, 403]
   no_log: true
   when: jellyfin_wizard.status == 200 and _jf_startup_user is not skipped
 
