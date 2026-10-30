@@ -381,6 +381,20 @@
         - not jellyfin_backup_check.stat.exists
         - jellyfin_old_db_check.stat.exists
 
+    - name: Check if Jellyfin database exists before stack start
+      ansible.builtin.stat:
+        path: /var/lib/jellyfin-data/jellyfin.db
+      register: jellyfin_db_prestart
+      become: true
+
+    - name: Set restored Jellyfin database owner to UID 1000
+      ansible.builtin.file:
+        path: /var/lib/jellyfin-data/jellyfin.db
+        owner: "1000"
+        group: "1000"
+      become: true
+      when: jellyfin_db_prestart.stat.exists
+
     - name: Start machamp-media compose stack
       community.docker.docker_compose_v2:
         project_src: /home/{{ ansible_user }}/homelab/services/machamp-media
@@ -388,6 +402,9 @@
         pull: missing
       become: true
 
+    # A database Jellyfin creates on first start is root-owned. Litestream may
+    # write root-owned temp files to the replica before it is chowned; those
+    # block every later write, so remove them and restart Litestream.
     - name: Wait for Jellyfin database to exist
       ansible.builtin.wait_for:
         path: /var/lib/jellyfin-data/jellyfin.db
@@ -399,4 +416,15 @@
         path: /var/lib/jellyfin-data/jellyfin.db
         owner: "1000"
         group: "1000"
+      register: jellyfin_db_owner
+      become: true
+
+    - name: Remove root-owned Litestream files from Jellyfin replica
+      ansible.builtin.command: find /mnt/nas/docker/jellyfin-backup -user 0 -delete
+      when: jellyfin_db_owner.changed
+      become: true
+
+    - name: Restart Jellyfin Litestream
+      ansible.builtin.command: docker restart jellyfin-litestream
+      when: jellyfin_db_owner.changed
       become: true
