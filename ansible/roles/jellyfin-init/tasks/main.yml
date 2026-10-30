@@ -94,6 +94,8 @@
   register: _jf_startup_user
   when: jellyfin_wizard.status == 200
 
+# Jellyfin 12+ returns 403 when the first user already has a password, which
+# happens when a previous run set it but failed before completing the wizard.
 - name: Set Jellyfin initial user credentials via POST /Startup/User
   ansible.builtin.uri:
     url: "{{ jellyfin_url }}/Startup/User"
@@ -104,7 +106,7 @@
     body:
       name: "{{ jellyfin_admin_username | default('admin') }}"
       password: "{{ jellyfin_admin_password }}"
-    status_code: 204
+    status_code: [204, 403]
   no_log: true
   when: jellyfin_wizard.status == 200 and _jf_startup_user is not skipped
 
@@ -297,6 +299,28 @@
   register: _sso_dll_stat
   when: _jf_oidc_env_stat.stat.exists
 
+# Jellyfin keeps every SSO-Auth_<version> directory it finds. A leftover
+# version built for an older Jellyfin ABI fails to load alongside the pinned one.
+- name: Find SSO plugin directories for other versions
+  ansible.builtin.find:
+    paths: /mnt/nas/docker/jellyfin/plugins
+    patterns: "SSO-Auth_*"
+    excludes: "SSO-Auth_{{ jellyfin_sso_plugin_version }}"
+    file_type: directory
+  register: _sso_stale_dirs
+  become: true
+  when: _jf_oidc_env_stat.stat.exists
+
+- name: Remove SSO plugin directories for other versions
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ _sso_stale_dirs.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path }}"
+  become: true
+  when: _jf_oidc_env_stat.stat.exists
+
 - name: Install jellyfin-plugin-sso
   when:
     - _jf_oidc_env_stat.stat.exists
@@ -311,7 +335,7 @@
 
     - name: Download jellyfin-plugin-sso zip
       ansible.builtin.get_url:
-        url: "https://github.com/9p4/jellyfin-plugin-sso/releases/download/v{{ jellyfin_sso_plugin_version }}/sso-authentication_{{ jellyfin_sso_plugin_version }}.zip"
+        url: "https://github.com/{{ jellyfin_sso_plugin_repo }}/releases/download/v{{ jellyfin_sso_plugin_version }}/sso-authentication_{{ jellyfin_sso_plugin_version }}.zip"
         dest: "/tmp/jellyfin-sso-{{ jellyfin_sso_plugin_version }}.zip"
         mode: "0644"
 
