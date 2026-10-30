@@ -100,6 +100,12 @@ Log into TrueNAS at `https://192.168.0.4`:
    - All files on the share are owned by 1000:1000. A client cannot `chown`
      to any other UID (`EPERM`), so services that need a specific owner
      (e.g. PostgreSQL, UID 70) must keep their data on local VM disk.
+   - Litestream chowns every file and directory it writes to its NFS replica
+     to match the local database's uid/gid. A root-owned local database
+     therefore produces root-owned replica paths that Litestream can no
+     longer write to (`permission denied`). Local SQLite databases replicated
+     by Litestream, and their directories, must be owned by 1000 -- the
+     `media.yml` and `infra` role tasks enforce this.
    - A file left owned by root (e.g. created while the share was briefly
      mapped differently) is unwritable from every client. Find and fix these
      from the TrueNAS shell, not over NFS:

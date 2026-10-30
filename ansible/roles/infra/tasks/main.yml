@@ -47,7 +47,9 @@
   loop:
     # PostgreSQL alpine image runs as uid 70 (alpine), not 999 (debian).
     - { path: /var/lib/postgres,       owner: "70",   group: "70",   mode: "0750" }
-    - { path: /var/lib/vaultwarden,    owner: "0",    group: "0",    mode: "0755" }
+    # Owned by 1000 so Litestream's replica files (which copy the database's
+    # uid/gid) stay writable under the NFS share's mapall=ubuntu.
+    - { path: /var/lib/vaultwarden,    owner: "1000", group: "1000", mode: "0755" }
   become: true
 
 - name: Create NFS sentinel directory
@@ -295,6 +297,19 @@
   ansible.builtin.include_tasks: ../../../tasks/compose-deploy.yml
   vars:
     compose_project_src: /home/{{ ansible_user }}/homelab/services/diglett-infra
+
+- name: Wait for Vaultwarden database to exist
+  ansible.builtin.wait_for:
+    path: /var/lib/vaultwarden/db.sqlite3
+    timeout: 300
+  become: true
+
+- name: Set Vaultwarden database owner to UID 1000
+  ansible.builtin.file:
+    path: /var/lib/vaultwarden/db.sqlite3
+    owner: "1000"
+    group: "1000"
+  become: true
 
 - name: Ensure step-ca root cert is world-readable (required by ca-page nginx container)
   ansible.builtin.file:

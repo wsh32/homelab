@@ -320,10 +320,16 @@
     # hangs under concurrent library scans. Litestream replicates to NFS for
     # persistence across VM rebuilds.
 
+    # Litestream chowns the files it writes to the NFS replica to match the
+    # local database's uid/gid. Under the share's mapall=ubuntu, a root-owned
+    # replica file or directory is unwritable, so the database and its
+    # directory must be owned by 1000.
     - name: Create Jellyfin local data directory
       ansible.builtin.file:
         path: /var/lib/jellyfin-data
         state: directory
+        owner: "1000"
+        group: "1000"
         mode: "0755"
       become: true
 
@@ -380,4 +386,17 @@
         project_src: /home/{{ ansible_user }}/homelab/services/machamp-media
         state: present
         pull: missing
+      become: true
+
+    - name: Wait for Jellyfin database to exist
+      ansible.builtin.wait_for:
+        path: /var/lib/jellyfin-data/jellyfin.db
+        timeout: 300
+      become: true
+
+    - name: Set Jellyfin database owner to UID 1000
+      ansible.builtin.file:
+        path: /var/lib/jellyfin-data/jellyfin.db
+        owner: "1000"
+        group: "1000"
       become: true
