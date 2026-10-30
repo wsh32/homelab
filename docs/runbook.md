@@ -87,9 +87,25 @@ Log into TrueNAS at `https://192.168.0.4`:
    - `pool/photos`
    - `pool/lightroom`
 3. Sharing → NFS → Add a share for **each** dataset below.
-   For every share set **Maproot User: `root`** -- this allows the deploy VM's
-   `ubuntu` user to create directories and set permissions via `sudo`.
-   Without this, NFS root-squash maps `sudo` to `nobody` and writes fail.
+   For every share set **Mapall User: `ubuntu`** and **Mapall Group: `ubuntu`**,
+   and leave Maproot User/Group empty. Every client UID -- including root from
+   `sudo`, Ansible `become`, and containers running as root -- then writes as
+   UID/GID 1000, which matches the `PUID`/`user: "1000:1000"` the containers
+   already use. Without a mapping, NFS root-squash maps root to `nobody` and
+   writes to the 1000-owned trees fail. Do not use Maproot `root`: it gives
+   every client full root on the NAS.
+
+   Consequences of mapall:
+   - All files on the share are owned by 1000:1000. A client cannot `chown`
+     to any other UID (`EPERM`), so services that need a specific owner
+     (e.g. PostgreSQL, UID 70) must keep their data on local VM disk.
+   - A file left owned by root (e.g. created while the share was briefly
+     mapped differently) is unwritable from every client. Find and fix these
+     from the TrueNAS shell, not over NFS:
+     ```bash
+     find /mnt/apps/docker -xdev \( -uid 0 -o -gid 0 \) -ls
+     find /mnt/apps/docker -xdev \( -uid 0 -o -gid 0 \) -exec chown 1000:1000 {} +
+     ```
 
    | Dataset path          | Allowed networks  |
    |-----------------------|-------------------|
