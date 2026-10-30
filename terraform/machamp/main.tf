@@ -56,7 +56,7 @@ module "services" {
 
   cores        = 8
   memory_mb    = 32768
-  disk_size_gb = 40
+  disk_size_gb = 200
 
   ip_address           = "${local.vms["machamp-media"].ip}/24"
   gateway              = local.loc.gateway
