@@ -17,3 +17,9 @@
     state: restarted
   become: true
   failed_when: false
+
+- name: Restart journald
+  ansible.builtin.service:
+    name: systemd-journald
+    state: restarted
+  become: true

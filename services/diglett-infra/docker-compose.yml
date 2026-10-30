@@ -134,7 +134,7 @@ services:
     depends_on:
       - vaultwarden
     volumes:
-      - /var/lib/vaultwarden:/data:ro
+      - /var/lib/vaultwarden:/data
       - /mnt/nas/docker/vaultwarden-backup:/backup
       - ./litestream.yml:/etc/litestream.yml:ro
     command: replicate

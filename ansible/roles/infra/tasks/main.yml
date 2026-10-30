@@ -47,7 +47,9 @@
   loop:
     # PostgreSQL alpine image runs as uid 70 (alpine), not 999 (debian).
     - { path: /var/lib/postgres,       owner: "70",   group: "70",   mode: "0750" }
-    - { path: /var/lib/vaultwarden,    owner: "0",    group: "0",    mode: "0755" }
+    # Owned by 1000 so Litestream's replica files (which copy the database's
+    # uid/gid) stay writable under the NFS share's mapall=ubuntu.
+    - { path: /var/lib/vaultwarden,    owner: "1000", group: "1000", mode: "0755" }
   become: true
 
 - name: Create NFS sentinel directory
@@ -291,10 +293,51 @@
     replace: '\g<1>"{{ getent_group.docker[1] }}"\g<2>'
   become: true
 
+- name: Check if vaultwarden database exists before stack start
+  ansible.builtin.stat:
+    path: /var/lib/vaultwarden/db.sqlite3
+  register: vaultwarden_db_prestart
+  become: true
+
+- name: Set restored vaultwarden database owner to UID 1000
+  ansible.builtin.file:
+    path: /var/lib/vaultwarden/db.sqlite3
+    owner: "1000"
+    group: "1000"
+  become: true
+  when: vaultwarden_db_prestart.stat.exists
+
 - name: Deploy infra stack
   ansible.builtin.include_tasks: ../../../tasks/compose-deploy.yml
   vars:
     compose_project_src: /home/{{ ansible_user }}/homelab/services/diglett-infra
+
+# A database Vaultwarden creates on first start is root-owned. Litestream may
+# write root-owned temp files to the replica before it is chowned; those block
+# every later write, so remove them and restart Litestream.
+- name: Wait for vaultwarden database to exist
+  ansible.builtin.wait_for:
+    path: /var/lib/vaultwarden/db.sqlite3
+    timeout: 300
+  become: true
+
+- name: Set vaultwarden database owner to UID 1000
+  ansible.builtin.file:
+    path: /var/lib/vaultwarden/db.sqlite3
+    owner: "1000"
+    group: "1000"
+  register: vaultwarden_db_owner
+  become: true
+
+- name: Remove root-owned Litestream files from vaultwarden replica
+  ansible.builtin.command: find /mnt/nas/docker/vaultwarden-backup -user 0 -delete
+  when: vaultwarden_db_owner.changed
+  become: true
+
+- name: Restart vaultwarden Litestream
+  ansible.builtin.command: docker restart litestream
+  when: vaultwarden_db_owner.changed
+  become: true
 
 - name: Ensure step-ca root cert is world-readable (required by ca-page nginx container)
   ansible.builtin.file:

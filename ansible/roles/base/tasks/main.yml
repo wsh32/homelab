@@ -69,6 +69,23 @@
   become: true
   ignore_errors: true  # non-critical
 
+- name: Ensure journald drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Cap journald disk usage
+  ansible.builtin.copy:
+    dest: /etc/systemd/journald.conf.d/size.conf
+    content: |
+      [Journal]
+      SystemMaxUse=500M
+    mode: "0644"
+  become: true
+  notify: Restart journald
+
 - name: Ensure NFS mount directory exists
   ansible.builtin.file:
     path: /mnt/nas
