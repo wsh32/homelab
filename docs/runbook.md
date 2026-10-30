@@ -87,8 +87,9 @@ Log into TrueNAS at `https://192.168.0.4`:
    - `pool/photos`
    - `pool/lightroom`
 3. Sharing → NFS → Add a share for **each** dataset below.
-   For every share set **Mapall User: `ubuntu`** and **Mapall Group: `ubuntu`**,
-   and leave Maproot User/Group empty. Every client UID -- including root from
+   For every share except `/mnt/apps/terraform` set **Mapall User: `ubuntu`**
+   and **Mapall Group: `ubuntu`**, and leave Maproot User/Group empty.
+   `/mnt/apps/terraform` currently uses **Maproot User/Group: `root`/`root`**. Every client UID -- including root from
    `sudo`, Ansible `become`, and containers running as root -- then writes as
    UID/GID 1000, which matches the `PUID`/`user: "1000:1000"` the containers
    already use. Without a mapping, NFS root-squash maps root to `nobody` and
