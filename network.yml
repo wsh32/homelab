@@ -125,7 +125,7 @@ locations:
                 hostname: pokedex
                 port: 3000       # not published; Traefik reaches it on the compose network
                 nfs_data: docker/homepage
-                authentik: proxy
+                authentik: none  # LAN/tailnet only; widgets are read-only
               - name: cloudflared
                 authentik: none
                 traefik: false

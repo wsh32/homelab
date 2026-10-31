@@ -254,17 +254,14 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.pokedex-home.rule=Host(`pokedex.home`)"
       - "traefik.http.routers.pokedex-home.entrypoints=web"
-      - "traefik.http.routers.pokedex-home.middlewares=authentik@file"
       - "traefik.http.routers.pokedex-home-tls.rule=Host(`pokedex.home`)"
       - "traefik.http.routers.pokedex-home-tls.entrypoints=websecure"
       - "traefik.http.routers.pokedex-home-tls.tls=true"
       - "traefik.http.routers.pokedex-home-tls.tls.certresolver=step"
-      - "traefik.http.routers.pokedex-home-tls.middlewares=authentik@file"
       - "traefik.http.routers.pokedex-wsh-tls.rule=Host(`pokedex.wsh`)"
       - "traefik.http.routers.pokedex-wsh-tls.entrypoints=websecure"
       - "traefik.http.routers.pokedex-wsh-tls.tls=true"
       - "traefik.http.routers.pokedex-wsh-tls.tls.certresolver=step"
-      - "traefik.http.routers.pokedex-wsh-tls.middlewares=authentik@file"
       - "traefik.http.services.pokedex-svc.loadbalancer.server.port=3000"
 
   # ── Cloudflare Tunnel (Authentik OIDC) ────────────────────────────────────
