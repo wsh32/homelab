@@ -121,6 +121,11 @@ locations:
                 port: 9000
                 nfs_data: docker/authentik
                 authentik: none
+              - name: homepage
+                hostname: pokedex
+                port: 3000       # not published; Traefik reaches it on the compose network
+                nfs_data: docker/homepage
+                authentik: proxy
               - name: cloudflared
                 authentik: none
                 traefik: false
@@ -248,12 +253,6 @@ locations:
                 hostname: notes
                 port: 8080
                 nfs_data: docker/quartz
-                authentik: none
-              - name: homepage
-                hostname: home
-                port: 3000
-                host_port: 3001  # grafana owns host port 3000
-                nfs_data: docker/homepage
                 authentik: none
               - name: prometheus
                 port: 9090

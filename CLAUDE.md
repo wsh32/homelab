@@ -40,7 +40,7 @@ terraform/modules/proxmox-vm/  -- shared VM module, edit here for VM-level chang
 terraform/diglett/             -- Diglett VMs (DNS, HAOS)
 terraform/machamp/             -- Machamp VMs (Infra, Services, Dev)
 services/diglett-dns/          -- AdGuard Home + Headscale + cloudflared
-services/diglett-infra/        -- Infisical + Vaultwarden + Authentik + Litestream + Traefik
+services/diglett-infra/        -- Infisical + Vaultwarden + Authentik + Litestream + Traefik + Homepage
 services/machamp-media/     -- all Docker Compose services (Jellyfin, Grafana, etc.)
 scripts/                       -- bootstrap and init scripts (headless service setup)
 ansible/                       -- push-only config management for VMs and physical devices
@@ -63,6 +63,11 @@ docs/                          -- architecture docs, plan, TODOs
 
 Traefik routing (`.home` and `.wsh` routers + backend) is automatically generated from
 `network.yml` when `ansible/infra.yml` runs. No manual edits to `services-vm.yml`.
+
+Each service's tile on the Homepage dashboard (`pokedex.home`) is also generated from `network.yml` by the
+same run (`ansible/roles/infra/templates/homepage-services.yaml.j2`). Display names, icons
+and live widgets are set in `ansible/roles/infra/defaults/main.yml`; a widget's API key is
+read from Infisical by the key name listed in `homepage_widgets`.
 
 ## Adding a new VM
 

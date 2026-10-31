@@ -1,0 +1,15 @@
+# Homepage settings -- copied to /mnt/nas/docker/homepage by the infra Ansible role.
+# services.yaml and bookmarks.yaml are rendered from network.yml; do not add them here.
+# Reference: https://gethomepage.dev/configs/settings/
+title: Pokédex
+theme: dark
+color: slate
+headerStyle: clean
+statusStyle: dot
+hideVersion: true
+useEqualHeights: true
+
+layout:
+  machamp-media:
+    style: row
+    columns: 4
