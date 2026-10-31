@@ -1,0 +1,69 @@
+---
+# ── Homepage (pokedex) ────────────────────────────────────────────────────────
+# services.yaml is rendered from network.yml (all_location_services). These maps
+# only add presentation and widget details on top of that service list.
+
+homepage_config_dir: /mnt/nas/docker/homepage
+
+# Live widgets. `secret` is the Infisical key (machamp-media project) holding the
+# service's API key; the widget is only rendered once that key exists.
+homepage_widgets:
+  sonarr:
+    type: sonarr
+    secret: SONARR_API_KEY
+    options: { enableQueue: true }
+  radarr:
+    type: radarr
+    secret: RADARR_API_KEY
+    options: { enableQueue: true }
+  prowlarr:
+    type: prowlarr
+    secret: PROWLARR_API_KEY
+  bazarr:
+    type: bazarr
+    secret: BAZARR_API_KEY
+  jellyfin:
+    type: jellyfin
+    secret: JELLYFIN_API_KEY
+    # Widget version 2 is required for Jellyfin >= 10.12 / 12.x. The dashboard
+    # has no login, so playback controls and viewer names stay off.
+    options: { version: 2, enableBlocks: true, enableNowPlaying: true, enableUser: false, enableMediaControl: false }
+  seerr:
+    type: seerr
+    secret: SEERR_API_KEY
+
+# Services that are not rendered on the dashboard.
+homepage_exclude: [homepage]
+
+# Display names; anything not listed is title-cased from the service name.
+homepage_display_names:
+  adguardhome: AdGuard Home
+  qbittorrent: qBittorrent
+  sabnzbd: SABnzbd
+  photoprism: PhotoPrism
+  calibre-web: Calibre-Web
+  couchdb: CouchDB
+  n8n: n8n
+  step-ca: Root CA
+  tenderloin-web: Tenderloin
+  docs-web: Tenderloin Docs
+  choreboard: Choreboard
+  scramble-web: Scramble
+
+# Icon names from https://github.com/homarr-labs/dashboard-icons; anything not
+# listed uses "<service name>.png".
+homepage_icons:
+  adguardhome: adguard-home.png
+  step-ca: step-ca.png
+  calibre-web: calibre-web.png
+  quartz: obsidian.png
+  tenderloin-web: mdi-web
+  docs-web: mdi-book-open-variant
+  choreboard: mdi-broom
+  scramble-web: mdi-puzzle
+
+# Container names for services co-located with Homepage on the Traefik VM, used
+# for site monitoring over the compose network (their ports are not published).
+homepage_container_names:
+  authentik: authentik-server
+  step-ca: ca-page

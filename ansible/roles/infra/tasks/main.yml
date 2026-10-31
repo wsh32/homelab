@@ -95,6 +95,15 @@
     - /mnt/nas/docker/authentik/custom-templates
   become: true
 
+- name: Create Homepage NFS config directory
+  ansible.builtin.file:
+    path: "{{ homepage_config_dir }}"
+    state: directory
+    owner: "1000"
+    group: "1000"
+    mode: "0755"
+  become: true
+
 - name: Check for inconsistent state (data dir exists but NFS sentinel missing)
   ansible.builtin.shell: |
     sentinel=/mnt/nas/docker/infisical-backups/.secrets.env
@@ -279,6 +288,18 @@
   when:
     - not vaultwarden_db_check.stat.exists
     - vaultwarden_backup_check.stat.exists
+
+# Compose refuses to start without the env_file; widget keys are filled in by
+# homepage.yml once Infisical is up.
+- name: Ensure /etc/homepage.env exists
+  ansible.builtin.copy:
+    dest: /etc/homepage.env
+    content: ""
+    force: false
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
 
 - name: Get docker group GID
   ansible.builtin.getent:
@@ -658,6 +679,11 @@
   retries: 60
   delay: 5
   until: infisical_health.rc == 0
+
+# ── Homepage (pokedex) ────────────────────────────────────────────────────────
+
+- name: Configure Homepage
+  ansible.builtin.include_tasks: homepage.yml
 
 # ── Authentik OIDC bootstrap ──────────────────────────────────────────────────
 

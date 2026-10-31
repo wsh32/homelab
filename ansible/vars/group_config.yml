@@ -46,5 +46,3 @@ authentik_app_bindings:
     groups: [users, admins]
   - slug: calibre-web
     groups: [users, admins]
-  - slug: homepage
-    groups: [users, admins]

@@ -235,6 +235,35 @@ services:
       - "traefik.http.routers.ca-wsh-tls.tls.certresolver=step"
       - "traefik.http.services.ca-svc.loadbalancer.server.port=80"
 
+  # ── Homepage dashboard (pokedex) ──────────────────────────────────────────
+  # Config in /mnt/nas/docker/homepage is written by Ansible: services.yaml is
+  # rendered from network.yml, the rest is copied from ./homepage/. Widget API
+  # keys come from Infisical via /etc/homepage.env (HOMEPAGE_VAR_*).
+  homepage:
+    image: ghcr.io/gethomepage/homepage:v2.7.0
+    container_name: homepage
+    restart: unless-stopped
+    env_file: /etc/homepage.env
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: pokedex.home,pokedex.wsh
+      PUID: 1000
+      PGID: 1000
+    volumes:
+      - /mnt/nas/docker/homepage:/app/config
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pokedex-home.rule=Host(`pokedex.home`)"
+      - "traefik.http.routers.pokedex-home.entrypoints=web"
+      - "traefik.http.routers.pokedex-home-tls.rule=Host(`pokedex.home`)"
+      - "traefik.http.routers.pokedex-home-tls.entrypoints=websecure"
+      - "traefik.http.routers.pokedex-home-tls.tls=true"
+      - "traefik.http.routers.pokedex-home-tls.tls.certresolver=step"
+      - "traefik.http.routers.pokedex-wsh-tls.rule=Host(`pokedex.wsh`)"
+      - "traefik.http.routers.pokedex-wsh-tls.entrypoints=websecure"
+      - "traefik.http.routers.pokedex-wsh-tls.tls=true"
+      - "traefik.http.routers.pokedex-wsh-tls.tls.certresolver=step"
+      - "traefik.http.services.pokedex-svc.loadbalancer.server.port=3000"
+
   # ── Cloudflare Tunnel (Authentik OIDC) ────────────────────────────────────
   # Exposes only /application/o/ (Authentik OIDC) publicly via Cloudflare Tunnel.
   # Token written to /etc/cloudflare-tunnel.env by Ansible (ansible/roles/infra/tasks/main.yml).
