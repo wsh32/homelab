@@ -1,11 +1,5 @@
 # Homepage info widgets (top bar) -- copied by the infra Ansible role.
 # Reference: https://gethomepage.dev/widgets/info/
-- resources:
-    label: diglett-infra
-    cpu: true
-    memory: true
-    disk: /
-
 - search:
     provider: duckduckgo
     target: _blank
